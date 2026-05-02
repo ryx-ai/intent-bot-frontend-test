@@ -3,7 +3,27 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
+import { api, ApiError } from "@/lib/api";
+
+interface UserInfo {
+  name: string;
+  role?: string;
+}
+
+function getInitials(name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) return "?";
+  const initials = trimmed
+    .split(/\s+/)
+    .map((n) => n[0])
+    .filter(Boolean)
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+  return initials || "?";
+}
 
 const NAV_ITEMS = [
   { label: "Testing Platform", href: "/workspace/testing" },
@@ -17,6 +37,12 @@ const SETTINGS_ITEMS = [
   { label: "AI Core Metrics", href: "/workspace/metrics" },
 ];
 
+// `pathname === href` would never highlight nested routes like
+// `/workspace/knowledge/anything`. Treat any descendant URL as active.
+function matchesNav(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(href + "/");
+}
+
 export default function WorkspaceLayout({
   children,
 }: {
@@ -24,17 +50,38 @@ export default function WorkspaceLayout({
 }) {
   const pathname = usePathname();
   const { logout } = useAuth();
+  const [user, setUser] = useState<UserInfo | null>(null);
+
+  useEffect(() => {
+    api
+      .get<UserInfo>("/api/auth/me")
+      .then(setUser)
+      .catch((err) => {
+        // 401 already triggers a redirect inside api.ts. Other failures
+        // (transient 5xx, network blip, CORS) shouldn't punt the user back
+        // to login — that destroys in-progress edits on every backend hiccup.
+        if (err instanceof ApiError && err.status === 401) {
+          // api.ts has already set window.location.href; nothing to do.
+          return;
+        }
+        console.error("Failed to load user info", err);
+        setUser(null);
+      });
+  }, []);
 
   return (
     <div
       style={{
         display: "flex",
-        width: "100vw",
+        // 100vw includes the vertical-scrollbar gutter on Windows browsers,
+        // producing a phantom horizontal scrollbar across every workspace
+        // page. 100% confines the layout to the actual content area.
+        width: "100%",
         height: "100vh",
         overflow: "hidden",
         fontFamily: "'Inter', sans-serif",
-        background: "#000",
-        color: "#e6e8eb",
+        backgroundColor: "var(--bg)",
+        color: "var(--text-primary)",
       }}
     >
       {/* ── Sidebar ── */}
@@ -44,8 +91,8 @@ export default function WorkspaceLayout({
           flexShrink: 0,
           display: "flex",
           flexDirection: "column",
-          background: "#0a0b0d",
-          borderRight: "1px solid #2b2f36",
+          backgroundColor: "var(--bg-sidebar)",
+          borderRight: "1px solid var(--border)",
           padding: "1.5rem 1rem",
         }}
       >
@@ -66,7 +113,7 @@ export default function WorkspaceLayout({
           style={{
             fontSize: "0.75rem",
             textTransform: "uppercase",
-            color: "#9aa0a6",
+            color: "var(--text-secondary)",
             fontWeight: 600,
             letterSpacing: "0.05em",
             marginBottom: "0.75rem",
@@ -77,7 +124,7 @@ export default function WorkspaceLayout({
         </div>
         <ul style={{ display: "flex", flexDirection: "column", gap: "0.25rem", listStyle: "none", padding: 0, margin: "0 0 1.5rem 0" }}>
           {NAV_ITEMS.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive = matchesNav(pathname, item.href);
             return (
               <li key={item.href}>
                 <Link
@@ -88,8 +135,8 @@ export default function WorkspaceLayout({
                     borderRadius: 6,
                     fontSize: "0.9rem",
                     fontWeight: isActive ? 600 : 500,
-                    color: isActive ? "#6b4cff" : "#9aa0a6",
-                    background: isActive ? "#191c21" : "transparent",
+                    color: isActive ? "var(--accent)" : "var(--text-secondary)",
+                    background: isActive ? "var(--bg-hover)" : "transparent",
                     textDecoration: "none",
                     transition: "all 0.2s ease",
                   }}
@@ -106,7 +153,7 @@ export default function WorkspaceLayout({
           style={{
             fontSize: "0.75rem",
             textTransform: "uppercase",
-            color: "#9aa0a6",
+            color: "var(--text-secondary)",
             fontWeight: 600,
             letterSpacing: "0.05em",
             marginBottom: "0.75rem",
@@ -117,7 +164,7 @@ export default function WorkspaceLayout({
         </div>
         <ul style={{ display: "flex", flexDirection: "column", gap: "0.25rem", listStyle: "none", padding: 0, margin: 0 }}>
           {SETTINGS_ITEMS.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive = matchesNav(pathname, item.href);
             return (
               <li key={item.href}>
                 <Link
@@ -128,8 +175,8 @@ export default function WorkspaceLayout({
                     borderRadius: 6,
                     fontSize: "0.9rem",
                     fontWeight: isActive ? 600 : 500,
-                    color: isActive ? "#6b4cff" : "#9aa0a6",
-                    background: isActive ? "#191c21" : "transparent",
+                    color: isActive ? "var(--accent)" : "var(--text-secondary)",
+                    background: isActive ? "var(--bg-hover)" : "transparent",
                     textDecoration: "none",
                     transition: "all 0.2s ease",
                   }}
@@ -142,14 +189,14 @@ export default function WorkspaceLayout({
         </ul>
 
         {/* Footer: User + Logout */}
-        <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid #2b2f36" }}>
+        <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid var(--border)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", padding: "0.6rem 0.5rem", marginBottom: "0.25rem" }}>
             <div
               style={{
                 width: 28,
                 height: 28,
                 borderRadius: "50%",
-                background: "#6b4cff",
+                background: "var(--accent)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -159,13 +206,13 @@ export default function WorkspaceLayout({
                 flexShrink: 0,
               }}
             >
-              UK
+              {user ? getInitials(user.name) : "—"}
             </div>
             <div style={{ overflow: "hidden" }}>
-              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "#e6e8eb", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                Unnikrishnan
+              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {user?.name ?? "Loading..."}
               </div>
-              <div style={{ fontSize: "0.7rem", color: "#9aa0a6" }}>Administrator</div>
+              <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>{user?.role ?? "Member"}</div>
             </div>
           </div>
           <button
@@ -179,7 +226,7 @@ export default function WorkspaceLayout({
               borderRadius: 6,
               background: "transparent",
               border: "none",
-              color: "#9aa0a6",
+              color: "var(--text-secondary)",
               fontSize: "0.875rem",
               fontWeight: 500,
               fontFamily: "'Inter', sans-serif",
@@ -204,7 +251,7 @@ export default function WorkspaceLayout({
           flexGrow: 1,
           height: "100%",
           overflowY: "auto",
-          background: "#0f1115",
+          backgroundColor: "var(--bg)",
         }}
       >
         {children}

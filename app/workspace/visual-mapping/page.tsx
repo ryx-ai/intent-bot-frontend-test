@@ -19,6 +19,7 @@ export default function VisualMappingPage() {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [editError, setEditError] = useState("");
+  const [toast, setToast] = useState("");
 
   async function fetchMappings() {
     try {
@@ -45,11 +46,17 @@ export default function VisualMappingPage() {
   }
 
   async function finishEdit(oldKey: string) {
-    const newKey = editValue.trim().toLowerCase().replace(/\s+/g, "_");
-    setEditError("");
+    if (!editingKey) return; // guard against double-fire (Enter + blur)
+    const newKey = editValue
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "");
 
     if (!newKey || newKey === oldKey) {
       setEditingKey(null);
+      setEditError("");
       return;
     }
 
@@ -58,19 +65,26 @@ export default function VisualMappingPage() {
       return;
     }
 
+    // Close the editor *before* awaiting so a follow-up blur or Enter event
+    // can't trigger a second rename of the same row.
+    setEditingKey(null);
+    setEditError("");
+
     try {
       await api.patch("/api/visual-mapping/rename", {
         old_key: oldKey,
         new_key: newKey,
       });
-      setEditingKey(null);
       fetchMappings();
+      setToast("Renamed");
+      setTimeout(() => setToast(""), 3000);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        setEditError("Duplicate key");
-      } else {
-        setEditError("Rename failed");
-      }
+      const msg =
+        err instanceof ApiError && err.status === 409
+          ? "Rename failed: duplicate key"
+          : "Rename failed";
+      setToast(msg);
+      setTimeout(() => setToast(""), 3000);
     }
   }
 
@@ -81,15 +95,19 @@ export default function VisualMappingPage() {
     try {
       await api.delete(`/api/visual-mapping/${encodeURIComponent(keyword)}`);
       fetchMappings();
+      setToast("Mapping deleted");
     } catch {
-      alert("Delete failed");
+      setToast("Delete failed");
     }
+    setTimeout(() => setToast(""), 3000);
   }
 
-  // Resolve image URL
+  // Resolve image URL — use the Next.js proxy so it works in all environments
   function resolveImageUrl(path: string) {
-    if (path.startsWith("/")) return `http://127.0.0.1:8003${path}`;
-    return path;
+    if (!path) return path;
+    if (path.startsWith("http://") || path.startsWith("https://")) return path;
+    if (path.startsWith("/")) return path;
+    return `/static/${path}`;
   }
 
   return (
@@ -97,10 +115,10 @@ export default function VisualMappingPage() {
       {/* Header */}
       <header style={{ marginBottom: "2rem", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h1 style={{ margin: "0 0 0.25rem 0", fontSize: "1.75rem", fontWeight: 600, color: "#e6e8eb" }}>
+          <h1 style={{ margin: "0 0 0.25rem 0", fontSize: "1.5rem", fontWeight: 800, color: "#fff" }}>
             AI Visual Intelligence Map
           </h1>
-          <p style={{ marginTop: "0.5rem", color: "#9aa0a6", fontSize: "0.95rem" }}>
+          <p style={{ marginTop: "0.5rem", color: "var(--text-muted)", fontSize: "0.88rem" }}>
             This gallery represents the AI&apos;s internal visual decision logic. When a user conversation triggers one of these unique keywords, the engine automatically serves the associated image layout.
             <strong style={{ color: "#d8b4fe" }}> Click any keyword badge to rename it.</strong>
           </p>
@@ -119,32 +137,34 @@ export default function VisualMappingPage() {
             setLoading(true);
             fetchMappings();
           }}
+          disabled={loading}
           style={{
             display: "inline-flex",
             alignItems: "center",
             gap: 8,
             padding: "0.65rem 1.25rem",
-            background: "linear-gradient(135deg, rgba(107, 76, 255, 0.15) 0%, rgba(107, 76, 255, 0.08) 100%)",
+            background: "linear-gradient(135deg, var(--accent-dim) 0%, rgba(107, 76, 255, 0.08) 100%)",
             border: "1px solid rgba(107, 76, 255, 0.35)",
             borderRadius: 10,
             color: "#c4b5fd",
             fontSize: "0.85rem",
             fontWeight: 600,
             fontFamily: "'Inter', sans-serif",
-            cursor: "pointer",
+            cursor: loading ? "not-allowed" : "pointer",
+            opacity: loading ? 0.6 : 1,
             transition: "all 0.25s ease",
             whiteSpace: "nowrap",
             flexShrink: 0
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "linear-gradient(135deg, rgba(107, 76, 255, 0.28) 0%, rgba(107, 76, 255, 0.15) 100%)";
+            e.currentTarget.style.background = "linear-gradient(135deg, rgba(107, 76, 255, 0.28) 0%, var(--accent-dim) 100%)";
             e.currentTarget.style.borderColor = "rgba(107, 76, 255, 0.65)";
             e.currentTarget.style.color = "#e9d5ff";
             e.currentTarget.style.transform = "translateY(-1px)";
             e.currentTarget.style.boxShadow = "0 6px 20px rgba(107, 76, 255, 0.2)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = "linear-gradient(135deg, rgba(107, 76, 255, 0.15) 0%, rgba(107, 76, 255, 0.08) 100%)";
+            e.currentTarget.style.background = "linear-gradient(135deg, var(--accent-dim) 0%, rgba(107, 76, 255, 0.08) 100%)";
             e.currentTarget.style.borderColor = "rgba(107, 76, 255, 0.35)";
             e.currentTarget.style.color = "#c4b5fd";
             e.currentTarget.style.transform = "translateY(0)";
@@ -156,21 +176,21 @@ export default function VisualMappingPage() {
             <polyline points="1 20 1 14 7 14"/>
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
           </svg>
-          Refresh Matrix
+          {loading ? "Refreshing..." : "Refresh Matrix"}
         </button>
       </header>
 
       {/* Gallery grid */}
       {loading ? (
-        <div style={{ padding: "5rem", textAlign: "center", color: "#9aa0a6" }}>
+        <div style={{ padding: "5rem", textAlign: "center", color: "var(--text-secondary)" }}>
           Loading visual intelligence matrix...
         </div>
       ) : keys.length === 0 ? (
-        <div style={{ background: "#191c21", border: "1px solid #2b2f36", borderRadius: 12, padding: "4rem 2rem", textAlign: "center" }}>
-          <h3 style={{ margin: "0 0 0.5rem 0", fontSize: "1.1rem", fontWeight: 600, color: "#e6e8eb" }}>
+        <div style={{ backgroundColor: "var(--bg-hover)", border: "1px solid var(--border)", borderRadius: 12, padding: "4rem 2rem", textAlign: "center" }}>
+          <h3 style={{ margin: "0 0 0.5rem 0", fontSize: "1.1rem", fontWeight: 600, color: "var(--text-primary)" }}>
             No Visual Mappings Found
           </h3>
-          <p style={{ margin: 0, color: "#9aa0a6" }}>
+          <p style={{ margin: 0, color: "var(--text-secondary)" }}>
             Upload a presentation PDF in the Knowledge Lake to generate AI
             visual mappings.
           </p>
@@ -185,8 +205,8 @@ export default function VisualMappingPage() {
               <div
                 key={keyword}
                 style={{
-                  background: "#191c21",
-                  border: "1px solid #2b2f36",
+                  backgroundColor: "var(--bg-card)",
+                  border: "1px solid var(--border)",
                   borderRadius: 12,
                   overflow: "hidden",
                   boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
@@ -195,16 +215,18 @@ export default function VisualMappingPage() {
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = "translateY(-4px)";
-                  e.currentTarget.style.borderColor = "#6b4cff";
+                  e.currentTarget.style.borderColor = "var(--accent)";
                   e.currentTarget.style.boxShadow = "0 8px 15px rgba(107, 76, 255, 0.2)";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.borderColor = "#2b2f36";
+                  e.currentTarget.style.borderColor = "var(--border)";
                   e.currentTarget.style.boxShadow = "0 4px 6px rgba(0, 0, 0, 0.1)";
                 }}
               >
-                {/* Delete button */}
+                {/* Delete button — hidden while this row is being renamed so
+                    the mid-edit click can't race with the rename PATCH. */}
+                {!isEditing && (
                 <button
                   onClick={() => handleDelete(keyword)}
                   style={{
@@ -217,7 +239,7 @@ export default function VisualMappingPage() {
                     borderRadius: "50%",
                     background: "rgba(0,0,0,0.7)",
                     border: "1px solid rgba(239, 68, 68, 0.3)",
-                    color: "#ef4444",
+                    color: "var(--error)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -234,9 +256,10 @@ export default function VisualMappingPage() {
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                   </svg>
                 </button>
+                )}
 
                 {/* Image */}
-                <div style={{ width: "100%", aspectRatio: "16/9", background: "#1f2937", borderBottom: "1px solid #2b2f36", overflow: "hidden" }}>
+                <div style={{ width: "100%", aspectRatio: "16/9", backgroundColor: "var(--bg-surface)", borderBottom: "1px solid var(--border)", overflow: "hidden" }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={resolveImageUrl(data.path)}
@@ -255,7 +278,7 @@ export default function VisualMappingPage() {
                 <div style={{ padding: "1.5rem" }}>
                   {/* Keyword badge */}
                   {isEditing ? (
-                    <div style={{ marginBottom: "0.75rem" }}>
+                    <div style={{ marginBottom: "0.75rem", position: "relative" }}>
                       <input
                         autoFocus
                         value={editValue}
@@ -264,7 +287,7 @@ export default function VisualMappingPage() {
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             e.preventDefault();
-                            finishEdit(keyword);
+                            (e.target as HTMLInputElement).blur();
                           }
                           if (e.key === "Escape") setEditingKey(null);
                         }}
@@ -285,7 +308,7 @@ export default function VisualMappingPage() {
                         }}
                       />
                       {editError && (
-                        <div style={{ position: "absolute", marginTop: 4, background: "#1f2937", border: "1px solid rgba(239, 68, 68, 0.4)", color: "#fca5a5", fontSize: "0.72rem", padding: "4px 10px", borderRadius: 6, whiteSpace: "nowrap", zIndex: 10 }}>
+                        <div style={{ position: "absolute", marginTop: 4, backgroundColor: "var(--bg-surface)", border: "1px solid rgba(239, 68, 68, 0.4)", color: "#fca5a5", fontSize: "0.72rem", padding: "4px 10px", borderRadius: 6, whiteSpace: "nowrap", zIndex: 10 }}>
                           {editError}
                         </div>
                       )}
@@ -304,7 +327,7 @@ export default function VisualMappingPage() {
                         fontSize: "0.85rem",
                         fontWeight: 600,
                         marginBottom: "0.75rem",
-                        border: "1px solid rgba(107, 76, 255, 0.3)",
+                        border: "1px solid var(--accent-glow)",
                         textTransform: "uppercase",
                         letterSpacing: 0.5,
                         cursor: "pointer",
@@ -316,7 +339,7 @@ export default function VisualMappingPage() {
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = "rgba(107, 76, 255, 0.2)";
-                        e.currentTarget.style.borderColor = "rgba(107, 76, 255, 0.3)";
+                        e.currentTarget.style.borderColor = "var(--accent-glow)";
                       }}
                     >
                       {keyword}
@@ -324,16 +347,26 @@ export default function VisualMappingPage() {
                     </button>
                   )}
 
-                  <p style={{ margin: "0 0 0.25rem 0", fontSize: "0.85rem", color: "#9aa0a6" }}>
+                  <p style={{ margin: "0 0 0.25rem 0", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
                     {data.description || "Auto-generated visual asset"}
                   </p>
-                  <p style={{ margin: 0, fontSize: "0.75rem", color: "#64748b" }}>
+                  <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--text-muted)" }}>
                     📄 {data.source || "Knowledge Lake Upload"}
                   </p>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+      {toast && (
+        <div style={{
+          position: "fixed", bottom: 20, right: 20, zIndex: 50,
+          background: toast.includes("failed") || toast.includes("Failed") ? "var(--error)" : "var(--success)",
+          color: "#fff", borderRadius: 8, padding: "0.7rem 1.5rem",
+          fontSize: "0.85rem", fontWeight: 600,
+        }}>
+          {toast}
         </div>
       )}
     </div>

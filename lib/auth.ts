@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback } from "react";
-import { api } from "./api";
+import { api, ApiError } from "./api";
 
 /**
  * Auth hook — provides login, logout, and redirect helpers.
@@ -17,17 +17,30 @@ export function useAuth() {
         email,
         password,
       });
-      if (res.status === "success") {
-        router.push("/workspace");
+      // Treat any non-"success" body as a failure so the caller's catch runs
+      // (otherwise the login page would show "Access Granted" without ever
+      // navigating).
+      if (res.status !== "success") {
+        throw new ApiError("Login did not succeed", 500);
       }
+      router.push("/workspace");
       return res;
     },
     [router]
   );
 
   const logout = useCallback(async () => {
-    await api.post("/api/auth/logout");
-    router.push("/");
+    // If the server call fails, the auth cookie is httponly — the client
+    // can't clear it. Pretending to log out would be a lie (a stolen device
+    // would still be authenticated). Surface the error and stay put so the
+    // user can retry.
+    try {
+      await api.post("/api/auth/logout");
+      router.push("/");
+    } catch (err) {
+      console.error("Logout failed", err);
+      alert("Logout failed. Please check your connection and try again.");
+    }
   }, [router]);
 
   return { login, logout };

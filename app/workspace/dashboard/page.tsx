@@ -1,7 +1,9 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
+
+const ANALYTICS_LIMIT = 500;
 
 /* ── Types ─────────────────────────────────────────────────── */
 interface MetricConfig {
@@ -15,11 +17,6 @@ interface AnalyticsRow {
   timestamp: string;
   session_id: string;
   user_message: string;
-  conversion_outcome?: string;
-  lead_stage?: string;
-  use_case?: string;
-  lead_score?: string;
-  customer_budget?: string;
   [key: string]: string | undefined;
 }
 
@@ -43,32 +40,32 @@ function getBadgeStyle(metricId: string, val: string) {
   };
 
   if (metricId.includes("score")) {
-    const num = parseInt(val);
+    const num = parseInt(val, 10);
     if (!isNaN(num)) {
       if (num >= 75) // hot
-        return { ...baseStyle, background: "#2b1111", color: "#fc5c5c" };
+        return { ...baseStyle, background: "#2d1515", color: "#fc5c5c" };
       if (num >= 40) // warm
-        return { ...baseStyle, background: "#2e2112", color: "#ffae42" };
-      return { ...baseStyle, background: "#122129", color: "#4db8ff" }; // cold
+        return { ...baseStyle, background: "#2d1f0e", color: "#ffae42" };
+      return { ...baseStyle, background: "#0f1e2d", color: "#4db8ff" }; // cold
     }
   }
 
   if (val === "lead_captured") {
-    return { ...baseStyle, background: "#0e291e", color: "#32d583", fontWeight: 600 };
+    return { ...baseStyle, background: "#0d2318", color: "#32d583", fontWeight: 600 };
   }
   if (val === "booked_demo") {
-    return { ...baseStyle, background: "#6b4cff", color: "#fff", fontWeight: 600 };
+    return { ...baseStyle, background: "var(--accent)", color: "#fff", fontWeight: 600 };
   }
   if (val === "dropped") {
-    return { ...baseStyle, background: "#331515", color: "#ff6b6b" };
+    return { ...baseStyle, background: "#2d1515", color: "#ff6b6b" };
   }
   
   if (val === "just_chat" || val === "unknown") {
-    return { ...baseStyle, background: "#3b3e45", color: val === "just_chat" ? "#fff" : "#9aa0a6" };
+    return { ...baseStyle, background: "#2a2d45", color: val === "just_chat" ? "#fff" : "var(--text-secondary)" };
   }
 
   // fallback
-  return { ...baseStyle, background: "#3b3e45", color: "#e6e8eb" };
+  return { ...baseStyle, background: "#2a2d45", color: "var(--text-primary)" };
 }
 
 /* ── Component ─────────────────────────────────────────────── */
@@ -77,69 +74,78 @@ export default function DashboardPage() {
   const [metrics, setMetrics] = useState<MetricConfig[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // When the backend reports more rows than we fetched, surface that to the
+  // user rather than silently showing a partial dashboard.
+  const [truncated, setTruncated] = useState<{ shown: number; total: number } | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [metricsData, analyticsResponse] = await Promise.all([
+        api.get<MetricConfig[]>("/api/metrics/config"),
+        api.get<{ records: AnalyticsRow[]; total: number }>(
+          `/api/analytics?limit=${ANALYTICS_LIMIT}`
+        ),
+      ]);
+
+      const analyticsData = analyticsResponse.records || [];
+      const total = analyticsResponse.total ?? analyticsData.length;
+      setTruncated(
+        total > analyticsData.length ? { shown: analyticsData.length, total } : null
+      );
+      setMetrics(metricsData.filter((m) => m.display_on_dashboard));
+
+      // Group rows by session, then sort each session's messages once
+      // (chronologically ascending). Doing it here — not in render — avoids
+      // mutating arrays during render and lets us derive first/last cheaply.
+      const buckets: Record<string, AnalyticsRow[]> = {};
+      analyticsData.forEach((row) => {
+        (buckets[row.session_id] ??= []).push(row);
+      });
+
+      const arr: Session[] = Object.entries(buckets).map(([sessionId, rows]) => {
+        const sorted = [...rows].sort(
+          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+        const first = sorted[0];
+        const last = sorted[sorted.length - 1];
+        const finalValues: Record<string, string> = {};
+        metricsData.forEach((m) => {
+          finalValues[m.id] = (last && last[m.id]) || "unknown";
+        });
+        return {
+          id: sessionId,
+          messages: sorted,
+          latestTime: new Date(last.timestamp),
+          firstMessage: first.user_message || "...",
+          finalValues,
+        };
+      });
+
+      arr.sort((a, b) => b.latestTime.getTime() - a.latestTime.getTime());
+      setSessions(arr);
+    } catch (err) {
+      console.error("Failed to load dashboard data", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    async function load() {
-      try {
-        const [metricsData, analyticsResponse] = await Promise.all([
-          api.get<MetricConfig[]>("/api/metrics/config"),
-          api.get<{ records: AnalyticsRow[]; total: number }>("/api/analytics?limit=1000"),
-        ]);
-
-        const analyticsData = analyticsResponse.records || [];
-        setMetrics(metricsData.filter((m) => m.display_on_dashboard));
-
-        // Group by session
-        const map: Record<string, Session> = {};
-        analyticsData.forEach((row) => {
-          if (!map[row.session_id]) {
-            map[row.session_id] = {
-              id: row.session_id,
-              messages: [],
-              latestTime: new Date(row.timestamp),
-              firstMessage: row.user_message || "...",
-              finalValues: {},
-            };
-          }
-          const session = map[row.session_id];
-          const rowTime = new Date(row.timestamp);
-          session.messages.push(row);
-
-          if (rowTime >= session.latestTime) {
-            session.latestTime = rowTime;
-            metricsData.forEach((m) => {
-              session.finalValues[m.id] = row[m.id] || "unknown";
-            });
-          }
-          if (session.messages.length === 1) {
-            session.firstMessage = row.user_message;
-          }
-        });
-
-        const arr = Object.values(map);
-        arr.sort((a, b) => b.latestTime.getTime() - a.latestTime.getTime());
-        setSessions(arr);
-      } catch (err) {
-        console.error("Failed to load dashboard data", err);
-      } finally {
-        setLoading(false);
-      }
-    }
     load();
-  }, []);
+  }, [load]);
 
   // ── Computed stats ──
   const totalSessions = sessions.length;
-  const highIntentLeads = sessions.filter(
-    (s) =>
-      s.finalValues.conversion_outcome === "lead_captured" ||
-      s.finalValues.conversion_outcome === "booked_demo"
-  ).length;
+
+  // Find score metric dynamically (any metric with "score" in its ID)
+  const scoreMetric = metrics.find((m) => m.id.includes("score"));
   const avgScore = (() => {
+    if (!scoreMetric) return "--";
     let total = 0,
       count = 0;
     sessions.forEach((s) => {
-      const n = parseInt(s.finalValues.lead_score);
+      const n = parseInt(s.finalValues[scoreMetric.id], 10);
       if (!isNaN(n)) {
         total += n;
         count++;
@@ -147,6 +153,15 @@ export default function DashboardPage() {
     });
     return count > 0 ? Math.round(total / count) : "--";
   })();
+
+  // Find conversion metric dynamically (any metric with "conversion" or "outcome" in its ID)
+  const conversionMetric = metrics.find((m) => m.id.includes("conversion") || m.id.includes("outcome"));
+  const highIntentLeads = conversionMetric
+    ? sessions.filter((s) => {
+        const val = s.finalValues[conversionMetric.id];
+        return val === "lead_captured" || val === "booked_demo";
+      }).length
+    : 0;
 
   return (
     <div style={{ maxWidth: 1400, margin: "0 auto", padding: "2rem" }}>
@@ -158,29 +173,60 @@ export default function DashboardPage() {
           alignItems: "flex-end",
           marginBottom: "2.5rem",
           paddingBottom: "1.5rem",
-          borderBottom: "1px solid #2b2f36",
+          borderBottom: "1px solid var(--border)",
         }}
       >
         <div>
-          <h1 style={{ margin: "0 0 0.25rem 0", fontSize: "1.75rem", fontWeight: 600, color: "#e6e8eb" }}>
+          <h1 style={{ margin: "0 0 0.25rem 0", fontSize: "1.5rem", fontWeight: 800, color: "#fff" }}>
             Intent Flow Engine
           </h1>
-          <p style={{ margin: 0, color: "#9aa0a6", fontSize: "0.95rem" }}>
+          <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.88rem" }}>
             Real-time Conversation Analytics
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: "1.5rem" }}>
+        <div style={{ display: "flex", gap: "1.5rem", alignItems: "stretch" }}>
+          <button
+            onClick={load}
+            disabled={loading}
+            title="Refresh analytics"
+            style={{
+              alignSelf: "stretch",
+              padding: "0 1rem",
+              background: "transparent",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              color: "var(--text-secondary)",
+              fontSize: "0.85rem",
+              fontWeight: 500,
+              cursor: loading ? "not-allowed" : "pointer",
+              opacity: loading ? 0.5 : 1,
+              fontFamily: "inherit",
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={(e) => {
+              if (!loading) {
+                e.currentTarget.style.borderColor = "var(--accent)";
+                e.currentTarget.style.color = "var(--accent)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "var(--border)";
+              e.currentTarget.style.color = "var(--text-secondary)";
+            }}
+          >
+            {loading ? "Refreshing…" : "↻ Refresh"}
+          </button>
           {[
             { label: "Total Sessions", value: totalSessions },
-            { label: "High-Intent Leads", value: highIntentLeads },
-            { label: "Avg Lead Score", value: avgScore },
+            { label: "High-Intent Leads", value: conversionMetric ? highIntentLeads : "N/A", hint: !conversionMetric ? "No conversion metric configured" : "" },
+            { label: "Avg Lead Score", value: avgScore, hint: !scoreMetric ? "No score metric configured" : "" },
           ].map((card) => (
             <div
               key={card.label}
               style={{
-                background: "#191c21",
-                border: "1px solid #2b2f36",
+                backgroundColor: "var(--bg-card)",
+                border: "1px solid var(--border)",
                 padding: "1rem 1.5rem",
                 borderRadius: 8,
                 minWidth: 140,
@@ -188,36 +234,60 @@ export default function DashboardPage() {
                 flexDirection: "column",
               }}
             >
-              <span style={{ fontSize: "0.8rem", color: "#9aa0a6", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>
                 {card.label}
               </span>
-              <span style={{ fontSize: "1.8rem", fontWeight: 600, color: "#6b4cff" }}>
+              <span style={{ fontSize: "1.8rem", fontWeight: 600, color: "var(--accent)" }}>
                 {card.value}
               </span>
+              {card.hint && (
+                <span style={{ fontSize: "0.7rem", color: "var(--warning)", marginTop: "0.25rem" }}>
+                  {card.hint}
+                </span>
+              )}
             </div>
           ))}
         </div>
       </header>
 
+      {/* Truncation warning when the backend has more rows than we fetched. */}
+      {truncated && (
+        <div
+          style={{
+            marginBottom: "1rem",
+            padding: "0.75rem 1rem",
+            background: "rgba(255, 174, 66, 0.08)",
+            border: "1px solid rgba(255, 174, 66, 0.3)",
+            borderRadius: 8,
+            color: "var(--warning)",
+            fontSize: "0.85rem",
+          }}
+        >
+          Showing the most recent {truncated.shown.toLocaleString()} of{" "}
+          {truncated.total.toLocaleString()} analytics rows. Older sessions are not
+          included in stats below.
+        </div>
+      )}
+
       {/* ── Table Container ── */}
-      <div style={{ background: "#191c21", border: "1px solid #2b2f36", borderRadius: 8, overflow: "hidden" }}>
+      <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
         {loading ? (
-          <div style={{ padding: "5rem", textAlign: "center", color: "#9aa0a6" }}>
+          <div style={{ padding: "5rem", textAlign: "center", color: "var(--text-secondary)" }}>
             Loading analytics...
           </div>
         ) : sessions.length === 0 ? (
-          <div style={{ padding: "5rem", textAlign: "center", color: "#64748b" }}>
+          <div style={{ padding: "5rem", textAlign: "center", color: "var(--text-muted)" }}>
             No interactions tracked yet. Start chatting!
           </div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
             <thead>
               <tr>
-                <th style={{ background: "#14171a", color: "#9aa0a6", fontWeight: 500, fontSize: "0.85rem", padding: "1rem", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #2b2f36" }}>Time</th>
-                <th style={{ background: "#14171a", color: "#9aa0a6", fontWeight: 500, fontSize: "0.85rem", padding: "1rem", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #2b2f36" }}>Session</th>
-                <th style={{ background: "#14171a", color: "#9aa0a6", fontWeight: 500, fontSize: "0.85rem", padding: "1rem", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #2b2f36" }}>Message</th>
+                <th style={{ backgroundColor: "var(--bg-surface)", color: "var(--text-secondary)", fontWeight: 500, fontSize: "0.85rem", padding: "1rem", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid var(--border)" }}>Time</th>
+                <th style={{ backgroundColor: "var(--bg-surface)", color: "var(--text-secondary)", fontWeight: 500, fontSize: "0.85rem", padding: "1rem", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid var(--border)" }}>Session</th>
+                <th style={{ backgroundColor: "var(--bg-surface)", color: "var(--text-secondary)", fontWeight: 500, fontSize: "0.85rem", padding: "1rem", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid var(--border)" }}>Message</th>
                 {metrics.map((m) => (
-                  <th key={m.id} style={{ background: "#14171a", color: "#9aa0a6", fontWeight: 500, fontSize: "0.85rem", padding: "1rem", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #2b2f36" }}>
+                  <th key={m.id} style={{ backgroundColor: "var(--bg-surface)", color: "var(--text-secondary)", fontWeight: 500, fontSize: "0.85rem", padding: "1rem", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid var(--border)" }}>
                     {m.name}
                   </th>
                 ))}
@@ -231,8 +301,7 @@ export default function DashboardPage() {
                   day: "numeric",
                   hour: "2-digit",
                   minute: "2-digit",
-                  timeZone: "Asia/Kolkata",
-                });
+                                  });
                 
                 return (
                   <Fragment key={session.id}>
@@ -246,21 +315,21 @@ export default function DashboardPage() {
                       onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.02)"}
                       onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isExpanded ? "rgba(255, 255, 255, 0.02)" : "transparent"}
                     >
-                      <td style={{ padding: "1rem", borderBottom: "1px solid #2b2f36", color: "#9aa0a6", fontSize: "0.85rem", whiteSpace: "nowrap" }}>
+                      <td style={{ padding: "1rem", borderBottom: "1px solid var(--border)", color: "var(--text-secondary)", fontSize: "0.85rem", whiteSpace: "nowrap" }}>
                         {timeStr}
                         <span style={{ fontSize: "0.7rem", marginLeft: 4 }}>{isExpanded ? "▲" : "▼"}</span>
                       </td>
-                      <td style={{ padding: "1rem", borderBottom: "1px solid #2b2f36", fontFamily: "monospace", color: "#9aa0a6", fontSize: "0.85rem" }}>
+                      <td style={{ padding: "1rem", borderBottom: "1px solid var(--border)", fontFamily: "monospace", color: "var(--text-secondary)", fontSize: "0.85rem" }}>
                         {session.id.substring(0, 10)}
                       </td>
-                      <td style={{ padding: "1rem", borderBottom: "1px solid #2b2f36", maxWidth: 300, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#fff", fontSize: "0.95rem" }}>
+                      <td style={{ padding: "1rem", borderBottom: "1px solid var(--border)", maxWidth: 300, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#fff", fontSize: "0.95rem" }}>
                         {session.firstMessage}
                       </td>
                       {metrics.map((m) => {
                         const val = session.finalValues[m.id] || "unknown";
                         const badgeStyle = getBadgeStyle(m.id, val);
                         return (
-                          <td key={m.id} style={{ padding: "1rem", borderBottom: "1px solid #2b2f36" }}>
+                          <td key={m.id} style={{ padding: "1rem", borderBottom: "1px solid var(--border)" }}>
                             <span style={badgeStyle}>
                               {val.replace(/_/g, " ")}
                             </span>
@@ -272,24 +341,22 @@ export default function DashboardPage() {
                     {/* Drawer */}
                     {isExpanded && (
                       <tr key={`${session.id}-drawer`}>
-                        <td colSpan={3 + metrics.length} style={{ padding: 0, borderBottom: "1px solid #2b2f36" }}>
-                          <div style={{ background: "#121418", borderTop: "1px dashed #2b2f36", padding: "1rem" }}>
+                        <td colSpan={3 + metrics.length} style={{ padding: 0, borderBottom: "1px solid var(--border)" }}>
+                          <div style={{ backgroundColor: "var(--bg-surface)", borderTop: "1px dashed var(--border)", padding: "1rem" }}>
                             <table style={{ width: "100%", borderCollapse: "collapse" }}>
                               <tbody>
-                                {session.messages
-                                  .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-                                  .map((m, i) => (
-                                    <tr key={i}>
-                                      <td style={{ padding: "0.5rem 0", color: "#9aa0a6", fontSize: "0.85rem", whiteSpace: "nowrap", width: 140 }}>
-                                        {new Date(m.timestamp).toLocaleString("en-US", {
-                                          month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Asia/Kolkata",
-                                        })}
-                                      </td>
-                                      <td style={{ padding: "0.5rem 0", color: "#e6e8eb", fontSize: "0.9rem" }}>
-                                        {m.user_message || <em style={{ color: "#64748b" }}>No message</em>}
-                                      </td>
-                                    </tr>
-                                  ))}
+                                {session.messages.map((m, idx) => (
+                                  <tr key={`${session.id}-${idx}`}>
+                                    <td style={{ padding: "0.5rem 0", color: "var(--text-secondary)", fontSize: "0.85rem", whiteSpace: "nowrap", width: 140 }}>
+                                      {new Date(m.timestamp).toLocaleString("en-US", {
+                                        month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit",
+                                      })}
+                                    </td>
+                                    <td style={{ padding: "0.5rem 0", color: "var(--text-primary)", fontSize: "0.9rem" }}>
+                                      {m.user_message || <em style={{ color: "var(--text-muted)" }}>No message</em>}
+                                    </td>
+                                  </tr>
+                                ))}
                               </tbody>
                             </table>
                           </div>

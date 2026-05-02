@@ -3,6 +3,7 @@
 import { useState, FormEvent } from "react";
 import Image from "next/image";
 import { useAuth } from "@/lib/auth";
+import { ApiError } from "@/lib/api";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -20,8 +21,18 @@ export default function LoginPage() {
     try {
       await login(email, password);
       setSuccess(true);
-    } catch {
-      setError("Invalid credentials.");
+      // Don't reset `loading` here — navigation is in progress. Resetting
+      // would un-disable the form during the transition and allow a second
+      // submit.
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 401) setError("Invalid credentials.");
+        else if (err.status === 429) setError("Too many attempts. Please wait and try again.");
+        else if (err.status >= 500) setError("Server error. Please try again later.");
+        else setError("Login failed. Please try again.");
+      } else {
+        setError("Network error. Check your connection.");
+      }
       setPassword("");
       setLoading(false);
     }
@@ -78,7 +89,7 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="name@ryxai.in"
               required
-              autoComplete="off"
+              autoComplete="email"
               style={{
                 width: "100%",
                 borderRadius: 10,
@@ -107,7 +118,7 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               required
-              autoComplete="off"
+              autoComplete="current-password"
               style={{
                 width: "100%",
                 borderRadius: 10,

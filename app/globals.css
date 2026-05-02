@@ -2,19 +2,19 @@
 
 /* ── RYX AI Design Tokens ─────────────────────────────────── */
 :root {
-  --bg: #0d0f14;
-  --bg-surface: #15181e;
-  --bg-card: #1c1f26;
-  --bg-sidebar: #0a0b0d;
-  --bg-hover: #191c21;
-  --text-primary: #e6e8eb;
-  --text-secondary: #9aa0a6;
-  --text-muted: #64748b;
+  --bg: #0b0d17;
+  --bg-surface: #13162a;
+  --bg-card: #191c30;
+  --bg-sidebar: #0d0f1e;
+  --bg-hover: #1e2238;
+  --text-primary: #e8eaf5;
+  --text-secondary: #8890b8;
+  --text-muted: #555a7a;
   --accent: #6b4cff;
   --accent-light: #a78bfa;
-  --accent-dim: rgba(107, 76, 255, 0.15);
-  --accent-glow: rgba(107, 76, 255, 0.4);
-  --border: #2b2f36;
+  --accent-dim: rgba(107, 76, 255, 0.2);
+  --accent-glow: rgba(107, 76, 255, 0.5);
+  --border: #2c3058;
   --error: #ef4444;
   --success: #10b981;
   --warning: #f59e0b;
@@ -23,10 +23,15 @@
 }
 
 /* ── Reset & Base ─────────────────────────────────────────── */
-* {
+*, *::before, *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+  background-color: var(--bg);
 }
 
 body {

@@ -1,8 +1,11 @@
 import type { NextConfig } from "next";
 
 // Local dev: http://127.0.0.1:8000
-// Production: https://your-app.up.railway.app (set BACKEND_URL env var on Vercel)
-const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:8000";
+// Production: set NEXT_PUBLIC_API_URL (or BACKEND_URL) env var on Vercel
+const BACKEND_URL =
+  process.env.BACKEND_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://127.0.0.1:8000";
 
 // Static/media files backend (may be same as BACKEND_URL or a separate service)
 // Set STATIC_BACKEND_URL on Vercel if your static files are served from a different origin

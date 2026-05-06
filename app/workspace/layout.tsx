@@ -99,7 +99,7 @@ export default function WorkspaceLayout({
         {/* Brand / Logo */}
         <div style={{ marginBottom: "2.5rem", padding: "0 0.5rem" }}>
           <Image
-            src="/logo.png"
+            src="/logo1.png"
             alt="RYX AI"
             width={130}
             height={40}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { api } from "@/lib/api";
 
 const PLATFORMS = [
   { icon: "🔷", name: "WordPress" },
@@ -50,12 +51,25 @@ export default function DeployPage() {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState("");
   const [health, setHealth] = useState<HealthState>("checking");
+  const [tenantSlug, setTenantSlug] = useState("");
 
   // Production builds set NEXT_PUBLIC_API_URL. The localhost fallback only
   // kicks in during dev — the dev banner above flags that case to the user.
   const backendOrigin = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
   const isLocalhost = isDevOrigin(backendOrigin);
-  const snippet = `<script src="${backendOrigin}/static/embed.js" data-api="${backendOrigin}"><\/script>`;
+  const snippet = `<script src="${backendOrigin}/static/embed.js" data-api="${backendOrigin}"${tenantSlug ? ` data-tenant="${tenantSlug}"` : ""}></script>`;
+
+  useEffect(() => {
+    api.get<{ tenant?: { slug: string } | null }>("/api/auth/me")
+      .then((data) => {
+        if (data?.tenant?.slug) {
+          setTenantSlug(data.tenant.slug);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load user info", err);
+      });
+  }, []);
 
   // Real health check — confirms the backend the snippet points at is
   // actually reachable. Otherwise the green "Live & Running" pill would
@@ -447,6 +461,15 @@ export default function DeployPage() {
                   <span style={{ color: "#86efac" }}>
                     &quot;{backendOrigin}&quot;
                   </span>
+                  {tenantSlug && (
+                    <>
+                      {"\n        "}
+                      <span style={{ color: "#93c5fd" }}>data-tenant</span>=
+                      <span style={{ color: "#86efac" }}>
+                        &quot;{tenantSlug}&quot;
+                      </span>
+                    </>
+                  )}
                   <span style={{ color: "#f9a8d4" }}>&gt;&lt;/script&gt;</span>
                 </code>
               </pre>

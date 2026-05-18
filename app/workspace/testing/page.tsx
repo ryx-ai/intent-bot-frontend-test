@@ -80,19 +80,28 @@ export default function TestingPage() {
   // the new server-side config — otherwise the user is testing stale state.
   const [widgetKey, setWidgetKey] = useState(0);
   const [widgetState, setWidgetState] = useState<"loading" | "ready" | "error">("loading");
+  const [tenantSlug, setTenantSlug] = useState("");
 
   useEffect(() => {
     async function load() {
       try {
-        const data = await api.get<{
-          bot_role: string;
-          calendar_link: string;
-          system_prompt_text: string;
-        }>("/api/config/bot");
-        setRole(data.bot_role || "hybrid");
-        if (data.calendar_link) {
+        const [configData, meData] = await Promise.all([
+          api.get<{
+            bot_role: string;
+            calendar_link: string;
+            system_prompt_text: string;
+          }>("/api/config/bot"),
+          api.get<{
+            tenant?: {
+              slug: string;
+            } | null;
+          }>("/api/auth/me").catch(() => ({ tenant: null }))
+        ]);
+
+        setRole(configData.bot_role || "hybrid");
+        if (configData.calendar_link) {
           try {
-            const url = new URL(data.calendar_link);
+            const url = new URL(configData.calendar_link);
             setCalTheme(url.searchParams.get("theme") || "light");
             setCalHideDetails(url.searchParams.get("hideEventTypeDetails") === "true");
             url.searchParams.delete("theme");
@@ -100,12 +109,16 @@ export default function TestingPage() {
             url.searchParams.delete("embed");
             setCalendarLink(url.toString().replace(/\?$/, ""));
           } catch {
-            setCalendarLink(data.calendar_link);
+            setCalendarLink(configData.calendar_link);
           }
         } else {
           setCalendarLink("");
         }
-        setPromptText(data.system_prompt_text || "");
+        setPromptText(configData.system_prompt_text || "");
+
+        if (meData?.tenant?.slug) {
+          setTenantSlug(meData.tenant.slug);
+        }
       } catch (err) {
         console.error("Failed to load config", err);
       } finally {
@@ -145,6 +158,9 @@ export default function TestingPage() {
     script.id = "ryx-embed-script";
     script.src = `${apiBase}/static/embed.js?t=${Date.now()}`;
     script.setAttribute("data-api", apiBase);
+    if (tenantSlug) {
+      script.setAttribute("data-tenant", tenantSlug);
+    }
     script.onload = () => {
       setWidgetState("ready");
       // Stop observing once the script has loaded — embed.js does its style
@@ -164,7 +180,7 @@ export default function TestingPage() {
       document.getElementById("ryx-chat-container")?.remove();
       injected.forEach((el) => el.remove());
     };
-  }, [widgetKey]);
+  }, [widgetKey, tenantSlug]);
 
   // Warn before navigating away with unsaved edits. Browsers ignore the
   // string we return — they just show their own generic confirm dialog.

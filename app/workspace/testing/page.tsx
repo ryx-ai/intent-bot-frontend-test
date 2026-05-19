@@ -47,17 +47,24 @@ const ROLES = [
 ];
 
 // Empty input → booking disabled. Otherwise must be a parseable http(s) URL.
-function validateCalendarLink(raw: string): { ok: true; url: string } | { ok: false; reason: string } {
+function validateCalendarLink(
+  raw: string,
+): { ok: true; url: string } | { ok: false; reason: string } {
   const trimmed = raw.trim();
   if (!trimmed) return { ok: true, url: "" };
-  const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  const candidate = /^https?:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
   try {
     const u = new URL(candidate);
     if (u.protocol !== "http:" && u.protocol !== "https:") {
       return { ok: false, reason: "Use an http:// or https:// URL" };
     }
     if (!u.hostname || !u.hostname.includes(".")) {
-      return { ok: false, reason: "Enter a complete URL (e.g. https://cal.com/you/demo)" };
+      return {
+        ok: false,
+        reason: "Enter a complete URL (e.g. https://cal.com/you/demo)",
+      };
     }
     return { ok: true, url: candidate };
   } catch {
@@ -79,46 +86,38 @@ export default function TestingPage() {
   // Bumped after every successful save so the live test widget reloads with
   // the new server-side config — otherwise the user is testing stale state.
   const [widgetKey, setWidgetKey] = useState(0);
-  const [widgetState, setWidgetState] = useState<"loading" | "ready" | "error">("loading");
-  const [tenantSlug, setTenantSlug] = useState("");
+  const [widgetState, setWidgetState] = useState<"loading" | "ready" | "error">(
+    "loading",
+  );
 
   useEffect(() => {
     async function load() {
       try {
-        const [configData, meData] = await Promise.all([
-          api.get<{
-            bot_role: string;
-            calendar_link: string;
-            system_prompt_text: string;
-          }>("/api/config/bot"),
-          api.get<{
-            tenant?: {
-              slug: string;
-            } | null;
-          }>("/api/auth/me").catch(() => ({ tenant: null }))
-        ]);
-
-        setRole(configData.bot_role || "hybrid");
-        if (configData.calendar_link) {
+        const data = await api.get<{
+          bot_role: string;
+          calendar_link: string;
+          system_prompt_text: string;
+        }>("/api/config/bot");
+        setRole(data.bot_role || "hybrid");
+        if (data.calendar_link) {
           try {
-            const url = new URL(configData.calendar_link);
+            const url = new URL(data.calendar_link);
+
             setCalTheme(url.searchParams.get("theme") || "light");
-            setCalHideDetails(url.searchParams.get("hideEventTypeDetails") === "true");
+            setCalHideDetails(
+              url.searchParams.get("hideEventTypeDetails") === "true",
+            );
             url.searchParams.delete("theme");
             url.searchParams.delete("hideEventTypeDetails");
             url.searchParams.delete("embed");
             setCalendarLink(url.toString().replace(/\?$/, ""));
           } catch {
-            setCalendarLink(configData.calendar_link);
+            setCalendarLink(data.calendar_link);
           }
         } else {
           setCalendarLink("");
         }
-        setPromptText(configData.system_prompt_text || "");
-
-        if (meData?.tenant?.slug) {
-          setTenantSlug(meData.tenant.slug);
-        }
+        setPromptText(data.system_prompt_text || "");
       } catch (err) {
         console.error("Failed to load config", err);
       } finally {
@@ -158,9 +157,7 @@ export default function TestingPage() {
     script.id = "ryx-embed-script";
     script.src = `${apiBase}/static/embed.js?t=${Date.now()}`;
     script.setAttribute("data-api", apiBase);
-    if (tenantSlug) {
-      script.setAttribute("data-tenant", tenantSlug);
-    }
+
     script.onload = () => {
       setWidgetState("ready");
       // Stop observing once the script has loaded — embed.js does its style
@@ -180,7 +177,7 @@ export default function TestingPage() {
       document.getElementById("ryx-chat-container")?.remove();
       injected.forEach((el) => el.remove());
     };
-  }, [widgetKey, tenantSlug]);
+  }, [widgetKey]);
 
   // Warn before navigating away with unsaved edits. Browsers ignore the
   // string we return — they just show their own generic confirm dialog.
@@ -210,7 +207,10 @@ export default function TestingPage() {
       if (finalLink) {
         const urlObj = new URL(finalLink);
         urlObj.searchParams.set("theme", calTheme);
-        urlObj.searchParams.set("hideEventTypeDetails", calHideDetails ? "true" : "false");
+        urlObj.searchParams.set(
+          "hideEventTypeDetails",
+          calHideDetails ? "true" : "false",
+        );
         urlObj.searchParams.set("embed", "true");
         finalLink = urlObj.toString();
       }
@@ -242,14 +242,31 @@ export default function TestingPage() {
   }
 
   return (
-    <div style={{ maxWidth: 920, margin: "0 auto", padding: "2rem 2.5rem 3rem", backgroundColor: C.bg }}>
+    <div
+      style={{
+        maxWidth: 920,
+        margin: "0 auto",
+        padding: "2rem 2.5rem 3rem",
+        backgroundColor: C.bg,
+      }}
+    >
       {/* Header */}
       <div style={{ marginBottom: "2rem" }}>
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 800, color: "#fff", display: "flex", alignItems: "center", gap: 10 }}>
+        <h1
+          style={{
+            fontSize: "1.5rem",
+            fontWeight: 800,
+            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
           ⚙️ Agent Configuration
         </h1>
         <p style={{ color: C.textMuted, fontSize: "0.88rem", marginTop: 4 }}>
-          Customize the AI&apos;s role, booking links, and behaviours. Save to reload the test widget with the new config.
+          Customize the AI&apos;s role, booking links, and behaviours. Save to
+          reload the test widget with the new config.
         </p>
         {/* Test widget status — surfaces silent embed.js failures (backend
             unreachable, CORS, etc.) that would otherwise leave the page
@@ -262,9 +279,11 @@ export default function TestingPage() {
             gap: 8,
             fontSize: "0.75rem",
             color:
-              widgetState === "ready" ? C.success
-              : widgetState === "error" ? C.error
-              : C.textMuted,
+              widgetState === "ready"
+                ? C.success
+                : widgetState === "error"
+                  ? C.error
+                  : C.textMuted,
           }}
           aria-live="polite"
         >
@@ -274,9 +293,11 @@ export default function TestingPage() {
               height: 8,
               borderRadius: "50%",
               background:
-                widgetState === "ready" ? C.success
-                : widgetState === "error" ? C.error
-                : C.textMuted,
+                widgetState === "ready"
+                  ? C.success
+                  : widgetState === "error"
+                    ? C.error
+                    : C.textMuted,
             }}
           />
           {widgetState === "ready"
@@ -297,16 +318,34 @@ export default function TestingPage() {
           marginBottom: "1.25rem",
         }}
       >
-        <h2 style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase", color: C.textMuted, marginBottom: "1rem" }}>
+        <h2
+          style={{
+            fontSize: "0.7rem",
+            fontWeight: 700,
+            letterSpacing: "1.5px",
+            textTransform: "uppercase",
+            color: C.textMuted,
+            marginBottom: "1rem",
+          }}
+        >
           Agent Role Profile
         </h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: "0.75rem",
+          }}
+        >
           {ROLES.map((r) => {
             const active = role === r.key;
             return (
               <button
                 key={r.key}
-                onClick={() => { setRole(r.key); setDirty(true); }}
+                onClick={() => {
+                  setRole(r.key);
+                  setDirty(true);
+                }}
                 style={{
                   position: "relative",
                   cursor: "pointer",
@@ -314,18 +353,49 @@ export default function TestingPage() {
                   padding: "1rem",
                   textAlign: "left",
                   backgroundColor: active ? C.accentDim : C.bgSurface,
-                  border: active ? `1.5px solid rgba(107,76,255,0.5)` : `1.5px solid ${C.border}`,
+                  border: active
+                    ? `1.5px solid rgba(107,76,255,0.5)`
+                    : `1.5px solid ${C.border}`,
                   transition: "all 0.2s",
                   fontFamily: "inherit",
                   color: C.textPrimary,
                 }}
               >
                 {active && (
-                  <span style={{ position: "absolute", top: 10, right: 12, fontSize: "0.85rem", color: C.accent }}>✓</span>
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: 10,
+                      right: 12,
+                      fontSize: "0.85rem",
+                      color: C.accent,
+                    }}
+                  >
+                    ✓
+                  </span>
                 )}
-                <div style={{ fontSize: "1.5rem", marginBottom: 8 }}>{r.icon}</div>
-                <p style={{ fontSize: "0.85rem", fontWeight: 700, color: C.textPrimary, marginBottom: 4 }}>{r.label}</p>
-                <p style={{ fontSize: "0.72rem", lineHeight: 1.4, color: C.textSecondary }}>{r.desc}</p>
+                <div style={{ fontSize: "1.5rem", marginBottom: 8 }}>
+                  {r.icon}
+                </div>
+                <p
+                  style={{
+                    fontSize: "0.85rem",
+                    fontWeight: 700,
+                    color: C.textPrimary,
+                    marginBottom: 4,
+                  }}
+                >
+                  {r.label}
+                </p>
+                <p
+                  style={{
+                    fontSize: "0.72rem",
+                    lineHeight: 1.4,
+                    color: C.textSecondary,
+                  }}
+                >
+                  {r.desc}
+                </p>
               </button>
             );
           })}
@@ -342,10 +412,27 @@ export default function TestingPage() {
           marginBottom: "1.25rem",
         }}
       >
-        <h2 style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase", color: C.textMuted, marginBottom: "1rem" }}>
+        <h2
+          style={{
+            fontSize: "0.7rem",
+            fontWeight: 700,
+            letterSpacing: "1.5px",
+            textTransform: "uppercase",
+            color: C.textMuted,
+            marginBottom: "1rem",
+          }}
+        >
           Demo Booking Calendar
         </h2>
-        <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: C.textPrimary, marginBottom: 8 }}>
+        <label
+          style={{
+            display: "block",
+            fontSize: "0.85rem",
+            fontWeight: 600,
+            color: C.textPrimary,
+            marginBottom: 8,
+          }}
+        >
           📅 Booking Link
         </label>
         <input
@@ -371,23 +458,54 @@ export default function TestingPage() {
           }}
         />
         {calError ? (
-          <p style={{ color: C.error, fontSize: "0.75rem", marginTop: 8, marginBottom: "1rem" }}>
+          <p
+            style={{
+              color: C.error,
+              fontSize: "0.75rem",
+              marginTop: 8,
+              marginBottom: "1rem",
+            }}
+          >
             {calError}
           </p>
         ) : (
-          <p style={{ color: C.textMuted, fontSize: "0.75rem", marginTop: 8, marginBottom: "1rem" }}>
+          <p
+            style={{
+              color: C.textMuted,
+              fontSize: "0.75rem",
+              marginTop: 8,
+              marginBottom: "1rem",
+            }}
+          >
             This is the public URL of your Cal.com event (No API keys required).
           </p>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "1rem",
+          }}
+        >
           <div>
-            <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: C.textPrimary, marginBottom: 6 }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                color: C.textPrimary,
+                marginBottom: 6,
+              }}
+            >
               Embed Theme
             </label>
             <select
               value={calTheme}
-              onChange={(e) => { setCalTheme(e.target.value); setDirty(true); }}
+              onChange={(e) => {
+                setCalTheme(e.target.value);
+                setDirty(true);
+              }}
               style={{
                 width: "100%",
                 backgroundColor: C.bgSurface,
@@ -407,7 +525,15 @@ export default function TestingPage() {
           </div>
 
           <div>
-            <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: C.textPrimary, marginBottom: 6 }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                color: C.textPrimary,
+                marginBottom: 6,
+              }}
+            >
               Hide Event Details
             </label>
             <div
@@ -424,7 +550,10 @@ export default function TestingPage() {
                 cursor: "pointer",
                 outline: "none",
               }}
-              onClick={() => { setCalHideDetails(!calHideDetails); setDirty(true); }}
+              onClick={() => {
+                setCalHideDetails(!calHideDetails);
+                setDirty(true);
+              }}
               onKeyDown={(e) => {
                 if (e.key === " " || e.key === "Enter") {
                   e.preventDefault();
@@ -433,16 +562,28 @@ export default function TestingPage() {
                 }
               }}
             >
-              <div style={{
-                width: 16, height: 16, borderRadius: 4,
-                border: calHideDetails ? "none" : `1.5px solid ${C.textMuted}`,
-                backgroundColor: calHideDetails ? C.accent : "transparent",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                marginRight: 10,
-              }}>
-                {calHideDetails && <span style={{ color: "#fff", fontSize: "0.7rem" }}>✓</span>}
+              <div
+                style={{
+                  width: 16,
+                  height: 16,
+                  borderRadius: 4,
+                  border: calHideDetails
+                    ? "none"
+                    : `1.5px solid ${C.textMuted}`,
+                  backgroundColor: calHideDetails ? C.accent : "transparent",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginRight: 10,
+                }}
+              >
+                {calHideDetails && (
+                  <span style={{ color: "#fff", fontSize: "0.7rem" }}>✓</span>
+                )}
               </div>
-              <span style={{ fontSize: "0.8rem", color: C.textPrimary }}>Hide left panel details</span>
+              <span style={{ fontSize: "0.8rem", color: C.textPrimary }}>
+                Hide left panel details
+              </span>
             </div>
           </div>
         </div>
@@ -458,15 +599,33 @@ export default function TestingPage() {
           marginBottom: "1.5rem",
         }}
       >
-        <h2 style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase", color: C.textMuted, marginBottom: 4 }}>
+        <h2
+          style={{
+            fontSize: "0.7rem",
+            fontWeight: 700,
+            letterSpacing: "1.5px",
+            textTransform: "uppercase",
+            color: C.textMuted,
+            marginBottom: 4,
+          }}
+        >
           Core System Prompt
         </h2>
-        <p style={{ color: C.textSecondary, fontSize: "0.78rem", marginBottom: "1rem" }}>
+        <p
+          style={{
+            color: C.textSecondary,
+            fontSize: "0.78rem",
+            marginBottom: "1rem",
+          }}
+        >
           AI Instructions (Raw JSON array flattened to text)
         </p>
         <textarea
           value={promptText}
-          onChange={(e) => { setPromptText(e.target.value); setDirty(true); }}
+          onChange={(e) => {
+            setPromptText(e.target.value);
+            setDirty(true);
+          }}
           rows={18}
           style={{
             width: "100%",
@@ -516,7 +675,9 @@ export default function TestingPage() {
             bottom: 20,
             right: 20,
             zIndex: 50,
-            backgroundColor: toast.toLowerCase().includes("fail") ? C.error : C.success,
+            backgroundColor: toast.toLowerCase().includes("fail")
+              ? C.error
+              : C.success,
             color: "#fff",
             borderRadius: 8,
             padding: "0.7rem 1.5rem",

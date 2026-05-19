@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { api } from "@/lib/api";
 
 const PLATFORMS = [
   { icon: "🔷", name: "WordPress" },
@@ -33,7 +32,8 @@ function isDevOrigin(origin: string): boolean {
       host === "::1" ||
       host === "[::1]" ||
       host.endsWith(".local")
-    ) return true;
+    )
+      return true;
     // RFC1918 / link-local IPv4
     if (/^10\./.test(host)) return true;
     if (/^192\.168\./.test(host)) return true;
@@ -51,25 +51,13 @@ export default function DeployPage() {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState("");
   const [health, setHealth] = useState<HealthState>("checking");
-  const [tenantSlug, setTenantSlug] = useState("");
 
   // Production builds set NEXT_PUBLIC_API_URL. The localhost fallback only
   // kicks in during dev — the dev banner above flags that case to the user.
-  const backendOrigin = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+  const backendOrigin =
+    process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
   const isLocalhost = isDevOrigin(backendOrigin);
-  const snippet = `<script src="${backendOrigin}/static/embed.js" data-api="${backendOrigin}"${tenantSlug ? ` data-tenant="${tenantSlug}"` : ""}></script>`;
-
-  useEffect(() => {
-    api.get<{ tenant?: { slug: string } | null }>("/api/auth/me")
-      .then((data) => {
-        if (data?.tenant?.slug) {
-          setTenantSlug(data.tenant.slug);
-        }
-      })
-      .catch((err) => {
-        console.error("Failed to load user info", err);
-      });
-  }, []);
+  const snippet = `<script src="${backendOrigin}/static/embed.js" data-api="${backendOrigin}"><\/script>`;
 
   // Real health check — confirms the backend the snippet points at is
   // actually reachable. Otherwise the green "Live & Running" pill would
@@ -121,19 +109,31 @@ export default function DeployPage() {
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "2.5rem 2rem" }}>
       {/* Localhost warning */}
       {isLocalhost && (
-        <div style={{
-          background: "rgba(245, 158, 11, 0.1)",
-          border: "1px solid rgba(245, 158, 11, 0.3)",
-          borderRadius: 10,
-          padding: "0.75rem 1rem",
-          marginBottom: "1.5rem",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          fontSize: "0.85rem",
-          color: "var(--warning)",
-        }}>
-          ⚠️ <strong>Dev Mode:</strong>&nbsp;Snippet points to localhost. Set <code style={{ background: "rgba(255,255,255,0.08)", padding: "2px 6px", borderRadius: 4 }}>NEXT_PUBLIC_API_URL</code> on Vercel before deploying.
+        <div
+          style={{
+            background: "rgba(245, 158, 11, 0.1)",
+            border: "1px solid rgba(245, 158, 11, 0.3)",
+            borderRadius: 10,
+            padding: "0.75rem 1rem",
+            marginBottom: "1.5rem",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: "0.85rem",
+            color: "var(--warning)",
+          }}
+        >
+          ⚠️ <strong>Dev Mode:</strong>&nbsp;Snippet points to localhost. Set{" "}
+          <code
+            style={{
+              background: "rgba(255,255,255,0.08)",
+              padding: "2px 6px",
+              borderRadius: 4,
+            }}
+          >
+            NEXT_PUBLIC_API_URL
+          </code>{" "}
+          on Vercel before deploying.
         </div>
       )}
       {/* Hero */}
@@ -152,7 +152,7 @@ export default function DeployPage() {
             fontWeight: 600,
             textTransform: "uppercase",
             letterSpacing: 1,
-            marginBottom: "1rem"
+            marginBottom: "1rem",
           }}
         >
           ⚡ Live Deployment
@@ -162,7 +162,8 @@ export default function DeployPage() {
             margin: "0 0 0.5rem 0",
             fontSize: "2rem",
             fontWeight: 800,
-            background: "linear-gradient(135deg, #fff 40%, var(--accent-light))",
+            background:
+              "linear-gradient(135deg, #fff 40%, var(--accent-light))",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
             backgroundClip: "text",
@@ -181,7 +182,12 @@ export default function DeployPage() {
         >
           Embed the RYX AI chatbot on any website in under 60 seconds — no
           developer needed. Just copy the snippet and paste it before your{" "}
-          <code style={{ color: "var(--accent-light)", fontFamily: "monospace" }}>&lt;/body&gt;</code> tag.
+          <code
+            style={{ color: "var(--accent-light)", fontFamily: "monospace" }}
+          >
+            &lt;/body&gt;
+          </code>{" "}
+          tag.
         </p>
       </div>
 
@@ -189,10 +195,31 @@ export default function DeployPage() {
       {(() => {
         const palette =
           health === "ok"
-            ? { bg: "rgba(16, 185, 129, 0.1)", border: "rgba(16, 185, 129, 0.25)", dot: "#10b981", dotShadow: "rgba(16, 185, 129, 0.6)", text: "#10b981", label: "Agent is Live & Running" }
+            ? {
+                bg: "rgba(16, 185, 129, 0.1)",
+                border: "rgba(16, 185, 129, 0.25)",
+                dot: "#10b981",
+                dotShadow: "rgba(16, 185, 129, 0.6)",
+                text: "#10b981",
+                label: "Agent is Live & Running",
+              }
             : health === "down"
-              ? { bg: "rgba(239, 68, 68, 0.1)", border: "rgba(239, 68, 68, 0.3)", dot: "#ef4444", dotShadow: "rgba(239, 68, 68, 0.6)", text: "#fca5a5", label: "Agent is Unreachable" }
-              : { bg: "rgba(245, 158, 11, 0.08)", border: "rgba(245, 158, 11, 0.25)", dot: "#f59e0b", dotShadow: "rgba(245, 158, 11, 0.5)", text: "#fbbf24", label: "Checking agent status…" };
+              ? {
+                  bg: "rgba(239, 68, 68, 0.1)",
+                  border: "rgba(239, 68, 68, 0.3)",
+                  dot: "#ef4444",
+                  dotShadow: "rgba(239, 68, 68, 0.6)",
+                  text: "#fca5a5",
+                  label: "Agent is Unreachable",
+                }
+              : {
+                  bg: "rgba(245, 158, 11, 0.08)",
+                  border: "rgba(245, 158, 11, 0.25)",
+                  dot: "#f59e0b",
+                  dotShadow: "rgba(245, 158, 11, 0.5)",
+                  text: "#fbbf24",
+                  label: "Checking agent status…",
+                };
         return (
           <div
             style={{
@@ -203,7 +230,7 @@ export default function DeployPage() {
               display: "flex",
               alignItems: "center",
               gap: 12,
-              marginBottom: "2rem"
+              marginBottom: "2rem",
             }}
           >
             <div
@@ -213,15 +240,29 @@ export default function DeployPage() {
                 borderRadius: "50%",
                 background: palette.dot,
                 boxShadow: `0 0 8px ${palette.dotShadow}`,
-                animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+                animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
               }}
             />
             <div>
-              <p style={{ margin: "0 0 2px 0", fontSize: "0.85rem", fontWeight: 600, color: palette.text }}>
+              <p
+                style={{
+                  margin: "0 0 2px 0",
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  color: palette.text,
+                }}
+              >
                 {palette.label}
               </p>
-              <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                {health === "down" ? "Cannot reach: " : "Active at: "}{backendOrigin}
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "0.75rem",
+                  color: "var(--text-muted)",
+                }}
+              >
+                {health === "down" ? "Cannot reach: " : "Active at: "}
+                {backendOrigin}
               </p>
             </div>
           </div>
@@ -229,7 +270,14 @@ export default function DeployPage() {
       })()}
 
       {/* Steps */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", marginBottom: "2rem" }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "1.25rem",
+          marginBottom: "2rem",
+        }}
+      >
         {/* Step 1: Preview */}
         <div
           style={{
@@ -238,10 +286,14 @@ export default function DeployPage() {
             borderRadius: 14,
             padding: "1.5rem",
             position: "relative",
-            transition: "border-color 0.2s"
+            transition: "border-color 0.2s",
           }}
-          onMouseEnter={(e) => e.currentTarget.style.borderColor = "var(--accent-glow)"}
-          onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--border)"}
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.borderColor = "var(--accent-glow)")
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.borderColor = "var(--border)")
+          }
         >
           <div
             style={{
@@ -264,10 +316,24 @@ export default function DeployPage() {
             1
           </div>
           <div style={{ paddingLeft: "2.5rem" }}>
-            <h3 style={{ margin: "0 0 0.3rem 0", fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)" }}>
+            <h3
+              style={{
+                margin: "0 0 0.3rem 0",
+                fontSize: "0.95rem",
+                fontWeight: 700,
+                color: "var(--text-primary)",
+              }}
+            >
               Preview on a customer&apos;s site
             </h3>
-            <p style={{ margin: "0 0 1rem 0", fontSize: "0.82rem", color: "var(--text-secondary)", lineHeight: 1.6 }}>
+            <p
+              style={{
+                margin: "0 0 1rem 0",
+                fontSize: "0.82rem",
+                color: "var(--text-secondary)",
+                lineHeight: 1.6,
+              }}
+            >
               This is what the AI Agent looks like after it&apos;s embedded. The
               purple button appears fixed to the bottom-right corner of any
               webpage.
@@ -281,23 +347,71 @@ export default function DeployPage() {
                 height: 260,
                 position: "relative",
                 overflow: "hidden",
-                border: "1px solid var(--border)"
+                border: "1px solid var(--border)",
               }}
             >
               {/* Mock navbar */}
-              <div style={{ backgroundColor: "var(--bg-surface)", borderBottom: "1px solid var(--border)", padding: "12px 20px", display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 80, height: 8, background: "var(--border)", borderRadius: 4 }} />
+              <div
+                style={{
+                  backgroundColor: "var(--bg-surface)",
+                  borderBottom: "1px solid var(--border)",
+                  padding: "12px 20px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
+                <div
+                  style={{
+                    width: 80,
+                    height: 8,
+                    background: "var(--border)",
+                    borderRadius: 4,
+                  }}
+                />
                 <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
                   {[1, 2, 3].map((i) => (
-                    <div key={i} style={{ width: 40, height: 6, background: "var(--border)", borderRadius: 3 }} />
+                    <div
+                      key={i}
+                      style={{
+                        width: 40,
+                        height: 6,
+                        background: "var(--border)",
+                        borderRadius: 3,
+                      }}
+                    />
                   ))}
                 </div>
               </div>
               {/* Mock body */}
               <div style={{ padding: 20 }}>
-                <div style={{ width: 200, height: 10, backgroundColor: "var(--bg-card)", borderRadius: 4, marginBottom: 8 }} />
-                <div style={{ width: 300, height: 7, backgroundColor: "var(--bg-hover)", borderRadius: 3, marginBottom: 6 }} />
-                <div style={{ width: 240, height: 7, backgroundColor: "var(--bg-hover)", borderRadius: 3, marginBottom: 6 }} />
+                <div
+                  style={{
+                    width: 200,
+                    height: 10,
+                    backgroundColor: "var(--bg-card)",
+                    borderRadius: 4,
+                    marginBottom: 8,
+                  }}
+                />
+                <div
+                  style={{
+                    width: 300,
+                    height: 7,
+                    backgroundColor: "var(--bg-hover)",
+                    borderRadius: 3,
+                    marginBottom: 6,
+                  }}
+                />
+                <div
+                  style={{
+                    width: 240,
+                    height: 7,
+                    backgroundColor: "var(--bg-hover)",
+                    borderRadius: 3,
+                    marginBottom: 6,
+                  }}
+                />
               </div>
 
               {/* Chat bubble */}
@@ -314,7 +428,7 @@ export default function DeployPage() {
                   color: "var(--text-primary)",
                   width: 200,
                   lineHeight: 1.4,
-                  border: "1px solid var(--border)"
+                  border: "1px solid var(--border)",
                 }}
               >
                 👋 Hello! I&apos;m the RYX AI Assistant. How can I help you?
@@ -335,7 +449,7 @@ export default function DeployPage() {
                   justifyContent: "center",
                   color: "white",
                   fontSize: 18,
-                  cursor: "pointer"
+                  cursor: "pointer",
                 }}
               >
                 ✦
@@ -352,10 +466,14 @@ export default function DeployPage() {
             borderRadius: 14,
             padding: "1.5rem",
             position: "relative",
-            transition: "border-color 0.2s"
+            transition: "border-color 0.2s",
           }}
-          onMouseEnter={(e) => e.currentTarget.style.borderColor = "var(--accent-glow)"}
-          onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--border)"}
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.borderColor = "var(--accent-glow)")
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.borderColor = "var(--border)")
+          }
         >
           <div
             style={{
@@ -378,20 +496,41 @@ export default function DeployPage() {
             2
           </div>
           <div style={{ paddingLeft: "2.5rem" }}>
-            <h3 style={{ margin: "0 0 0.3rem 0", fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)" }}>
+            <h3
+              style={{
+                margin: "0 0 0.3rem 0",
+                fontSize: "0.95rem",
+                fontWeight: 700,
+                color: "var(--text-primary)",
+              }}
+            >
               Copy the embed snippet
             </h3>
-            <p style={{ margin: "0 0 1rem 0", fontSize: "0.82rem", color: "var(--text-secondary)", lineHeight: 1.6 }}>
+            <p
+              style={{
+                margin: "0 0 1rem 0",
+                fontSize: "0.82rem",
+                color: "var(--text-secondary)",
+                lineHeight: 1.6,
+              }}
+            >
               Paste this single line just before the closing{" "}
-              <code style={{ color: "var(--accent-light)", fontFamily: "monospace" }}>&lt;/body&gt;</code> tag on
-              every page you want the agent to appear.
+              <code
+                style={{
+                  color: "var(--accent-light)",
+                  fontFamily: "monospace",
+                }}
+              >
+                &lt;/body&gt;
+              </code>{" "}
+              tag on every page you want the agent to appear.
             </p>
             <div
               style={{
                 background: "#0d1020",
                 border: "1px solid var(--border)",
                 borderRadius: 10,
-                overflow: "hidden"
+                overflow: "hidden",
               }}
             >
               <div
@@ -401,16 +540,26 @@ export default function DeployPage() {
                   padding: "10px 16px",
                   display: "flex",
                   justifyContent: "space-between",
-                  alignItems: "center"
+                  alignItems: "center",
                 }}
               >
-                <span style={{ fontSize: "0.7rem", fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", color: "var(--text-muted)" }}>
+                <span
+                  style={{
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    letterSpacing: 1,
+                    textTransform: "uppercase",
+                    color: "var(--text-muted)",
+                  }}
+                >
                   HTML
                 </span>
                 <button
                   onClick={copySnippet}
                   style={{
-                    background: copied ? "rgba(16, 185, 129, 0.15)" : "var(--accent-dim)",
+                    background: copied
+                      ? "rgba(16, 185, 129, 0.15)"
+                      : "var(--accent-dim)",
                     border: `1px solid ${copied ? "rgba(16, 185, 129, 0.4)" : "var(--accent-glow)"}`,
                     color: copied ? "#10b981" : "var(--accent-light)",
                     borderRadius: 6,
@@ -419,11 +568,12 @@ export default function DeployPage() {
                     fontWeight: 600,
                     cursor: "pointer",
                     transition: "all 0.2s ease",
-                    fontFamily: "'Inter', sans-serif"
+                    fontFamily: "'Inter', sans-serif",
                   }}
                   onMouseEnter={(e) => {
                     if (!copied) {
-                      e.currentTarget.style.background = "rgba(107, 76, 255, 0.25)";
+                      e.currentTarget.style.background =
+                        "rgba(107, 76, 255, 0.25)";
                       e.currentTarget.style.borderColor = "var(--accent)";
                     }
                   }}
@@ -447,7 +597,7 @@ export default function DeployPage() {
                   color: "var(--text-primary)",
                   whiteSpace: "pre-wrap",
                   wordBreak: "break-all",
-                  overflowX: "auto"
+                  overflowX: "auto",
                 }}
               >
                 <code>
@@ -461,21 +611,19 @@ export default function DeployPage() {
                   <span style={{ color: "#86efac" }}>
                     &quot;{backendOrigin}&quot;
                   </span>
-                  {tenantSlug && (
-                    <>
-                      {"\n        "}
-                      <span style={{ color: "#93c5fd" }}>data-tenant</span>=
-                      <span style={{ color: "#86efac" }}>
-                        &quot;{tenantSlug}&quot;
-                      </span>
-                    </>
-                  )}
                   <span style={{ color: "#f9a8d4" }}>&gt;&lt;/script&gt;</span>
                 </code>
               </pre>
             </div>
             {copyError && (
-              <p style={{ marginTop: "0.5rem", marginBottom: 0, fontSize: "0.78rem", color: "var(--error)" }}>
+              <p
+                style={{
+                  marginTop: "0.5rem",
+                  marginBottom: 0,
+                  fontSize: "0.78rem",
+                  color: "var(--error)",
+                }}
+              >
                 {copyError}
               </p>
             )}
@@ -490,10 +638,14 @@ export default function DeployPage() {
             borderRadius: 14,
             padding: "1.5rem",
             position: "relative",
-            transition: "border-color 0.2s"
+            transition: "border-color 0.2s",
           }}
-          onMouseEnter={(e) => e.currentTarget.style.borderColor = "var(--accent-glow)"}
-          onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--border)"}
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.borderColor = "var(--accent-glow)")
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.borderColor = "var(--border)")
+          }
         >
           <div
             style={{
@@ -516,14 +668,35 @@ export default function DeployPage() {
             3
           </div>
           <div style={{ paddingLeft: "2.5rem" }}>
-            <h3 style={{ margin: "0 0 0.3rem 0", fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)" }}>
+            <h3
+              style={{
+                margin: "0 0 0.3rem 0",
+                fontSize: "0.95rem",
+                fontWeight: 700,
+                color: "var(--text-primary)",
+              }}
+            >
               Works on any platform
             </h3>
-            <p style={{ margin: "0 0 1rem 0", fontSize: "0.82rem", color: "var(--text-secondary)", lineHeight: 1.6 }}>
+            <p
+              style={{
+                margin: "0 0 1rem 0",
+                fontSize: "0.82rem",
+                color: "var(--text-secondary)",
+                lineHeight: 1.6,
+              }}
+            >
               Paste it in your website builder&apos;s &quot;Custom Code&quot; or
               &quot;Footer Scripts&quot; section.
             </p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem", marginTop: "1rem" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                gap: "0.75rem",
+                marginTop: "1rem",
+              }}
+            >
               {PLATFORMS.map((p) => (
                 <div
                   key={p.name}
@@ -534,19 +707,28 @@ export default function DeployPage() {
                     padding: "0.875rem 1rem",
                     textAlign: "center",
                     transition: "all 0.2s",
-                    cursor: "default"
+                    cursor: "default",
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = "var(--accent-glow)";
-                    e.currentTarget.style.background = "rgba(107, 76, 255, 0.1)";
+                    e.currentTarget.style.background =
+                      "rgba(107, 76, 255, 0.1)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.borderColor = "var(--border)";
                     e.currentTarget.style.background = "var(--bg-surface)";
                   }}
                 >
-                  <div style={{ fontSize: "1.5rem", marginBottom: "0.3rem" }}>{p.icon}</div>
-                  <div style={{ fontSize: "0.78rem", fontWeight: 600, color: "var(--text-primary)" }}>
+                  <div style={{ fontSize: "1.5rem", marginBottom: "0.3rem" }}>
+                    {p.icon}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.78rem",
+                      fontWeight: 600,
+                      color: "var(--text-primary)",
+                    }}
+                  >
                     {p.name}
                   </div>
                   <div
@@ -558,7 +740,7 @@ export default function DeployPage() {
                       color: "#10b981",
                       borderRadius: 4,
                       padding: "1px 6px",
-                      fontWeight: 600
+                      fontWeight: 600,
                     }}
                   >
                     ✓ Supported
@@ -584,20 +766,28 @@ export default function DeployPage() {
               color: "var(--text-secondary)",
               display: "flex",
               alignItems: "center",
-              gap: 8
+              gap: 8,
             }}
           >
-            {pill.icon} <strong style={{ color: "var(--text-primary)", fontWeight: 600 }}>{pill.title}</strong> — {pill.desc}
+            {pill.icon}{" "}
+            <strong style={{ color: "var(--text-primary)", fontWeight: 600 }}>
+              {pill.title}
+            </strong>{" "}
+            — {pill.desc}
           </div>
         ))}
       </div>
 
-      <style dangerouslySetInnerHTML={{__html: `
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: .5; }
         }
-      `}} />
+      `,
+        }}
+      />
     </div>
   );
 }

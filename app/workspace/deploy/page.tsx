@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { api } from "@/lib/api";
 
 const PLATFORMS = [
   { icon: "🔷", name: "WordPress" },
@@ -51,13 +52,28 @@ export default function DeployPage() {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState("");
   const [health, setHealth] = useState<HealthState>("checking");
+  const [tenantSlug, setTenantSlug] = useState("");
+
+  useEffect(() => {
+    async function loadTenant() {
+      try {
+        const me = await api.get<{ tenant?: { slug: string } }>("/api/auth/me");
+        setTenantSlug(me.tenant?.slug || "");
+      } catch (err) {
+        console.error("Failed to load user info for deploy page", err);
+      }
+    }
+    loadTenant();
+  }, []);
 
   // Production builds set NEXT_PUBLIC_API_URL. The localhost fallback only
   // kicks in during dev — the dev banner above flags that case to the user.
   const backendOrigin =
     process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
   const isLocalhost = isDevOrigin(backendOrigin);
-  const snippet = `<script src="${backendOrigin}/static/embed.js" data-api="${backendOrigin}"><\/script>`;
+  const snippet = tenantSlug
+    ? `<script src="${backendOrigin}/static/embed.js" data-api="${backendOrigin}" data-tenant="${tenantSlug}"><\/script>`
+    : `<script src="${backendOrigin}/static/embed.js" data-api="${backendOrigin}"><\/script>`;
 
   // Real health check — confirms the backend the snippet points at is
   // actually reachable. Otherwise the green "Live & Running" pill would

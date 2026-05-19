@@ -83,6 +83,7 @@ export default function TestingPage() {
   const [toast, setToast] = useState("");
   const [dirty, setDirty] = useState(false);
   const [calError, setCalError] = useState("");
+  const [tenantSlug, setTenantSlug] = useState("");
   // Bumped after every successful save so the live test widget reloads with
   // the new server-side config — otherwise the user is testing stale state.
   const [widgetKey, setWidgetKey] = useState(0);
@@ -93,11 +94,15 @@ export default function TestingPage() {
   useEffect(() => {
     async function load() {
       try {
-        const data = await api.get<{
-          bot_role: string;
-          calendar_link: string;
-          system_prompt_text: string;
-        }>("/api/config/bot");
+        const [data, me] = await Promise.all([
+          api.get<{
+            bot_role: string;
+            calendar_link: string;
+            system_prompt_text: string;
+          }>("/api/config/bot"),
+          api.get<{ tenant?: { slug: string } }>("/api/auth/me")
+        ]);
+        setTenantSlug(me.tenant?.slug || "");
         setRole(data.bot_role || "hybrid");
         if (data.calendar_link) {
           try {
@@ -128,6 +133,8 @@ export default function TestingPage() {
   }, []);
 
   useEffect(() => {
+    if (loading) return;
+
     setWidgetState("loading");
     const existing = document.getElementById("ryx-embed-script");
     if (existing) existing.remove();
@@ -157,6 +164,9 @@ export default function TestingPage() {
     script.id = "ryx-embed-script";
     script.src = `${apiBase}/static/embed.js?t=${Date.now()}`;
     script.setAttribute("data-api", apiBase);
+    if (tenantSlug) {
+      script.setAttribute("data-tenant", tenantSlug);
+    }
 
     script.onload = () => {
       setWidgetState("ready");
@@ -177,7 +187,7 @@ export default function TestingPage() {
       document.getElementById("ryx-chat-container")?.remove();
       injected.forEach((el) => el.remove());
     };
-  }, [widgetKey]);
+  }, [widgetKey, loading, tenantSlug]);
 
   // Warn before navigating away with unsaved edits. Browsers ignore the
   // string we return — they just show their own generic confirm dialog.

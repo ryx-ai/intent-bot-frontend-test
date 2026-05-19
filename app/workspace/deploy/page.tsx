@@ -627,6 +627,15 @@ export default function DeployPage() {
                   <span style={{ color: "#86efac" }}>
                     &quot;{backendOrigin}&quot;
                   </span>
+                  {tenantSlug && (
+                    <>
+                      {"\n        "}
+                      <span style={{ color: "#93c5fd" }}>data-tenant</span>=
+                      <span style={{ color: "#86efac" }}>
+                        &quot;{tenantSlug}&quot;
+                      </span>
+                    </>
+                  )}
                   <span style={{ color: "#f9a8d4" }}>&gt;&lt;/script&gt;</span>
                 </code>
               </pre>

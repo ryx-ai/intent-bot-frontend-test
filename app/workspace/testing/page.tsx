@@ -72,12 +72,30 @@ function validateCalendarLink(
   }
 }
 
+type CalCredential = {
+  id: number;
+  name: string;
+  api_key: string;
+  event_type_id: string;
+  is_active: boolean;
+  created_at: string;
+};
+
 export default function TestingPage() {
   const [role, setRole] = useState("hybrid");
   const [themeColor, setThemeColor] = useState("#8A64E9");
   const [calendarLink, setCalendarLink] = useState("");
   const [calTheme, setCalTheme] = useState("light");
   const [calHideDetails, setCalHideDetails] = useState(false);
+  const [calCredentials, setCalCredentials] = useState<CalCredential[]>([]);
+  const [calCredLoading, setCalCredLoading] = useState(true);
+  const [calCredName, setCalCredName] = useState("");
+  const [calCredApiKey, setCalCredApiKey] = useState("");
+  const [calCredEventTypeId, setCalCredEventTypeId] = useState("");
+  const [calCredSubmitting, setCalCredSubmitting] = useState(false);
+  const [calCredActionId, setCalCredActionId] = useState<number | null>(null);
+  const [calCredMessage, setCalCredMessage] = useState("");
+  const [calCredError, setCalCredError] = useState("");
   const [promptText, setPromptText] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -92,18 +110,45 @@ export default function TestingPage() {
     "loading",
   );
 
+  function showCalCredentialMessage(message: string, isError = false) {
+    if (isError) {
+      setCalCredError(message);
+      setCalCredMessage("");
+      setTimeout(() => setCalCredError(""), 4000);
+      return;
+    }
+    setCalCredMessage(message);
+    setCalCredError("");
+    setTimeout(() => setCalCredMessage(""), 3000);
+  }
+
+  async function loadCalCredentials() {
+    setCalCredLoading(true);
+    try {
+      const creds = await api.get<CalCredential[]>("/api/config/cal/list");
+      setCalCredentials(creds || []);
+    } catch (err) {
+      console.error("Failed to load Cal.com credentials", err);
+      showCalCredentialMessage("Failed to load Cal.com credentials.", true);
+    } finally {
+      setCalCredLoading(false);
+    }
+  }
+
   useEffect(() => {
     async function load() {
       try {
-        const [data, me] = await Promise.all([
+        const [data, me, creds] = await Promise.all([
           api.get<{
             bot_role: string;
             calendar_link: string;
             theme_color: string;
             system_prompt_text: string;
           }>("/api/config/bot"),
-          api.get<{ tenant?: { slug: string } }>("/api/auth/me")
+          api.get<{ tenant?: { slug: string } }>("/api/auth/me"),
+          api.get<CalCredential[]>("/api/config/cal/list"),
         ]);
+        setCalCredentials(creds || []);
         setTenantSlug(me.tenant?.slug || "");
         setRole(data.bot_role || "hybrid");
         setThemeColor(data.theme_color || "#8A64E9");
@@ -129,6 +174,7 @@ export default function TestingPage() {
       } catch (err) {
         console.error("Failed to load config", err);
       } finally {
+        setCalCredLoading(false);
         setLoading(false);
       }
     }
@@ -244,6 +290,98 @@ export default function TestingPage() {
       setTimeout(() => setToast(""), 3000);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function addCalCredential() {
+    const name = calCredName.trim();
+    const calApiKey = calCredApiKey.trim();
+    const eventTypeId = calCredEventTypeId.trim();
+
+    if (!name || !calApiKey || !eventTypeId) {
+      showCalCredentialMessage(
+        "Account name, API key, and event type ID are required.",
+        true,
+      );
+      return;
+    }
+
+    setCalCredSubmitting(true);
+    try {
+      const res = await api.post<{ success?: boolean; id?: number; error?: string }>(
+        "/api/config/verify-cal",
+        {
+          name,
+          cal_api_key: calApiKey,
+          cal_event_type_id: eventTypeId,
+        },
+      );
+      if (res?.success === false) {
+        throw new Error(res.error || "Cal.com verification failed.");
+      }
+      setCalCredName("");
+      setCalCredApiKey("");
+      setCalCredEventTypeId("");
+      showCalCredentialMessage("Cal.com credential verified and added.");
+      await loadCalCredentials();
+      setWidgetKey((k) => k + 1);
+    } catch (err) {
+      console.error("Failed to add Cal.com credential", err);
+      showCalCredentialMessage(
+        "Verification failed. Check API key and event type ID.",
+        true,
+      );
+    } finally {
+      setCalCredSubmitting(false);
+    }
+  }
+
+  async function activateCalCredential(id: number) {
+    setCalCredActionId(id);
+    try {
+      await api.post(`/api/config/cal/activate/${id}`);
+      showCalCredentialMessage("Active Cal.com credential updated.");
+      await loadCalCredentials();
+      setWidgetKey((k) => k + 1);
+    } catch (err) {
+      console.error("Failed to activate Cal.com credential", err);
+      showCalCredentialMessage("Failed to activate credential.", true);
+    } finally {
+      setCalCredActionId(null);
+    }
+  }
+
+  async function removeCalCredential(id: number) {
+    if (!window.confirm("Remove this Cal.com credential?")) return;
+
+    setCalCredActionId(id);
+    try {
+      await api.delete(`/api/config/cal/remove/${id}`);
+      showCalCredentialMessage("Cal.com credential removed.");
+      await loadCalCredentials();
+      setWidgetKey((k) => k + 1);
+    } catch (err) {
+      console.error("Failed to remove Cal.com credential", err);
+      showCalCredentialMessage("Failed to remove credential.", true);
+    } finally {
+      setCalCredActionId(null);
+    }
+  }
+
+  async function disconnectCal() {
+    if (!window.confirm("Disconnect Cal.com for this tenant?")) return;
+
+    setCalCredActionId(-1);
+    try {
+      await api.post("/api/config/cal/disconnect");
+      showCalCredentialMessage("Cal.com disconnected for this tenant.");
+      await loadCalCredentials();
+      setWidgetKey((k) => k + 1);
+    } catch (err) {
+      console.error("Failed to disconnect Cal.com", err);
+      showCalCredentialMessage("Failed to disconnect Cal.com.", true);
+    } finally {
+      setCalCredActionId(null);
     }
   }
 
@@ -679,6 +817,361 @@ export default function TestingPage() {
                 Hide left panel details
               </span>
             </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            borderTop: `1px solid ${C.border}`,
+            marginTop: "1.5rem",
+            paddingTop: "1.5rem",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "1rem",
+              alignItems: "flex-start",
+              flexWrap: "wrap",
+              marginBottom: "1rem",
+            }}
+          >
+            <div>
+              <h3
+                style={{
+                  fontSize: "0.82rem",
+                  fontWeight: 800,
+                  color: C.textPrimary,
+                  marginBottom: 4,
+                }}
+              >
+                Cal.com API Credentials
+              </h3>
+              <p
+                style={{
+                  color: C.textMuted,
+                  fontSize: "0.75rem",
+                  lineHeight: 1.45,
+                }}
+              >
+                Used for backend availability checks and booking creation. Tenant
+                scoping comes from the logged-in admin session.
+              </p>
+            </div>
+            {calCredentials.length > 0 && (
+              <button
+                onClick={disconnectCal}
+                disabled={calCredActionId === -1}
+                style={{
+                  backgroundColor: "transparent",
+                  color: C.error,
+                  border: `1px solid ${C.error}`,
+                  borderRadius: 8,
+                  padding: "0.55rem 0.8rem",
+                  fontSize: "0.75rem",
+                  fontWeight: 700,
+                  cursor: calCredActionId === -1 ? "default" : "pointer",
+                  opacity: calCredActionId === -1 ? 0.55 : 1,
+                  fontFamily: "inherit",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {calCredActionId === -1 ? "Disconnecting..." : "Disconnect"}
+              </button>
+            )}
+          </div>
+
+          {(calCredMessage || calCredError) && (
+            <div
+              style={{
+                border: `1px solid ${calCredError ? C.error : C.success}`,
+                backgroundColor: calCredError
+                  ? "rgba(239, 68, 68, 0.12)"
+                  : "rgba(16, 185, 129, 0.12)",
+                color: calCredError ? C.error : C.success,
+                borderRadius: 8,
+                padding: "0.65rem 0.8rem",
+                fontSize: "0.78rem",
+                marginBottom: "1rem",
+              }}
+            >
+              {calCredError || calCredMessage}
+            </div>
+          )}
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: "0.75rem",
+              marginBottom: "0.75rem",
+            }}
+          >
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "0.75rem",
+                  fontWeight: 700,
+                  color: C.textPrimary,
+                  marginBottom: 6,
+                }}
+              >
+                Account Name
+              </label>
+              <input
+                type="text"
+                value={calCredName}
+                onChange={(e) => setCalCredName(e.target.value)}
+                placeholder="Primary Booking"
+                style={{
+                  width: "100%",
+                  backgroundColor: C.bgSurface,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8,
+                  padding: "0.65rem 0.85rem",
+                  fontSize: "0.8rem",
+                  color: C.textPrimary,
+                  outline: "none",
+                  fontFamily: "inherit",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "0.75rem",
+                  fontWeight: 700,
+                  color: C.textPrimary,
+                  marginBottom: 6,
+                }}
+              >
+                Cal.com API Key
+              </label>
+              <input
+                type="password"
+                value={calCredApiKey}
+                onChange={(e) => setCalCredApiKey(e.target.value)}
+                placeholder="cal_live_xxxxxxxxxxxxx"
+                style={{
+                  width: "100%",
+                  backgroundColor: C.bgSurface,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8,
+                  padding: "0.65rem 0.85rem",
+                  fontSize: "0.8rem",
+                  color: C.textPrimary,
+                  outline: "none",
+                  fontFamily: "inherit",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "0.75rem",
+                  fontWeight: 700,
+                  color: C.textPrimary,
+                  marginBottom: 6,
+                }}
+              >
+                Event Type ID
+              </label>
+              <input
+                type="text"
+                value={calCredEventTypeId}
+                onChange={(e) => setCalCredEventTypeId(e.target.value)}
+                placeholder="1234567"
+                style={{
+                  width: "100%",
+                  backgroundColor: C.bgSurface,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8,
+                  padding: "0.65rem 0.85rem",
+                  fontSize: "0.8rem",
+                  color: C.textPrimary,
+                  outline: "none",
+                  fontFamily: "inherit",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button
+              onClick={addCalCredential}
+              disabled={calCredSubmitting}
+              style={{
+                backgroundColor: C.accent,
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                padding: "0.6rem 1rem",
+                fontSize: "0.78rem",
+                fontWeight: 700,
+                cursor: calCredSubmitting ? "default" : "pointer",
+                opacity: calCredSubmitting ? 0.55 : 1,
+                fontFamily: "inherit",
+              }}
+            >
+              {calCredSubmitting ? "Verifying..." : "Verify & Add Credential"}
+            </button>
+          </div>
+
+          <div style={{ marginTop: "1.25rem" }}>
+            <h4
+              style={{
+                fontSize: "0.75rem",
+                fontWeight: 800,
+                color: C.textMuted,
+                letterSpacing: "1px",
+                textTransform: "uppercase",
+                marginBottom: "0.75rem",
+              }}
+            >
+              Connected Credentials
+            </h4>
+            {calCredLoading ? (
+              <p style={{ color: C.textMuted, fontSize: "0.78rem" }}>
+                Loading Cal.com credentials...
+              </p>
+            ) : calCredentials.length === 0 ? (
+              <div
+                style={{
+                  border: `1px dashed ${C.border}`,
+                  borderRadius: 8,
+                  padding: "0.9rem",
+                  color: C.textMuted,
+                  fontSize: "0.78rem",
+                  backgroundColor: C.bgSurface,
+                }}
+              >
+                No Cal.com API credentials connected for this tenant.
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: "0.65rem" }}>
+                {calCredentials.map((cred) => (
+                  <div
+                    key={cred.id}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                      gap: "0.75rem",
+                      alignItems: "center",
+                      backgroundColor: C.bgSurface,
+                      border: `1px solid ${cred.is_active ? C.accent : C.border}`,
+                      borderRadius: 8,
+                      padding: "0.8rem",
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          marginBottom: 4,
+                        }}
+                      >
+                        <span
+                          style={{
+                            color: C.textPrimary,
+                            fontSize: "0.82rem",
+                            fontWeight: 800,
+                          }}
+                        >
+                          {cred.name}
+                        </span>
+                        <span
+                          style={{
+                            borderRadius: 999,
+                            padding: "0.18rem 0.5rem",
+                            backgroundColor: cred.is_active
+                              ? "rgba(16, 185, 129, 0.14)"
+                              : "rgba(136, 144, 184, 0.12)",
+                            color: cred.is_active ? C.success : C.textMuted,
+                            fontSize: "0.68rem",
+                            fontWeight: 800,
+                          }}
+                        >
+                          {cred.is_active ? "Active" : "Inactive"}
+                        </span>
+                      </div>
+                      <p style={{ color: C.textMuted, fontSize: "0.7rem" }}>
+                        Added{" "}
+                        {cred.created_at
+                          ? new Date(cred.created_at).toLocaleDateString()
+                          : "recently"}
+                      </p>
+                    </div>
+                    <div>
+                      <p style={{ color: C.textMuted, fontSize: "0.68rem" }}>
+                        API Key
+                      </p>
+                      <p style={{ color: C.textPrimary, fontSize: "0.78rem" }}>
+                        {cred.api_key}
+                      </p>
+                    </div>
+                    <div>
+                      <p style={{ color: C.textMuted, fontSize: "0.68rem" }}>
+                        Event Type
+                      </p>
+                      <p style={{ color: C.textPrimary, fontSize: "0.78rem" }}>
+                        {cred.event_type_id}
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                      {!cred.is_active && (
+                        <button
+                          onClick={() => activateCalCredential(cred.id)}
+                          disabled={calCredActionId === cred.id}
+                          style={{
+                            backgroundColor: "transparent",
+                            color: C.success,
+                            border: `1px solid ${C.success}`,
+                            borderRadius: 8,
+                            padding: "0.45rem 0.7rem",
+                            fontSize: "0.72rem",
+                            fontWeight: 800,
+                            cursor:
+                              calCredActionId === cred.id ? "default" : "pointer",
+                            opacity: calCredActionId === cred.id ? 0.55 : 1,
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          Activate
+                        </button>
+                      )}
+                      <button
+                        onClick={() => removeCalCredential(cred.id)}
+                        disabled={calCredActionId === cred.id}
+                        style={{
+                          backgroundColor: "transparent",
+                          color: C.error,
+                          border: `1px solid ${C.error}`,
+                          borderRadius: 8,
+                          padding: "0.45rem 0.7rem",
+                          fontSize: "0.72rem",
+                          fontWeight: 800,
+                          cursor:
+                            calCredActionId === cred.id ? "default" : "pointer",
+                          opacity: calCredActionId === cred.id ? 0.55 : 1,
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </section>

@@ -11,7 +11,7 @@ interface Tenant {
   id: number;
   slug: string;
   name: string;
-  status: string;
+  status: "active" | "suspended" | string;
   created_at: string;
 }
 
@@ -20,6 +20,11 @@ interface TenantAdmin {
   email: string;
   tenant_id: number;
   role: string;
+}
+
+interface DeleteTenantResponse {
+  status: "deleted";
+  slug: string;
 }
 
 const SLUG_RE = /^[a-z0-9_-]{1,64}$/;
@@ -41,11 +46,28 @@ function formatDate(value: string) {
   return date.toLocaleString();
 }
 
+function statusBadgeStyle(status: string): React.CSSProperties {
+  const isSuspended = status === "suspended";
+  return {
+    display: "inline-block",
+    padding: "0.2rem 0.5rem",
+    borderRadius: 4,
+    background: isSuspended
+      ? "rgba(245, 158, 11, 0.12)"
+      : "rgba(16, 185, 129, 0.12)",
+    color: isSuspended ? "var(--warning)" : "var(--success)",
+    fontSize: "0.78rem",
+    fontWeight: 700,
+    textTransform: "capitalize",
+  };
+}
+
 export default function TenantManagementPage() {
   const [role, setRole] = useState<string | null>(null);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [tenantActionId, setTenantActionId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -144,6 +166,67 @@ export default function TenantManagementPage() {
       setError(errorMessage(err, "Tenant onboarding failed."));
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleStatusChange(tenant: Tenant) {
+    const nextStatus = tenant.status === "active" ? "suspended" : "active";
+    const actionLabel = nextStatus === "suspended" ? "suspend" : "reactivate";
+    const ok = window.confirm(
+      `Are you sure you want to ${actionLabel} ${tenant.name}?`
+    );
+    if (!ok) return;
+
+    setTenantActionId(tenant.id);
+    setError("");
+    setSuccess("");
+    try {
+      const updated = await api.patch<Tenant>(`/api/admin/tenants/${tenant.id}`, {
+        status: nextStatus,
+      });
+      setTenants((current) =>
+        current.map((item) => (item.id === tenant.id ? updated : item))
+      );
+      setSuccess(
+        `${tenant.name} is now ${nextStatus}. ${
+          nextStatus === "suspended"
+            ? "Tenant admins cannot log in until reactivated."
+            : "Tenant admins can log in again."
+        }`
+      );
+    } catch (err) {
+      setError(errorMessage(err, `Failed to ${actionLabel} tenant.`));
+    } finally {
+      setTenantActionId(null);
+    }
+  }
+
+  async function handleDeleteTenant(tenant: Tenant) {
+    const blockedSlug = tenant.slug === "ryxai";
+    if (blockedSlug) {
+      setError("The default platform tenant cannot be deleted from this UI.");
+      setSuccess("");
+      return;
+    }
+
+    const ok = window.confirm(
+      `Hard delete ${tenant.name}?\n\nThis removes the tenant, its admins, tenant data, and filesystem folder. This cannot be undone.`
+    );
+    if (!ok) return;
+
+    setTenantActionId(tenant.id);
+    setError("");
+    setSuccess("");
+    try {
+      const deleted = await api.delete<DeleteTenantResponse>(
+        `/api/admin/tenants/${tenant.id}`
+      );
+      setTenants((current) => current.filter((item) => item.id !== tenant.id));
+      setSuccess(`Deleted tenant ${deleted.slug}.`);
+    } catch (err) {
+      setError(errorMessage(err, "Failed to delete tenant."));
+    } finally {
+      setTenantActionId(null);
     }
   }
 
@@ -342,12 +425,13 @@ export default function TenantManagementPage() {
                 <th style={thStyle}>Slug</th>
                 <th style={thStyle}>Status</th>
                 <th style={thStyle}>Created</th>
+                <th style={{ ...thStyle, textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {tenants.length === 0 ? (
                 <tr>
-                  <td colSpan={4} style={{ padding: "2rem", color: "var(--text-muted)", textAlign: "center" }}>
+                  <td colSpan={5} style={{ padding: "2rem", color: "var(--text-muted)", textAlign: "center" }}>
                     No tenants yet.
                   </td>
                 </tr>
@@ -359,22 +443,55 @@ export default function TenantManagementPage() {
                       {tenant.slug}
                     </td>
                     <td style={tdStyle}>
-                      <span
-                        style={{
-                          display: "inline-block",
-                          padding: "0.2rem 0.5rem",
-                          borderRadius: 4,
-                          background: "rgba(16, 185, 129, 0.12)",
-                          color: "var(--success)",
-                          fontSize: "0.78rem",
-                          fontWeight: 700,
-                          textTransform: "capitalize",
-                        }}
-                      >
+                      <span style={statusBadgeStyle(tenant.status)}>
                         {tenant.status}
                       </span>
                     </td>
                     <td style={tdStyle}>{formatDate(tenant.created_at)}</td>
+                    <td style={{ ...tdStyle, textAlign: "right", whiteSpace: "nowrap" }}>
+                      <button
+                        type="button"
+                        onClick={() => handleStatusChange(tenant)}
+                        disabled={tenantActionId === tenant.id}
+                        style={{
+                          ...actionButtonStyle,
+                          color: tenant.status === "active" ? "var(--warning)" : "var(--success)",
+                          borderColor:
+                            tenant.status === "active"
+                              ? "rgba(245, 158, 11, 0.35)"
+                              : "rgba(16, 185, 129, 0.35)",
+                        }}
+                      >
+                        {tenantActionId === tenant.id
+                          ? "Working..."
+                          : tenant.status === "active"
+                            ? "Suspend"
+                            : "Reactivate"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteTenant(tenant)}
+                        disabled={tenantActionId === tenant.id || tenant.slug === "ryxai"}
+                        title={
+                          tenant.slug === "ryxai"
+                            ? "Default platform tenant cannot be deleted here"
+                            : "Hard delete tenant"
+                        }
+                        style={{
+                          ...actionButtonStyle,
+                          marginLeft: "0.5rem",
+                          color: "var(--error)",
+                          borderColor: "rgba(239, 68, 68, 0.35)",
+                          opacity: tenantActionId === tenant.id || tenant.slug === "ryxai" ? 0.45 : 1,
+                          cursor:
+                            tenantActionId === tenant.id || tenant.slug === "ryxai"
+                              ? "not-allowed"
+                              : "pointer",
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -412,4 +529,15 @@ const tdStyle: React.CSSProperties = {
   padding: "0.95rem 1rem",
   color: "var(--text-primary)",
   fontSize: "0.9rem",
+};
+
+const actionButtonStyle: React.CSSProperties = {
+  padding: "0.35rem 0.65rem",
+  borderRadius: 6,
+  border: "1px solid var(--border)",
+  background: "transparent",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  fontSize: "0.8rem",
+  fontWeight: 700,
 };

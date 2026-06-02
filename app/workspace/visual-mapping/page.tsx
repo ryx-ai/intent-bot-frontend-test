@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
+import { ConfirmDialog } from "../_components/ConfirmDialog";
 
 interface MappingEntry {
   path: string;
@@ -20,6 +21,8 @@ export default function VisualMappingPage() {
   const [editValue, setEditValue] = useState("");
   const [editError, setEditError] = useState("");
   const [toast, setToast] = useState("");
+  const [deleteKeyword, setDeleteKeyword] = useState<string | null>(null);
+  const [deletingKeyword, setDeletingKeyword] = useState("");
 
   async function fetchMappings() {
     try {
@@ -90,7 +93,13 @@ export default function VisualMappingPage() {
 
   // ── Delete ──
   async function handleDelete(keyword: string) {
-    if (!confirm(`Delete mapping "${keyword}"? This will also remove its image file.`)) return;
+    setDeleteKeyword(keyword);
+  }
+
+  async function confirmDelete() {
+    if (!deleteKeyword) return;
+    const keyword = deleteKeyword;
+    setDeletingKeyword(keyword);
 
     try {
       await api.delete(`/api/visual-mapping/${encodeURIComponent(keyword)}`);
@@ -98,6 +107,9 @@ export default function VisualMappingPage() {
       setToast("Mapping deleted");
     } catch {
       setToast("Delete failed");
+    } finally {
+      setDeletingKeyword("");
+      setDeleteKeyword(null);
     }
     setTimeout(() => setToast(""), 3000);
   }
@@ -359,6 +371,33 @@ export default function VisualMappingPage() {
           })}
         </div>
       )}
+      <ConfirmDialog
+        open={deleteKeyword !== null}
+        tone="danger"
+        eyebrow="Delete visual mapping"
+        title="Delete this mapping?"
+        description="This removes the keyword mapping and its associated image file from the visual intelligence matrix."
+        confirmLabel="Delete mapping"
+        busy={deletingKeyword !== ""}
+        onCancel={() => setDeleteKeyword(null)}
+        onConfirm={() => void confirmDelete()}
+      >
+        {deleteKeyword && (
+          <div style={dialogSummaryStyle}>
+            <div>
+              <span style={dialogLabelStyle}>Keyword</span>
+              <strong style={dialogValueStyle}>{deleteKeyword}</strong>
+            </div>
+            <div>
+              <span style={dialogLabelStyle}>Source</span>
+              <span style={dialogMutedValueStyle}>
+                {mappings[deleteKeyword]?.source || "Knowledge Lake Upload"}
+              </span>
+            </div>
+          </div>
+        )}
+      </ConfirmDialog>
+
       {toast && (
         <div style={{
           position: "fixed", bottom: 20, right: 20, zIndex: 50,
@@ -372,3 +411,38 @@ export default function VisualMappingPage() {
     </div>
   );
 }
+
+const dialogSummaryStyle: React.CSSProperties = {
+  padding: "0.9rem",
+  borderRadius: 8,
+  border: "1px solid var(--border)",
+  background: "var(--bg-surface)",
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+  gap: "0.85rem",
+};
+
+const dialogLabelStyle: React.CSSProperties = {
+  display: "block",
+  marginBottom: "0.35rem",
+  color: "var(--text-muted)",
+  fontSize: "0.72rem",
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: 0,
+};
+
+const dialogValueStyle: React.CSSProperties = {
+  display: "block",
+  color: "var(--accent-light)",
+  fontFamily: "monospace",
+  fontSize: "0.9rem",
+  overflowWrap: "anywhere",
+};
+
+const dialogMutedValueStyle: React.CSSProperties = {
+  display: "block",
+  color: "var(--text-primary)",
+  fontSize: "0.9rem",
+  overflowWrap: "anywhere",
+};

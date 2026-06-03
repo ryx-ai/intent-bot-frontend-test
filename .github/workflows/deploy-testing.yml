@@ -1,0 +1,26 @@
+name: Deploy to Testing Environment
+
+on:
+  push:
+    branches: [aravind]
+  workflow_dispatch:
+
+jobs:
+  sync-to-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Push to test repository
+        env:
+          # This secret holds your Personal Access Token
+          TEST_REPO_PAT: ${{ secrets.TEST_REPO_PAT }}
+        run: |
+          # Add the test repository as a remote using the PAT for authentication
+          git remote add test-repo https://x-access-token:${TEST_REPO_PAT}@github.com/ryx-ai/intent-bot-frontend-test.git
+          
+          # Force push the current branch (aravind) to the test repository's main branch
+          git push test-repo HEAD:main --force

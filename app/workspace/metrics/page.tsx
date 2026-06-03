@@ -338,7 +338,7 @@ export default function MetricsPage() {
           the AI identifies user behavior in real-time.
         </p>
         <button
-          onClick={saveConfiguration}
+          onClick={() => saveConfiguration()}
           style={{
             background: "var(--accent)",
             color: "#fff",

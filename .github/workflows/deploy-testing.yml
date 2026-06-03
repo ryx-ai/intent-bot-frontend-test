@@ -20,7 +20,7 @@ jobs:
           TEST_REPO_PAT: ${{ secrets.TEST_REPO_PAT }}
         run: |
           # Add the test repository as a remote using the PAT for authentication
-          git remote add test-repo https://x-access-token:${TEST_REPO_PAT}@github.com/ryx-ai/intent-bot-frontend-test.git
+          git remote add test-repo https://${TEST_REPO_PAT}@github.com/ryx-ai/intent-bot-frontend-test.git
           
           # Force push the current branch (aravind) to the test repository's main branch
           git push test-repo HEAD:main --force

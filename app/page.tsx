@@ -26,10 +26,24 @@ export default function LoginPage() {
       // submit.
     } catch (err) {
       if (err instanceof ApiError) {
-        if (err.status === 401) setError("Invalid credentials.");
-        else if (err.status === 429) setError("Too many attempts. Please wait and try again.");
-        else if (err.status >= 500) setError("Server error. Please try again later.");
-        else setError("Login failed. Please try again.");
+        // Check for specific tenant status errors (these override status code handling)
+        if (err.detail === "tenant_suspended") {
+          setError(
+            "This workspace has been suspended.\nPlease contact your administrator.",
+          );
+        } else if (err.detail === "tenant_deleted") {
+          setError(
+            "This workspace has been deleted.\nPlease contact your administrator.",
+          );
+        } else if (err.status === 401) {
+          setError("Invalid email or password.");
+        } else if (err.status === 429) {
+          setError("Too many attempts. Please wait and try again.");
+        } else if (err.status >= 500) {
+          setError("Server error. Please try again later.");
+        } else {
+          setError("Login failed. Please try again.");
+        }
       } else {
         setError("Network error. Check your connection.");
       }
@@ -39,7 +53,16 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
+    <div
+      style={{
+        display: "flex",
+        minHeight: "100vh",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
       {/* Login Card */}
       <div
         style={{
@@ -61,10 +84,23 @@ export default function LoginPage() {
             alt="RYX AI Logo"
             width={200}
             height={80}
-            style={{ width: "auto", height: 60, margin: "0 auto 16px auto", objectFit: "contain" }}
+            style={{
+              width: "auto",
+              height: 60,
+              margin: "0 auto 16px auto",
+              objectFit: "contain",
+            }}
             priority
           />
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: "#fff", letterSpacing: "-0.02em", marginBottom: 4 }}>
+          <h1
+            style={{
+              fontSize: 24,
+              fontWeight: 700,
+              color: "#fff",
+              letterSpacing: "-0.02em",
+              marginBottom: 4,
+            }}
+          >
             Welcome Back
           </h1>
           <p style={{ fontSize: 14, color: "var(--text-secondary)" }}>
@@ -78,7 +114,13 @@ export default function LoginPage() {
           <div style={{ marginBottom: 24 }}>
             <label
               htmlFor="email"
-              style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-primary)", marginBottom: 8 }}
+              style={{
+                display: "block",
+                fontSize: 12,
+                fontWeight: 600,
+                color: "var(--text-primary)",
+                marginBottom: 8,
+              }}
             >
               Account ID
             </label>
@@ -107,7 +149,13 @@ export default function LoginPage() {
           <div style={{ marginBottom: 24 }}>
             <label
               htmlFor="password"
-              style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-primary)", marginBottom: 8 }}
+              style={{
+                display: "block",
+                fontSize: 12,
+                fontWeight: 600,
+                color: "var(--text-primary)",
+                marginBottom: 8,
+              }}
             >
               Password
             </label>

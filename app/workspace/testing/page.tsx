@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { ConfirmDialog } from "../_components/ConfirmDialog";
 
 // Design tokens as JS constants — bypasses CSS variable resolution issues with Tailwind v4
 const C = {
@@ -96,6 +97,9 @@ export default function TestingPage() {
   const [calCredActionId, setCalCredActionId] = useState<number | null>(null);
   const [calCredMessage, setCalCredMessage] = useState("");
   const [calCredError, setCalCredError] = useState("");
+  const [calDialogOpen, setCalDialogOpen] = useState(false);
+  const [calDialogType, setCalDialogType] = useState<"disconnect" | "remove" | null>(null);
+  const [calDialogCredId, setCalDialogCredId] = useState<number | null>(null);
   const [promptText, setPromptText] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -308,14 +312,15 @@ export default function TestingPage() {
 
     setCalCredSubmitting(true);
     try {
-      const res = await api.post<{ success?: boolean; id?: number; error?: string }>(
-        "/api/config/verify-cal",
-        {
-          name,
-          cal_api_key: calApiKey,
-          cal_event_type_id: eventTypeId,
-        },
-      );
+      const res = await api.post<{
+        success?: boolean;
+        id?: number;
+        error?: string;
+      }>("/api/config/verify-cal", {
+        name,
+        cal_api_key: calApiKey,
+        cal_event_type_id: eventTypeId,
+      });
       if (res?.success === false) {
         throw new Error(res.error || "Cal.com verification failed.");
       }
@@ -352,11 +357,18 @@ export default function TestingPage() {
   }
 
   async function removeCalCredential(id: number) {
-    if (!window.confirm("Remove this Cal.com credential?")) return;
+    setCalDialogType("remove");
+    setCalDialogCredId(id);
+    setCalDialogOpen(true);
+  }
 
-    setCalCredActionId(id);
+  async function confirmRemoveCalCredential() {
+    if (!calDialogCredId) return;
+    setCalDialogOpen(false);
+
+    setCalCredActionId(calDialogCredId);
     try {
-      await api.delete(`/api/config/cal/remove/${id}`);
+      await api.delete(`/api/config/cal/remove/${calDialogCredId}`);
       showCalCredentialMessage("Cal.com credential removed.");
       await loadCalCredentials();
       setWidgetKey((k) => k + 1);
@@ -365,11 +377,17 @@ export default function TestingPage() {
       showCalCredentialMessage("Failed to remove credential.", true);
     } finally {
       setCalCredActionId(null);
+      setCalDialogCredId(null);
     }
   }
 
   async function disconnectCal() {
-    if (!window.confirm("Disconnect Cal.com for this tenant?")) return;
+    setCalDialogType("disconnect");
+    setCalDialogOpen(true);
+  }
+
+  async function confirmDisconnectCal() {
+    setCalDialogOpen(false);
 
     setCalCredActionId(-1);
     try {
@@ -629,8 +647,16 @@ export default function TestingPage() {
             }}
           />
         </div>
-        <p style={{ color: C.textMuted, fontSize: "0.75rem", marginTop: 8, lineHeight: 1.4 }}>
-          Select the primary color for your chatbot widget. It will be used for buttons, links, and avatar accents.
+        <p
+          style={{
+            color: C.textMuted,
+            fontSize: "0.75rem",
+            marginTop: 8,
+            lineHeight: 1.4,
+          }}
+        >
+          Select the primary color for your chatbot widget. It will be used for
+          buttons, links, and avatar accents.
         </p>
       </section>
 
@@ -855,8 +881,8 @@ export default function TestingPage() {
                   lineHeight: 1.45,
                 }}
               >
-                Used for backend availability checks and booking creation. Tenant
-                scoping comes from the logged-in admin session.
+                Used for backend availability checks and booking creation.
+                Tenant scoping comes from the logged-in admin session.
               </p>
             </div>
             {calCredentials.length > 0 && (
@@ -1061,7 +1087,8 @@ export default function TestingPage() {
                     key={cred.id}
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(140px, 1fr))",
                       gap: "0.75rem",
                       alignItems: "center",
                       backgroundColor: C.bgSurface,
@@ -1126,7 +1153,13 @@ export default function TestingPage() {
                         {cred.event_type_id}
                       </p>
                     </div>
-                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "0.5rem",
+                        flexWrap: "wrap",
+                      }}
+                    >
                       {!cred.is_active && (
                         <button
                           onClick={() => activateCalCredential(cred.id)}
@@ -1140,7 +1173,9 @@ export default function TestingPage() {
                             fontSize: "0.72rem",
                             fontWeight: 800,
                             cursor:
-                              calCredActionId === cred.id ? "default" : "pointer",
+                              calCredActionId === cred.id
+                                ? "default"
+                                : "pointer",
                             opacity: calCredActionId === cred.id ? 0.55 : 1,
                             fontFamily: "inherit",
                           }}
@@ -1275,6 +1310,37 @@ export default function TestingPage() {
           {toast}
         </div>
       )}
+
+      {/* Cal.com confirmation dialogs */}
+      <ConfirmDialog
+        open={calDialogOpen && calDialogType === "remove"}
+        eyebrow="Remove Credential"
+        title="Remove Cal.com Credential?"
+        description="This credential will be permanently removed. You can add it again later if needed."
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        tone="danger"
+        onCancel={() => {
+          setCalDialogOpen(false);
+          setCalDialogType(null);
+          setCalDialogCredId(null);
+        }}
+        onConfirm={confirmRemoveCalCredential}
+      />
+      <ConfirmDialog
+        open={calDialogOpen && calDialogType === "disconnect"}
+        eyebrow="Disconnect Service"
+        title="Disconnect Cal.com?"
+        description="All Cal.com credentials will be removed from this tenant. You can reconnect and re-add credentials later."
+        confirmLabel="Disconnect"
+        cancelLabel="Cancel"
+        tone="danger"
+        onCancel={() => {
+          setCalDialogOpen(false);
+          setCalDialogType(null);
+        }}
+        onConfirm={confirmDisconnectCal}
+      />
     </div>
   );
 }

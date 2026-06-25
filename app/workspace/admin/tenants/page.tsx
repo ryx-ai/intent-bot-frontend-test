@@ -54,6 +54,11 @@ export default function TenantManagementPage() {
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
 
+  const [confirmDialog, setConfirmDialog] = useState<{
+    type: "delete" | "toggle";
+    tenant: Tenant;
+  } | null>(null);
+
   const validationError = useMemo(() => {
     const trimmedName = name.trim();
     const trimmedPassword = adminPassword.trim();
@@ -147,44 +152,28 @@ export default function TenantManagementPage() {
     }
   }
 
-  async function handleDelete(tenant: Tenant) {
-    if (tenant.slug === "ryxai") {
-      alert("Cannot delete the platform-owner tenant.");
-      return;
-    }
-    const confirmed = window.confirm(
-      `Are you sure you want to permanently delete the tenant '${tenant.name}' and all its data? This action cannot be undone.`
-    );
-    if (!confirmed) return;
-
-    try {
-      await api.delete(`/api/admin/tenants/${tenant.id}`);
-      await loadTenants();
-      setSuccess(`Tenant '${tenant.name}' has been deleted.`);
-      setTimeout(() => setSuccess(""), 3000);
-    } catch (err) {
-      setError(errorMessage(err, "Failed to delete tenant."));
-    }
-  }
-
-  async function handleToggleStatus(tenant: Tenant) {
-    if (tenant.slug === "ryxai") {
-      alert("Cannot freeze the platform-owner tenant.");
-      return;
-    }
-    const newStatus = tenant.status === "active" ? "suspended" : "active";
-    const action = newStatus === "suspended" ? "freeze" : "unfreeze";
+  async function executeConfirmAction() {
+    if (!confirmDialog) return;
+    const { type, tenant } = confirmDialog;
     
-    const confirmed = window.confirm(`Are you sure you want to ${action} the tenant '${tenant.name}'?`);
-    if (!confirmed) return;
-
+    setConfirmDialog(null);
+    setSubmitting(true);
+    
     try {
-      await api.patch(`/api/admin/tenants/${tenant.id}`, { status: newStatus });
+      if (type === "delete") {
+        await api.delete(`/api/admin/tenants/${tenant.id}`);
+        setSuccess(`Tenant '${tenant.name}' has been deleted.`);
+      } else {
+        const newStatus = tenant.status === "active" ? "suspended" : "active";
+        await api.patch(`/api/admin/tenants/${tenant.id}`, { status: newStatus });
+        setSuccess(`Tenant '${tenant.name}' has been ${newStatus === "suspended" ? "frozen" : "unfrozen"}.`);
+      }
       await loadTenants();
-      setSuccess(`Tenant '${tenant.name}' has been ${newStatus}.`);
-      setTimeout(() => setSuccess(""), 3000);
+      setTimeout(() => setSuccess(""), 4000);
     } catch (err) {
-      setError(errorMessage(err, `Failed to ${action} tenant.`));
+      setError(errorMessage(err, `Failed to ${type} tenant.`));
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -422,7 +411,7 @@ export default function TenantManagementPage() {
                         <div style={{ display: "flex", gap: "0.5rem" }}>
                           <button
                             type="button"
-                            onClick={() => handleToggleStatus(tenant)}
+                            onClick={() => setConfirmDialog({ type: "toggle", tenant })}
                             style={{
                               padding: "0.3rem 0.6rem",
                               borderRadius: 4,
@@ -438,7 +427,7 @@ export default function TenantManagementPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDelete(tenant)}
+                            onClick={() => setConfirmDialog({ type: "delete", tenant })}
                             style={{
                               padding: "0.3rem 0.6rem",
                               borderRadius: 4,
@@ -462,6 +451,53 @@ export default function TenantManagementPage() {
           </table>
         </div>
       </section>
+
+      {/* Custom Confirmation Modal */}
+      {confirmDialog && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
+          backgroundColor: "rgba(0, 0, 0, 0.7)", backdropFilter: "blur(4px)",
+          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999
+        }}>
+          <div style={{
+            background: "var(--bg-surface)", border: "1px solid var(--border)",
+            borderRadius: 12, padding: "2rem", maxWidth: 440, width: "90%",
+            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.2)"
+          }}>
+            <h3 style={{ margin: "0 0 1rem 0", color: "#fff", fontSize: "1.25rem", fontWeight: 700 }}>
+              {confirmDialog.type === "delete" 
+                ? "Delete Tenant" 
+                : confirmDialog.tenant.status === "active" ? "Freeze Tenant" : "Unfreeze Tenant"}
+            </h3>
+            <p style={{ margin: "0 0 1.5rem 0", color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: 1.5 }}>
+              {confirmDialog.type === "delete" 
+                ? <>Are you sure you want to permanently delete the tenant <strong>{confirmDialog.tenant.name}</strong> and all its data? This action cannot be undone.</>
+                : <>Are you sure you want to {confirmDialog.tenant.status === "active" ? "freeze" : "unfreeze"} the tenant <strong>{confirmDialog.tenant.name}</strong>?</>}
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
+              <button 
+                onClick={() => setConfirmDialog(null)}
+                style={{
+                  padding: "0.6rem 1rem", borderRadius: 6, border: "1px solid var(--border)",
+                  background: "transparent", color: "var(--text-secondary)", cursor: "pointer", fontWeight: 600, fontSize: "0.9rem"
+                }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={executeConfirmAction}
+                style={{
+                  padding: "0.6rem 1.25rem", borderRadius: 6, border: "none",
+                  background: confirmDialog.type === "delete" ? "#ef4444" : "var(--accent)", 
+                  color: "#fff", cursor: "pointer", fontWeight: 600, fontSize: "0.9rem"
+                }}
+              >
+                {confirmDialog.type === "delete" ? "Delete" : "Confirm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

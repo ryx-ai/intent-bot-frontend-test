@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
@@ -37,6 +37,12 @@ const SETTINGS_ITEMS = [
   { label: "AI Core Metrics", href: "/workspace/metrics" },
 ];
 
+const SUPER_ADMIN_NAV_ITEMS = [
+  { label: "Tenant Management", href: "/workspace/admin/tenants" },
+];
+
+const SUPER_ADMIN_SETTINGS_ITEMS: typeof SETTINGS_ITEMS = [];
+
 // `pathname === href` would never highlight nested routes like
 // `/workspace/knowledge/anything`. Treat any descendant URL as active.
 function matchesNav(pathname: string, href: string) {
@@ -49,6 +55,7 @@ export default function WorkspaceLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { logout } = useAuth();
   const [user, setUser] = useState<UserInfo | null>(null);
 
@@ -68,6 +75,23 @@ export default function WorkspaceLayout({
         setUser(null);
       });
   }, []);
+
+  useEffect(() => {
+    if (!user?.role) return;
+
+    const isSuperAdmin = user.role === "super_admin";
+    const isAdminRoute = pathname.startsWith("/workspace/admin");
+
+    if (isSuperAdmin && !isAdminRoute) {
+      router.replace("/workspace/admin/tenants");
+    } else if (!isSuperAdmin && isAdminRoute) {
+      router.replace("/workspace/dashboard");
+    }
+  }, [pathname, router, user?.role]);
+
+  const isSuperAdmin = user?.role === "super_admin";
+  const navItems = isSuperAdmin ? SUPER_ADMIN_NAV_ITEMS : NAV_ITEMS;
+  const settingsItems = isSuperAdmin ? SUPER_ADMIN_SETTINGS_ITEMS : SETTINGS_ITEMS;
 
   return (
     <div
@@ -123,7 +147,7 @@ export default function WorkspaceLayout({
           Workspace
         </div>
         <ul style={{ display: "flex", flexDirection: "column", gap: "0.25rem", listStyle: "none", padding: 0, margin: "0 0 1.5rem 0" }}>
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const isActive = matchesNav(pathname, item.href);
             return (
               <li key={item.href}>
@@ -148,45 +172,49 @@ export default function WorkspaceLayout({
           })}
         </ul>
 
-        {/* Settings section */}
-        <div
-          style={{
-            fontSize: "0.75rem",
-            textTransform: "uppercase",
-            color: "var(--text-secondary)",
-            fontWeight: 600,
-            letterSpacing: "0.05em",
-            marginBottom: "0.75rem",
-            padding: "0 0.5rem",
-          }}
-        >
-          Settings
-        </div>
-        <ul style={{ display: "flex", flexDirection: "column", gap: "0.25rem", listStyle: "none", padding: 0, margin: 0 }}>
-          {SETTINGS_ITEMS.map((item) => {
-            const isActive = matchesNav(pathname, item.href);
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  style={{
-                    display: "block",
-                    padding: "0.75rem 1rem",
-                    borderRadius: 6,
-                    fontSize: "0.9rem",
-                    fontWeight: isActive ? 600 : 500,
-                    color: isActive ? "var(--accent)" : "var(--text-secondary)",
-                    background: isActive ? "var(--bg-hover)" : "transparent",
-                    textDecoration: "none",
-                    transition: "all 0.2s ease",
-                  }}
-                >
-                  {item.label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        {settingsItems.length > 0 && (
+          <>
+            {/* Settings section */}
+            <div
+              style={{
+                fontSize: "0.75rem",
+                textTransform: "uppercase",
+                color: "var(--text-secondary)",
+                fontWeight: 600,
+                letterSpacing: "0.05em",
+                marginBottom: "0.75rem",
+                padding: "0 0.5rem",
+              }}
+            >
+              Settings
+            </div>
+            <ul style={{ display: "flex", flexDirection: "column", gap: "0.25rem", listStyle: "none", padding: 0, margin: 0 }}>
+              {settingsItems.map((item) => {
+                const isActive = matchesNav(pathname, item.href);
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      style={{
+                        display: "block",
+                        padding: "0.75rem 1rem",
+                        borderRadius: 6,
+                        fontSize: "0.9rem",
+                        fontWeight: isActive ? 600 : 500,
+                        color: isActive ? "var(--accent)" : "var(--text-secondary)",
+                        background: isActive ? "var(--bg-hover)" : "transparent",
+                        textDecoration: "none",
+                        transition: "all 0.2s ease",
+                      }}
+                    >
+                      {item.label}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
 
         {/* Footer: User + Logout */}
         <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid var(--border)" }}>

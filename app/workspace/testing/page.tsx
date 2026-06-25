@@ -74,6 +74,7 @@ function validateCalendarLink(
 
 export default function TestingPage() {
   const [role, setRole] = useState("hybrid");
+  const [themeColor, setThemeColor] = useState("#8A64E9");
   const [calendarLink, setCalendarLink] = useState("");
   const [calTheme, setCalTheme] = useState("light");
   const [calHideDetails, setCalHideDetails] = useState(false);
@@ -83,6 +84,7 @@ export default function TestingPage() {
   const [toast, setToast] = useState("");
   const [dirty, setDirty] = useState(false);
   const [calError, setCalError] = useState("");
+  const [tenantSlug, setTenantSlug] = useState("");
   // Bumped after every successful save so the live test widget reloads with
   // the new server-side config — otherwise the user is testing stale state.
   const [widgetKey, setWidgetKey] = useState(0);
@@ -93,12 +95,18 @@ export default function TestingPage() {
   useEffect(() => {
     async function load() {
       try {
-        const data = await api.get<{
-          bot_role: string;
-          calendar_link: string;
-          system_prompt_text: string;
-        }>("/api/config/bot");
+        const [data, me] = await Promise.all([
+          api.get<{
+            bot_role: string;
+            calendar_link: string;
+            theme_color: string;
+            system_prompt_text: string;
+          }>("/api/config/bot"),
+          api.get<{ tenant?: { slug: string } }>("/api/auth/me")
+        ]);
+        setTenantSlug(me.tenant?.slug || "");
         setRole(data.bot_role || "hybrid");
+        setThemeColor(data.theme_color || "#8A64E9");
         if (data.calendar_link) {
           try {
             const url = new URL(data.calendar_link);
@@ -128,6 +136,8 @@ export default function TestingPage() {
   }, []);
 
   useEffect(() => {
+    if (loading) return;
+
     setWidgetState("loading");
     const existing = document.getElementById("ryx-embed-script");
     if (existing) existing.remove();
@@ -157,6 +167,9 @@ export default function TestingPage() {
     script.id = "ryx-embed-script";
     script.src = `${apiBase}/static/embed.js?t=${Date.now()}`;
     script.setAttribute("data-api", apiBase);
+    if (tenantSlug) {
+      script.setAttribute("data-tenant", tenantSlug);
+    }
 
     script.onload = () => {
       setWidgetState("ready");
@@ -177,7 +190,7 @@ export default function TestingPage() {
       document.getElementById("ryx-chat-container")?.remove();
       injected.forEach((el) => el.remove());
     };
-  }, [widgetKey]);
+  }, [widgetKey, loading, tenantSlug]);
 
   // Warn before navigating away with unsaved edits. Browsers ignore the
   // string we return — they just show their own generic confirm dialog.
@@ -217,6 +230,7 @@ export default function TestingPage() {
       await api.post("/api/config/bot", {
         bot_role: role,
         calendar_link: finalLink,
+        theme_color: themeColor,
         system_prompt_text: promptText,
       });
       setToast("Configuration saved!");
@@ -400,6 +414,86 @@ export default function TestingPage() {
             );
           })}
         </div>
+      </section>
+
+      {/* Chatbot Theme Color */}
+      <section
+        style={{
+          backgroundColor: C.bgCard,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          padding: "1.5rem",
+          marginBottom: "1.25rem",
+        }}
+      >
+        <h2
+          style={{
+            fontSize: "0.7rem",
+            fontWeight: 700,
+            letterSpacing: "1.5px",
+            textTransform: "uppercase",
+            color: C.textMuted,
+            marginBottom: "1rem",
+          }}
+        >
+          Chatbot Theme
+        </h2>
+        <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+          <div
+            style={{
+              position: "relative",
+              width: 50,
+              height: 40,
+              borderRadius: 8,
+              overflow: "hidden",
+              border: `1px solid ${C.border}`,
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="color"
+              value={themeColor}
+              onChange={(e) => {
+                setThemeColor(e.target.value);
+                setDirty(true);
+              }}
+              style={{
+                position: "absolute",
+                top: "-5px",
+                left: "-5px",
+                width: "60px",
+                height: "50px",
+                border: "none",
+                background: "none",
+                cursor: "pointer",
+              }}
+            />
+          </div>
+          <input
+            type="text"
+            value={themeColor}
+            onChange={(e) => {
+              setThemeColor(e.target.value);
+              setDirty(true);
+            }}
+            placeholder="#8A64E9"
+            style={{
+              flex: 1,
+              backgroundColor: C.bgSurface,
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+              padding: "0.65rem 0.85rem",
+              fontSize: "0.85rem",
+              color: C.textPrimary,
+              outline: "none",
+              fontFamily: "inherit",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+        <p style={{ color: C.textMuted, fontSize: "0.75rem", marginTop: 8, lineHeight: 1.4 }}>
+          Select the primary color for your chatbot widget. It will be used for buttons, links, and avatar accents.
+        </p>
       </section>
 
       {/* Demo Booking Calendar */}

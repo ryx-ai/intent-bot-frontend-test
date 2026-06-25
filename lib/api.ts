@@ -3,7 +3,8 @@
  * All API calls go through this module for consistent error handling.
  */
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+// Always use relative paths for dashboard API calls to route through Vercel's same-origin proxy rewrites
+const BASE_URL = "";
 
 interface ApiOptions extends RequestInit {
   json?: unknown;

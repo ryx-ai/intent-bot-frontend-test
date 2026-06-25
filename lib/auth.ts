@@ -4,6 +4,10 @@ import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 import { api, ApiError } from "./api";
 
+interface UserInfo {
+  role?: string;
+}
+
 /**
  * Auth hook — provides login, logout, and redirect helpers.
  * JWT tokens are managed via httponly cookies by the backend.
@@ -23,7 +27,12 @@ export function useAuth() {
       if (res.status !== "success") {
         throw new ApiError("Login did not succeed", 500);
       }
-      router.push("/workspace");
+      const me = await api.get<UserInfo>("/api/auth/me");
+      router.push(
+        me.role === "super_admin"
+          ? "/workspace/admin/tenants"
+          : "/workspace/dashboard"
+      );
       return res;
     },
     [router]

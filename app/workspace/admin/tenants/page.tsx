@@ -58,6 +58,7 @@ export default function TenantManagementPage() {
     type: "delete" | "toggle";
     tenant: Tenant;
   } | null>(null);
+  const [confirmInput, setConfirmInput] = useState("");
 
   const validationError = useMemo(() => {
     const trimmedName = name.trim();
@@ -156,7 +157,10 @@ export default function TenantManagementPage() {
     if (!confirmDialog) return;
     const { type, tenant } = confirmDialog;
     
+    if (confirmInput !== tenant.slug) return;
+
     setConfirmDialog(null);
+    setConfirmInput("");
     setSubmitting(true);
     
     try {
@@ -411,7 +415,10 @@ export default function TenantManagementPage() {
                         <div style={{ display: "flex", gap: "0.5rem" }}>
                           <button
                             type="button"
-                            onClick={() => setConfirmDialog({ type: "toggle", tenant })}
+                            onClick={() => {
+                              setConfirmDialog({ type: "toggle", tenant });
+                              setConfirmInput("");
+                            }}
                             style={{
                               padding: "0.3rem 0.6rem",
                               borderRadius: 4,
@@ -427,7 +434,10 @@ export default function TenantManagementPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setConfirmDialog({ type: "delete", tenant })}
+                            onClick={() => {
+                              setConfirmDialog({ type: "delete", tenant });
+                              setConfirmInput("");
+                            }}
                             style={{
                               padding: "0.3rem 0.6rem",
                               borderRadius: 4,
@@ -474,9 +484,28 @@ export default function TenantManagementPage() {
                 ? <>Are you sure you want to permanently delete the tenant <strong>{confirmDialog.tenant.name}</strong> and all its data? This action cannot be undone.</>
                 : <>Are you sure you want to {confirmDialog.tenant.status === "active" ? "freeze" : "unfreeze"} the tenant <strong>{confirmDialog.tenant.name}</strong>?</>}
             </p>
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label style={{ display: "block", marginBottom: 8, fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 600 }}>
+                Please type <strong>{confirmDialog.tenant.slug}</strong> to confirm.
+              </label>
+              <input
+                type="text"
+                value={confirmInput}
+                onChange={(e) => setConfirmInput(e.target.value)}
+                placeholder={confirmDialog.tenant.slug}
+                style={{
+                  ...inputStyle,
+                  background: "rgba(0,0,0,0.2)",
+                  borderColor: confirmInput === confirmDialog.tenant.slug ? "var(--success)" : "var(--border)",
+                }}
+              />
+            </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
               <button 
-                onClick={() => setConfirmDialog(null)}
+                onClick={() => {
+                  setConfirmDialog(null);
+                  setConfirmInput("");
+                }}
                 style={{
                   padding: "0.6rem 1rem", borderRadius: 6, border: "1px solid var(--border)",
                   background: "transparent", color: "var(--text-secondary)", cursor: "pointer", fontWeight: 600, fontSize: "0.9rem"
@@ -486,10 +515,13 @@ export default function TenantManagementPage() {
               </button>
               <button 
                 onClick={executeConfirmAction}
+                disabled={confirmInput !== confirmDialog.tenant.slug}
                 style={{
                   padding: "0.6rem 1.25rem", borderRadius: 6, border: "none",
                   background: confirmDialog.type === "delete" ? "#ef4444" : "var(--accent)", 
-                  color: "#fff", cursor: "pointer", fontWeight: 600, fontSize: "0.9rem"
+                  color: "#fff", cursor: confirmInput === confirmDialog.tenant.slug ? "pointer" : "not-allowed", 
+                  fontWeight: 600, fontSize: "0.9rem",
+                  opacity: confirmInput === confirmDialog.tenant.slug ? 1 : 0.5
                 }}
               >
                 {confirmDialog.type === "delete" ? "Delete" : "Confirm"}

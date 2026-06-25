@@ -147,6 +147,47 @@ export default function TenantManagementPage() {
     }
   }
 
+  async function handleDelete(tenant: Tenant) {
+    if (tenant.slug === "ryxai") {
+      alert("Cannot delete the platform-owner tenant.");
+      return;
+    }
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently delete the tenant '${tenant.name}' and all its data? This action cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    try {
+      await api.delete(`/api/admin/tenants/${tenant.id}`);
+      await loadTenants();
+      setSuccess(`Tenant '${tenant.name}' has been deleted.`);
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(errorMessage(err, "Failed to delete tenant."));
+    }
+  }
+
+  async function handleToggleStatus(tenant: Tenant) {
+    if (tenant.slug === "ryxai") {
+      alert("Cannot freeze the platform-owner tenant.");
+      return;
+    }
+    const newStatus = tenant.status === "active" ? "suspended" : "active";
+    const action = newStatus === "suspended" ? "freeze" : "unfreeze";
+    
+    const confirmed = window.confirm(`Are you sure you want to ${action} the tenant '${tenant.name}'?`);
+    if (!confirmed) return;
+
+    try {
+      await api.patch(`/api/admin/tenants/${tenant.id}`, { status: newStatus });
+      await loadTenants();
+      setSuccess(`Tenant '${tenant.name}' has been ${newStatus}.`);
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(errorMessage(err, `Failed to ${action} tenant.`));
+    }
+  }
+
   if (loading) {
     return (
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "2rem" }}>
@@ -342,12 +383,13 @@ export default function TenantManagementPage() {
                 <th style={thStyle}>Slug</th>
                 <th style={thStyle}>Status</th>
                 <th style={thStyle}>Created</th>
+                <th style={thStyle}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {tenants.length === 0 ? (
                 <tr>
-                  <td colSpan={4} style={{ padding: "2rem", color: "var(--text-muted)", textAlign: "center" }}>
+                  <td colSpan={5} style={{ padding: "2rem", color: "var(--text-muted)", textAlign: "center" }}>
                     No tenants yet.
                   </td>
                 </tr>
@@ -375,6 +417,44 @@ export default function TenantManagementPage() {
                       </span>
                     </td>
                     <td style={tdStyle}>{formatDate(tenant.created_at)}</td>
+                    <td style={tdStyle}>
+                      {tenant.slug !== "ryxai" && (
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStatus(tenant)}
+                            style={{
+                              padding: "0.3rem 0.6rem",
+                              borderRadius: 4,
+                              border: "1px solid var(--border)",
+                              background: "transparent",
+                              color: tenant.status === "active" ? "#f59e0b" : "#10b981",
+                              cursor: "pointer",
+                              fontSize: "0.75rem",
+                              fontWeight: 600,
+                            }}
+                          >
+                            {tenant.status === "active" ? "Freeze" : "Unfreeze"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(tenant)}
+                            style={{
+                              padding: "0.3rem 0.6rem",
+                              borderRadius: 4,
+                              border: "1px solid rgba(239, 68, 68, 0.5)",
+                              background: "rgba(239, 68, 68, 0.1)",
+                              color: "var(--error)",
+                              cursor: "pointer",
+                              fontSize: "0.75rem",
+                              fontWeight: 600,
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 ))
               )}

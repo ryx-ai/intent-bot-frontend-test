@@ -12,9 +12,11 @@ interface ApiOptions extends RequestInit {
 
 class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  detail?: string;
+  constructor(message: string, status: number, detail?: string) {
     super(message);
     this.status = status;
+    this.detail = detail;
   }
 }
 
@@ -32,7 +34,10 @@ function maybeRedirectOn401(endpoint: string, status: number) {
   }
 }
 
-async function fetchWithCreds(endpoint: string, options: ApiOptions = {}): Promise<Response> {
+async function fetchWithCreds(
+  endpoint: string,
+  options: ApiOptions = {},
+): Promise<Response> {
   const { json, headers: customHeaders, ...rest } = options;
   const headers: Record<string, string> = {
     ...(customHeaders as Record<string, string>),
@@ -52,14 +57,29 @@ async function fetchWithCreds(endpoint: string, options: ApiOptions = {}): Promi
 
 async function request<T = unknown>(
   endpoint: string,
-  options: ApiOptions = {}
+  options: ApiOptions = {},
 ): Promise<T> {
   const res = await fetchWithCreds(endpoint, options);
 
   if (!res.ok) {
     maybeRedirectOn401(endpoint, res.status);
-    const text = await res.text().catch(() => "Unknown error");
-    throw new ApiError(text, res.status);
+    const contentType = res.headers.get("content-type");
+    let detail: string | undefined;
+    let message = "Unknown error";
+
+    if (contentType?.includes("application/json")) {
+      try {
+        const errorBody = await res.json();
+        detail = errorBody.detail;
+        message = errorBody.detail || message;
+      } catch {
+        message = await res.text().catch(() => "Unknown error");
+      }
+    } else {
+      message = await res.text().catch(() => "Unknown error");
+    }
+
+    throw new ApiError(message, res.status, detail);
   }
 
   // Handle empty responses (204, etc.)
@@ -93,8 +113,14 @@ export const api = {
   // Multipart upload that returns the raw Response. Use when the caller needs
   // the body as Blob/stream (e.g. file conversion endpoints) rather than JSON.
   // Still applies BASE_URL prefix, credentials, and the global 401 redirect.
-  postFormDataRaw: async (endpoint: string, formData: FormData): Promise<Response> => {
-    const res = await fetchWithCreds(endpoint, { method: "POST", body: formData });
+  postFormDataRaw: async (
+    endpoint: string,
+    formData: FormData,
+  ): Promise<Response> => {
+    const res = await fetchWithCreds(endpoint, {
+      method: "POST",
+      body: formData,
+    });
     maybeRedirectOn401(endpoint, res.status);
     return res;
   },

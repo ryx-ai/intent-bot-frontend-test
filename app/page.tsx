@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -26,10 +27,24 @@ export default function LoginPage() {
       // submit.
     } catch (err) {
       if (err instanceof ApiError) {
-        if (err.status === 401) setError("Invalid credentials.");
-        else if (err.status === 429) setError("Too many attempts. Please wait and try again.");
-        else if (err.status >= 500) setError("Server error. Please try again later.");
-        else setError("Login failed. Please try again.");
+        // Check for specific tenant status errors (these override status code handling)
+        if (err.detail === "tenant_suspended") {
+          setError(
+            "This workspace has been suspended.\nPlease contact your administrator.",
+          );
+        } else if (err.detail === "tenant_deleted") {
+          setError(
+            "This workspace has been deleted.\nPlease contact your administrator.",
+          );
+        } else if (err.status === 401) {
+          setError("Invalid email or password.");
+        } else if (err.status === 429) {
+          setError("Too many attempts. Please wait and try again.");
+        } else if (err.status >= 500) {
+          setError("Server error. Please try again later.");
+        } else {
+          setError("Login failed. Please try again.");
+        }
       } else {
         setError("Network error. Check your connection.");
       }
@@ -39,7 +54,16 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
+    <div
+      style={{
+        display: "flex",
+        minHeight: "100vh",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
       {/* Login Card */}
       <div
         style={{
@@ -61,10 +85,23 @@ export default function LoginPage() {
             alt="RYX AI Logo"
             width={200}
             height={80}
-            style={{ width: "auto", height: 60, margin: "0 auto 16px auto", objectFit: "contain" }}
+            style={{
+              width: "auto",
+              height: 60,
+              margin: "0 auto 16px auto",
+              objectFit: "contain",
+            }}
             priority
           />
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: "#fff", letterSpacing: "-0.02em", marginBottom: 4 }}>
+          <h1
+            style={{
+              fontSize: 24,
+              fontWeight: 700,
+              color: "#fff",
+              letterSpacing: "-0.02em",
+              marginBottom: 4,
+            }}
+          >
             Welcome Back
           </h1>
           <p style={{ fontSize: 14, color: "var(--text-secondary)" }}>
@@ -78,7 +115,13 @@ export default function LoginPage() {
           <div style={{ marginBottom: 24 }}>
             <label
               htmlFor="email"
-              style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-primary)", marginBottom: 8 }}
+              style={{
+                display: "block",
+                fontSize: 12,
+                fontWeight: 600,
+                color: "var(--text-primary)",
+                marginBottom: 8,
+              }}
             >
               Account ID
             </label>
@@ -107,29 +150,58 @@ export default function LoginPage() {
           <div style={{ marginBottom: 24 }}>
             <label
               htmlFor="password"
-              style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-primary)", marginBottom: 8 }}
+              style={{
+                display: "block",
+                fontSize: 12,
+                fontWeight: 600,
+                color: "var(--text-primary)",
+                marginBottom: 8,
+              }}
             >
               Password
             </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              autoComplete="current-password"
-              style={{
-                width: "100%",
-                borderRadius: 10,
-                border: "1px solid var(--border)",
-                padding: "14px 16px",
-                fontSize: 15,
-                color: "#fff",
-                background: "var(--bg-surface)",
-                outline: "none",
-              }}
-            />
+            <div style={{ position: "relative" }}>
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                autoComplete="current-password"
+                style={{
+                  width: "100%",
+                  borderRadius: 10,
+                  border: "1px solid var(--border)",
+                  padding: "14px 16px",
+                  fontSize: 15,
+                  color: "#fff",
+                  background: "var(--bg-surface)",
+                  outline: "none",
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: "absolute",
+                  right: 12,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                  padding: "4px 8px",
+                  fontSize: 18,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {showPassword ? "👁️" : "👁️‍🗨️"}
+              </button>
+            </div>
             {error && (
               <p style={{ marginTop: 8, fontSize: 12, color: "var(--error)" }}>
                 {error}

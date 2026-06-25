@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, DragEvent, ChangeEvent } from "react";
 import { api, ApiError } from "@/lib/api";
+import { ConfirmDialog } from "../_components/ConfirmDialog";
 
 interface KBFile {
   filename: string;
@@ -29,7 +30,13 @@ export default function KnowledgeLakePage() {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [toast, setToast] = useState("");
+  const [deleteFilename, setDeleteFilename] = useState<string | null>(null);
+  const [deletingFilename, setDeletingFilename] = useState("");
+  const [overwriteFile, setOverwriteFile] = useState<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const overwriteDecisionRef = useRef<((overwrite: boolean) => void) | null>(
+    null
+  );
 
   // ── Fetch files ──
   async function fetchFiles() {
@@ -66,9 +73,7 @@ export default function KnowledgeLakePage() {
       // 409 conflict — backend returns {conflict: true} so the UI can offer
       // overwrite. Skip the prompt if we're already in the overwrite retry.
       if (err.status === 409 && !overwrite) {
-        const ok = window.confirm(
-          `"${file.name}" already exists in the Knowledge Lake. Overwrite?`
-        );
+        const ok = await requestOverwrite(file);
         if (ok) return uploadOne(file, true);
         return { filename: file.name, status: "skipped", error: "Already exists" };
       }
@@ -109,10 +114,11 @@ export default function KnowledgeLakePage() {
 
     setUploading(true);
 
-    // Run uploads in parallel. Conflict prompts happen inside uploadOne;
-    // the browser serializes confirm() dialogs naturally, so this is safe
-    // even when several files conflict.
-    const apiResults = await Promise.all(valid.map((f) => uploadOne(f, false)));
+    // Run sequentially so any overwrite conflict can wait for the custom modal.
+    const apiResults: UploadResult[] = [];
+    for (const f of valid) {
+      apiResults.push(await uploadOne(f, false));
+    }
     const results = [...preRejected, ...apiResults];
     setUploading(false);
 
@@ -137,14 +143,36 @@ export default function KnowledgeLakePage() {
 
   // ── Delete ──
   async function handleDelete(filename: string) {
-    if (!confirm(`Are you sure you want to remove ${filename}?`)) return;
+    setDeleteFilename(filename);
+  }
+
+  async function confirmDelete() {
+    if (!deleteFilename) return;
+    const filename = deleteFilename;
+    setDeletingFilename(filename);
     try {
       await api.delete(`/api/knowledge/files/${encodeURIComponent(filename)}`);
       showToast("File Removed");
       fetchFiles();
     } catch {
       showToast("Failed to delete file");
+    } finally {
+      setDeletingFilename("");
+      setDeleteFilename(null);
     }
+  }
+
+  function requestOverwrite(file: File): Promise<boolean> {
+    return new Promise((resolve) => {
+      overwriteDecisionRef.current = resolve;
+      setOverwriteFile(file);
+    });
+  }
+
+  function resolveOverwriteDecision(overwrite: boolean) {
+    overwriteDecisionRef.current?.(overwrite);
+    overwriteDecisionRef.current = null;
+    setOverwriteFile(null);
   }
 
   function showToast(msg: string) {
@@ -309,6 +337,44 @@ export default function KnowledgeLakePage() {
         </table>
       </div>
 
+      <ConfirmDialog
+        open={deleteFilename !== null}
+        tone="danger"
+        eyebrow="Remove document"
+        title="Remove this file?"
+        description="This removes the document from the Knowledge Lake. Future ingestion will no longer use it."
+        confirmLabel="Remove file"
+        busy={deletingFilename !== ""}
+        onCancel={() => setDeleteFilename(null)}
+        onConfirm={() => void confirmDelete()}
+      >
+        {deleteFilename && (
+          <div style={dialogSummaryStyle}>
+            <span style={dialogLabelStyle}>Filename</span>
+            <strong style={dialogValueStyle}>{deleteFilename}</strong>
+          </div>
+        )}
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={overwriteFile !== null}
+        tone="warning"
+        eyebrow="File already exists"
+        title="Overwrite existing document?"
+        description="A document with this filename is already stored. Overwriting replaces the previous file with the new upload."
+        confirmLabel="Overwrite file"
+        cancelLabel="Skip file"
+        onCancel={() => resolveOverwriteDecision(false)}
+        onConfirm={() => resolveOverwriteDecision(true)}
+      >
+        {overwriteFile && (
+          <div style={dialogSummaryStyle}>
+            <span style={dialogLabelStyle}>Filename</span>
+            <strong style={dialogValueStyle}>{overwriteFile.name}</strong>
+          </div>
+        )}
+      </ConfirmDialog>
+
       {/* Toast */}
       {toast && (
         <div
@@ -330,3 +396,27 @@ export default function KnowledgeLakePage() {
     </div>
   );
 }
+
+const dialogSummaryStyle: React.CSSProperties = {
+  padding: "0.9rem",
+  borderRadius: 8,
+  border: "1px solid var(--border)",
+  background: "var(--bg-surface)",
+};
+
+const dialogLabelStyle: React.CSSProperties = {
+  display: "block",
+  marginBottom: "0.35rem",
+  color: "var(--text-muted)",
+  fontSize: "0.72rem",
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: 0,
+};
+
+const dialogValueStyle: React.CSSProperties = {
+  display: "block",
+  color: "var(--text-primary)",
+  fontSize: "0.9rem",
+  overflowWrap: "anywhere",
+};

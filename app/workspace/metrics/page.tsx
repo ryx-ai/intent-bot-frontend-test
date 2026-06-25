@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { ConfirmDialog } from "../_components/ConfirmDialog";
 
 interface MetricConfig {
   id: string;
@@ -30,6 +31,8 @@ export default function MetricsPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
   const [dirty, setDirty] = useState(false);
+  const [metricToDelete, setMetricToDelete] = useState<MetricRow | null>(null);
+  const [pendingRenames, setPendingRenames] = useState<MetricRow[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -90,19 +93,30 @@ export default function MetricsPage() {
   }
 
   function removeMetric(uid: string) {
-    if (!confirm("Delete this AI tracking metric? Remember to click 'Deploy System Overhaul' to save.")) return;
-    setMetrics((prev) => prev.filter((m) => m._uid !== uid));
-    setDirty(true);
+    const metric = metrics.find((m) => m._uid === uid);
+    if (!metric) return;
+    setMetricToDelete(metric);
   }
 
-  async function saveConfiguration() {
+  function confirmRemoveMetric() {
+    if (!metricToDelete) return;
+    setMetrics((prev) => prev.filter((m) => m._uid !== metricToDelete._uid));
+    setDirty(true);
+    setMetricToDelete(null);
+  }
+
+  async function saveConfiguration(skipRenameWarning = false) {
     // Detect renames of existing metrics. Renaming an id is a delete+create
     // on the backend (the id is the primary key) — orphaning any analytics
     // history bound to the old id. Warn before letting the user proceed.
     const renamed = metrics.filter(
       (m) => m._originalId !== null && m._originalId !== m.id
     );
-    if (renamed.length > 0) {
+    if (renamed.length > 0 && !skipRenameWarning) {
+      setPendingRenames(renamed);
+      return;
+    }
+    if (renamed.length > 0 && false) {
       const lines = renamed.map((m) => `  • ${m._originalId} → ${m.id}`).join("\n");
       const ok = confirm(
         `You renamed ${renamed.length} metric ID${renamed.length === 1 ? "" : "s"}:\n\n${lines}\n\n` +
@@ -324,7 +338,7 @@ export default function MetricsPage() {
           the AI identifies user behavior in real-time.
         </p>
         <button
-          onClick={saveConfiguration}
+          onClick={() => saveConfiguration()}
           style={{
             background: "var(--accent)",
             color: "#fff",
@@ -363,6 +377,19 @@ export default function MetricsPage() {
           {toast}
         </div>
       )}
+
+      {/* Delete confirmation dialog */}
+      <ConfirmDialog
+        open={!!metricToDelete}
+        eyebrow="Delete Metric"
+        title={`Remove "${metricToDelete?.name}"?`}
+        description="This metric will be permanently deleted and removed from the dashboard. This action cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        tone="danger"
+        onCancel={() => setMetricToDelete(null)}
+        onConfirm={confirmRemoveMetric}
+      />
     </div>
   );
 }

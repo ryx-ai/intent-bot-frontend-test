@@ -4,16 +4,38 @@ import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 import { api, ApiError } from "./api";
 
-interface UserInfo {
+export interface UserInfo {
+  email?: string;
+  name?: string;
+  picture?: string;
+  auth_provider?: string;
   role?: string;
+  tenant?: {
+    id: number;
+    slug: string;
+    name: string;
+  } | null;
 }
 
 /**
- * Auth hook — provides login, logout, and redirect helpers.
+ * Auth hook — provides login, signup, google auth, logout, and redirect helpers.
  * JWT tokens are managed via httponly cookies by the backend.
  */
 export function useAuth() {
   const router = useRouter();
+
+  const handleAuthSuccess = useCallback(
+    async () => {
+      const me = await api.get<UserInfo>("/api/auth/me");
+      router.push(
+        me.role === "super_admin"
+          ? "/workspace/admin/tenants"
+          : "/workspace/dashboard"
+      );
+      return me;
+    },
+    [router]
+  );
 
   const login = useCallback(
     async (email: string, password: string) => {
@@ -21,28 +43,46 @@ export function useAuth() {
         email,
         password,
       });
-      // Treat any non-"success" body as a failure so the caller's catch runs
-      // (otherwise the login page would show "Access Granted" without ever
-      // navigating).
       if (res.status !== "success") {
         throw new ApiError("Login did not succeed", 500);
       }
-      const me = await api.get<UserInfo>("/api/auth/me");
-      router.push(
-        me.role === "super_admin"
-          ? "/workspace/admin/tenants"
-          : "/workspace/dashboard"
-      );
+      await handleAuthSuccess();
       return res;
     },
-    [router]
+    [handleAuthSuccess]
+  );
+
+  const signup = useCallback(
+    async (fullName: string, email: string, password: string) => {
+      const res = await api.post<{ status: string }>("/api/auth/signup", {
+        full_name: fullName,
+        email,
+        password,
+      });
+      if (res.status !== "success") {
+        throw new ApiError("Registration did not succeed", 500);
+      }
+      await handleAuthSuccess();
+      return res;
+    },
+    [handleAuthSuccess]
+  );
+
+  const googleAuth = useCallback(
+    async (credential: string) => {
+      const res = await api.post<{ status: string }>("/api/auth/google", {
+        credential,
+      });
+      if (res.status !== "success") {
+        throw new ApiError("Google authentication did not succeed", 500);
+      }
+      await handleAuthSuccess();
+      return res;
+    },
+    [handleAuthSuccess]
   );
 
   const logout = useCallback(async () => {
-    // If the server call fails, the auth cookie is httponly — the client
-    // can't clear it. Pretending to log out would be a lie (a stolen device
-    // would still be authenticated). Surface the error and stay put so the
-    // user can retry.
     try {
       await api.post("/api/auth/logout");
       router.push("/");
@@ -52,5 +92,6 @@ export function useAuth() {
     }
   }, [router]);
 
-  return { login, logout };
+  return { login, signup, googleAuth, logout };
 }
+

@@ -70,8 +70,8 @@ async function request<T = unknown>(
     if (contentType?.includes("application/json")) {
       try {
         const errorBody = await res.json();
-        detail = errorBody.detail;
-        message = errorBody.detail || message;
+        detail = errorBody.detail || errorBody.error || errorBody.message;
+        message = detail || message;
       } catch {
         message = await res.text().catch(() => "Unknown error");
       }

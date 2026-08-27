@@ -47,6 +47,29 @@ interface VerifyPaymentResponse {
   subscription_ends_at?: string;
 }
 
+interface RazorpaySuccessResponse {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}
+
+interface RazorpayErrorResponse {
+  error?: {
+    description?: string;
+  };
+}
+
+interface RazorpayInstance {
+  open: () => void;
+  on: (event: string, handler: (response: RazorpayErrorResponse) => void) => void;
+}
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: Record<string, unknown>) => RazorpayInstance;
+  }
+}
+
 function errorMessage(err: unknown, fallback: string) {
   if (!(err instanceof ApiError)) return "Network error. Check your connection.";
   if (err.status === 401) return "Please log in again.";
@@ -123,7 +146,7 @@ export default function BillingPage() {
       });
 
       // 2. Trigger Razorpay Checkout modal
-      if (typeof window === "undefined" || !(window as any).Razorpay) {
+      if (typeof window === "undefined" || !window.Razorpay) {
         throw new Error("Razorpay SDK not loaded yet. Please refresh and try again.");
       }
 
@@ -134,7 +157,7 @@ export default function BillingPage() {
         name: "RYX AI",
         description: `Subscription Upgrade to ${order.plan_name}`,
         order_id: order.order_id,
-        handler: async function (response: any) {
+        handler: async function (response: RazorpaySuccessResponse) {
           try {
             setLoading(true);
             const verifyRes = await api.post<VerifyPaymentResponse>(
@@ -166,8 +189,8 @@ export default function BillingPage() {
         },
       };
 
-      const rzp = new (window as any).Razorpay(options);
-      rzp.on("payment.failed", function (resp: any) {
+      const rzp = new window.Razorpay(options);
+      rzp.on("payment.failed", function (resp: RazorpayErrorResponse) {
         setError(resp.error?.description || "Payment failed. Please try again.");
         setCheckoutPlanSlug(null);
       });
@@ -235,12 +258,61 @@ export default function BillingPage() {
           </div>
         )}
 
+        {/* Expired / Inactive Notice Banner */}
+        {!isActive && (
+          <div
+            style={{
+              marginBottom: "1.5rem",
+              padding: "1rem 1.25rem",
+              borderRadius: 10,
+              border: "1px solid rgba(239, 68, 68, 0.35)",
+              background: "linear-gradient(90deg, rgba(239, 68, 68, 0.12) 0%, rgba(239, 68, 68, 0.04) 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: "1rem",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: "50%",
+                  background: "rgba(239, 68, 68, 0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "1.1rem",
+                  flexShrink: 0,
+                }}
+              >
+                ⚠️
+              </div>
+              <div>
+                <div style={{ color: "#fff", fontWeight: 700, fontSize: "0.95rem" }}>
+                  {isTrial ? "Your 3-Day Free Trial Has Expired" : "Subscription Inactive"}
+                </div>
+                <div style={{ color: "rgba(255, 255, 255, 0.7)", fontSize: "0.85rem", marginTop: "0.15rem" }}>
+                  Website widget embedding is currently paused. Upgrade to a paid plan below to instantly reactivate your AI assistant.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Current Plan Summary Banner */}
         <section
           style={{
             backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
+            border: !isActive
+              ? "1px solid rgba(239, 68, 68, 0.4)"
+              : "1px solid var(--border)",
+            background: !isActive
+              ? "linear-gradient(180deg, rgba(239, 68, 68, 0.05) 0%, var(--bg-card) 100%)"
+              : "var(--bg-card)",
+            borderRadius: 10,
             padding: "1.5rem",
             marginBottom: "2rem",
             display: "flex",
@@ -248,6 +320,7 @@ export default function BillingPage() {
             alignItems: "center",
             flexWrap: "wrap",
             gap: "1.5rem",
+            boxShadow: !isActive ? "0 4px 20px rgba(239, 68, 68, 0.08)" : "none",
           }}
         >
           <div>
@@ -265,22 +338,26 @@ export default function BillingPage() {
               </span>
               <span
                 style={{
-                  padding: "0.2rem 0.55rem",
-                  borderRadius: 4,
-                  background: isActive ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.15)",
-                  color: isActive ? "#10b981" : "var(--error)",
+                  padding: "0.25rem 0.65rem",
+                  borderRadius: 6,
+                  background: isActive ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.18)",
+                  color: isActive ? "#10b981" : "#f87171",
+                  border: isActive ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid rgba(239, 68, 68, 0.35)",
                   fontSize: "0.75rem",
                   fontWeight: 700,
                   textTransform: "capitalize",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
                 }}
               >
-                {subStatus?.subscription_status || "Active"}
+                {!isActive ? "● Expired" : isTrial ? "● Trial Active" : "● Active"}
               </span>
             </div>
             <h2 style={{ margin: "0 0 0.35rem 0", fontSize: "1.4rem", color: "#fff", fontWeight: 800 }}>
               {subStatus?.plan?.name || (isTrial ? "Free Trial Plan" : "Active Subscription")}
             </h2>
-            <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.9rem" }}>
+            <p style={{ margin: 0, color: !isActive ? "rgba(255, 255, 255, 0.65)" : "var(--text-secondary)", fontSize: "0.9rem" }}>
               {subStatus?.message || "Active workspace plan."}
             </p>
           </div>
@@ -322,6 +399,7 @@ export default function BillingPage() {
           {plans.map((plan) => {
             const isCurrent = plan.slug === currentPlanSlug;
             const isProcessing = checkoutPlanSlug === plan.slug;
+            const isCurrentExpired = isCurrent && !isActive;
 
             return (
               <div
@@ -329,7 +407,9 @@ export default function BillingPage() {
                 style={{
                   backgroundColor: "var(--bg-card)",
                   border: isCurrent
-                    ? "2px solid var(--accent)"
+                    ? isCurrentExpired
+                      ? "2px solid rgba(239, 68, 68, 0.5)"
+                      : "2px solid var(--accent)"
                     : "1px solid var(--border)",
                   borderRadius: 12,
                   padding: "1.75rem",
@@ -337,7 +417,11 @@ export default function BillingPage() {
                   flexDirection: "column",
                   justifyContent: "space-between",
                   position: "relative",
-                  boxShadow: isCurrent ? "0 8px 32px rgba(138, 100, 233, 0.15)" : "none",
+                  boxShadow: isCurrent
+                    ? isCurrentExpired
+                      ? "0 8px 32px rgba(239, 68, 68, 0.12)"
+                      : "0 8px 32px rgba(138, 100, 233, 0.15)"
+                    : "none",
                 }}
               >
                 {isCurrent && (
@@ -346,17 +430,18 @@ export default function BillingPage() {
                       position: "absolute",
                       top: -12,
                       right: 20,
-                      background: "var(--accent)",
+                      background: isCurrentExpired ? "#ef4444" : "var(--accent)",
                       color: "#fff",
-                      padding: "0.25rem 0.65rem",
+                      padding: "0.25rem 0.75rem",
                       borderRadius: 12,
                       fontSize: "0.72rem",
                       fontWeight: 800,
                       textTransform: "uppercase",
                       letterSpacing: "0.05em",
+                      boxShadow: isCurrentExpired ? "0 2px 10px rgba(239, 68, 68, 0.4)" : "none",
                     }}
                   >
-                    Active Plan
+                    {isCurrentExpired ? "Expired Plan" : "Active Plan"}
                   </span>
                 )}
 
@@ -411,7 +496,9 @@ export default function BillingPage() {
                     padding: "0.85rem 1rem",
                     borderRadius: 8,
                     border: "none",
-                    background: isCurrent ? "rgba(255, 255, 255, 0.08)" : "var(--accent)",
+                    background: isCurrent
+                      ? "rgba(255, 255, 255, 0.08)"
+                      : "var(--accent)",
                     color: isCurrent ? "var(--text-muted)" : "#fff",
                     fontWeight: 700,
                     fontFamily: "inherit",
@@ -421,7 +508,9 @@ export default function BillingPage() {
                   }}
                 >
                   {isCurrent
-                    ? "Current Active Plan"
+                    ? isCurrentExpired
+                      ? "Trial Expired"
+                      : "Current Active Plan"
                     : isProcessing
                     ? "Processing Order..."
                     : plan.price_inr <= 0

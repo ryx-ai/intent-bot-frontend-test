@@ -1,8 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { ConfirmDialog } from "../_components/ConfirmDialog";
+
+interface Plan {
+  id: number;
+  slug: string;
+  name: string;
+  price_inr: number;
+}
+
+interface SubscriptionStatus {
+  subscription_status: "trial" | "active" | "expired" | "canceled" | string;
+  is_active: boolean;
+  plan: Plan | null;
+  trial_ends_at?: string;
+  subscription_ends_at?: string;
+  days_remaining: number;
+  message: string;
+}
 
 // Design tokens as JS constants — bypasses CSS variable resolution issues with Tailwind v4
 const C = {
@@ -101,6 +119,7 @@ export default function TestingPage() {
   const [calDialogType, setCalDialogType] = useState<"disconnect" | "remove" | null>(null);
   const [calDialogCredId, setCalDialogCredId] = useState<number | null>(null);
   const [promptText, setPromptText] = useState("");
+  const [subStatus, setSubStatus] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
@@ -142,7 +161,7 @@ export default function TestingPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [data, me, creds] = await Promise.all([
+        const [dataRes, meRes, credsRes, statusRes] = await Promise.allSettled([
           api.get<{
             bot_role: string;
             calendar_link: string;
@@ -151,30 +170,42 @@ export default function TestingPage() {
           }>("/api/config/bot"),
           api.get<{ tenant?: { slug: string } }>("/api/auth/me"),
           api.get<CalCredential[]>("/api/config/cal/list"),
+          api.get<SubscriptionStatus>("/api/payments/subscription-status"),
         ]);
-        setCalCredentials(creds || []);
-        setTenantSlug(me.tenant?.slug || "");
-        setRole(data.bot_role || "hybrid");
-        setThemeColor(data.theme_color || "#8A64E9");
-        if (data.calendar_link) {
-          try {
-            const url = new URL(data.calendar_link);
 
-            setCalTheme(url.searchParams.get("theme") || "light");
-            setCalHideDetails(
-              url.searchParams.get("hideEventTypeDetails") === "true",
-            );
-            url.searchParams.delete("theme");
-            url.searchParams.delete("hideEventTypeDetails");
-            url.searchParams.delete("embed");
-            setCalendarLink(url.toString().replace(/\?$/, ""));
-          } catch {
-            setCalendarLink(data.calendar_link);
-          }
-        } else {
-          setCalendarLink("");
+        if (statusRes.status === "fulfilled") {
+          setSubStatus(statusRes.value);
         }
-        setPromptText(data.system_prompt_text || "");
+        if (credsRes.status === "fulfilled") {
+          setCalCredentials(credsRes.value || []);
+        }
+        if (meRes.status === "fulfilled") {
+          setTenantSlug(meRes.value.tenant?.slug || "");
+        }
+        if (dataRes.status === "fulfilled") {
+          const data = dataRes.value;
+          setRole(data.bot_role || "hybrid");
+          setThemeColor(data.theme_color || "#8A64E9");
+          if (data.calendar_link) {
+            try {
+              const url = new URL(data.calendar_link);
+
+              setCalTheme(url.searchParams.get("theme") || "light");
+              setCalHideDetails(
+                url.searchParams.get("hideEventTypeDetails") === "true",
+              );
+              url.searchParams.delete("theme");
+              url.searchParams.delete("hideEventTypeDetails");
+              url.searchParams.delete("embed");
+              setCalendarLink(url.toString().replace(/\?$/, ""));
+            } catch {
+              setCalendarLink(data.calendar_link);
+            }
+          } else {
+            setCalendarLink("");
+          }
+          setPromptText(data.system_prompt_text || "");
+        }
       } catch (err) {
         console.error("Failed to load config", err);
       } finally {
@@ -188,7 +219,6 @@ export default function TestingPage() {
   useEffect(() => {
     if (loading) return;
 
-    setWidgetState("loading");
     const existing = document.getElementById("ryx-embed-script");
     if (existing) existing.remove();
 
@@ -288,6 +318,7 @@ export default function TestingPage() {
       setDirty(false);
       // Force the embed widget to reload so the user can test the new config
       // immediately, instead of staring at a stale instance.
+      setWidgetState("loading");
       setWidgetKey((k) => k + 1);
     } catch {
       setToast("Failed to save.");
@@ -477,6 +508,68 @@ export default function TestingPage() {
               : "Loading test widget…"}
         </div>
       </div>
+
+      {/* Expired / Inactive Notice Banner */}
+      {subStatus && !subStatus.is_active && (
+        <div
+          style={{
+            marginBottom: "1.5rem",
+            padding: "1.1rem 1.35rem",
+            borderRadius: 10,
+            border: "1px solid rgba(239, 68, 68, 0.4)",
+            background: "linear-gradient(90deg, rgba(239, 68, 68, 0.14) 0%, rgba(239, 68, 68, 0.04) 100%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "1rem",
+            boxShadow: "0 4px 20px rgba(239, 68, 68, 0.08)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                background: "rgba(239, 68, 68, 0.2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "1.2rem",
+                flexShrink: 0,
+              }}
+            >
+              ⚠️
+            </div>
+            <div>
+              <div style={{ color: "#fff", fontWeight: 700, fontSize: "1rem" }}>
+                {subStatus.subscription_status === "trial"
+                  ? "3-Day Free Trial Expired — Live Widget Paused"
+                  : "Subscription Inactive — Live Widget Paused"}
+              </div>
+              <div style={{ color: "rgba(255, 255, 255, 0.75)", fontSize: "0.85rem", marginTop: "0.2rem" }}>
+                Your custom bot theme and configurations are saved, but live customer widget embedding is paused. Upgrade to reactivate public widget deployment.
+              </div>
+            </div>
+          </div>
+          <Link
+            href="/workspace/billing"
+            style={{
+              padding: "0.6rem 1.1rem",
+              background: "#ef4444",
+              color: "#fff",
+              borderRadius: 6,
+              fontSize: "0.88rem",
+              fontWeight: 700,
+              textDecoration: "none",
+              boxShadow: "0 2px 10px rgba(239, 68, 68, 0.4)",
+            }}
+          >
+            Upgrade Plan Now →
+          </Link>
+        </div>
+      )}
 
       {/* Agent Role Profile */}
       <section

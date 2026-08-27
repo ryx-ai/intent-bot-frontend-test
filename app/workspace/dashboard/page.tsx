@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 
 const ANALYTICS_LIMIT = 500;
@@ -26,6 +27,23 @@ interface Session {
   latestTime: Date;
   firstMessage: string;
   finalValues: Record<string, string>;
+}
+
+interface Plan {
+  id: number;
+  slug: string;
+  name: string;
+  price_inr: number;
+}
+
+interface SubscriptionStatus {
+  subscription_status: "trial" | "active" | "expired" | "canceled" | string;
+  is_active: boolean;
+  plan: Plan | null;
+  trial_ends_at?: string;
+  subscription_ends_at?: string;
+  days_remaining: number;
+  message: string;
 }
 
 /* ── Badge color helper ────────────────────────────────────── */
@@ -72,28 +90,36 @@ function getBadgeStyle(metricId: string, val: string) {
 export default function DashboardPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [metrics, setMetrics] = useState<MetricConfig[]>([]);
+  const [subStatus, setSubStatus] = useState<SubscriptionStatus | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   // When the backend reports more rows than we fetched, surface that to the
   // user rather than silently showing a partial dashboard.
   const [truncated, setTruncated] = useState<{ shown: number; total: number } | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (isManualRefresh = false) => {
+    if (isManualRefresh) setLoading(true);
     try {
-      const [metricsData, analyticsResponse] = await Promise.all([
+      const [metricsData, analyticsResponse, statusResponse] = await Promise.allSettled([
         api.get<MetricConfig[]>("/api/metrics/config"),
         api.get<{ records: AnalyticsRow[]; total: number }>(
           `/api/analytics?limit=${ANALYTICS_LIMIT}`
         ),
+        api.get<SubscriptionStatus>("/api/payments/subscription-status"),
       ]);
 
-      const analyticsData = analyticsResponse.records || [];
-      const total = analyticsResponse.total ?? analyticsData.length;
+      if (statusResponse.status === "fulfilled") {
+        setSubStatus(statusResponse.value);
+      }
+
+      const metricsList = metricsData.status === "fulfilled" ? metricsData.value : [];
+      const analyticsData = analyticsResponse.status === "fulfilled" ? analyticsResponse.value.records || [] : [];
+      const total = analyticsResponse.status === "fulfilled" ? analyticsResponse.value.total ?? analyticsData.length : analyticsData.length;
+
       setTruncated(
         total > analyticsData.length ? { shown: analyticsData.length, total } : null
       );
-      setMetrics(metricsData.filter((m) => m.display_on_dashboard));
+      setMetrics(metricsList.filter((m) => m.display_on_dashboard));
 
       // Group rows by session, then sort each session's messages once
       // (chronologically ascending). Doing it here — not in render — avoids
@@ -110,7 +136,7 @@ export default function DashboardPage() {
         const first = sorted[0];
         const last = sorted[sorted.length - 1];
         const finalValues: Record<string, string> = {};
-        metricsData.forEach((m) => {
+        metricsList.forEach((m) => {
           finalValues[m.id] = (last && last[m.id]) || "unknown";
         });
         return {
@@ -132,8 +158,70 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let cancelled = false;
+    async function fetchData() {
+      try {
+        const [metricsData, analyticsResponse, statusResponse] = await Promise.allSettled([
+          api.get<MetricConfig[]>("/api/metrics/config"),
+          api.get<{ records: AnalyticsRow[]; total: number }>(
+            `/api/analytics?limit=${ANALYTICS_LIMIT}`
+          ),
+          api.get<SubscriptionStatus>("/api/payments/subscription-status"),
+        ]);
+
+        if (cancelled) return;
+
+        if (statusResponse.status === "fulfilled") {
+          setSubStatus(statusResponse.value);
+        }
+
+        const metricsList = metricsData.status === "fulfilled" ? metricsData.value : [];
+        const analyticsData = analyticsResponse.status === "fulfilled" ? analyticsResponse.value.records || [] : [];
+        const total = analyticsResponse.status === "fulfilled" ? analyticsResponse.value.total ?? analyticsData.length : analyticsData.length;
+
+        setTruncated(
+          total > analyticsData.length ? { shown: analyticsData.length, total } : null
+        );
+        setMetrics(metricsList.filter((m) => m.display_on_dashboard));
+
+        const buckets: Record<string, AnalyticsRow[]> = {};
+        analyticsData.forEach((row) => {
+          (buckets[row.session_id] ??= []).push(row);
+        });
+
+        const arr: Session[] = Object.entries(buckets).map(([sessionId, rows]) => {
+          const sorted = [...rows].sort(
+            (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+          );
+          const first = sorted[0];
+          const last = sorted[sorted.length - 1];
+          const finalValues: Record<string, string> = {};
+          metricsList.forEach((m) => {
+            finalValues[m.id] = (last && last[m.id]) || "unknown";
+          });
+          return {
+            id: sessionId,
+            messages: sorted,
+            latestTime: new Date(last.timestamp),
+            firstMessage: first.user_message || "...",
+            finalValues,
+          };
+        });
+
+        arr.sort((a, b) => b.latestTime.getTime() - a.latestTime.getTime());
+        setSessions(arr);
+      } catch (err) {
+        console.error("Failed to load dashboard data", err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    fetchData();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // ── Computed stats ──
   const totalSessions = sessions.length;
@@ -187,7 +275,7 @@ export default function DashboardPage() {
 
         <div style={{ display: "flex", gap: "1.5rem", alignItems: "stretch" }}>
           <button
-            onClick={load}
+            onClick={() => load(true)}
             disabled={loading}
             title="Refresh analytics"
             style={{
@@ -249,6 +337,68 @@ export default function DashboardPage() {
           ))}
         </div>
       </header>
+
+      {/* Expired / Inactive Notice Banner */}
+      {subStatus && !subStatus.is_active && (
+        <div
+          style={{
+            marginBottom: "1.75rem",
+            padding: "1.1rem 1.35rem",
+            borderRadius: 10,
+            border: "1px solid rgba(239, 68, 68, 0.4)",
+            background: "linear-gradient(90deg, rgba(239, 68, 68, 0.14) 0%, rgba(239, 68, 68, 0.04) 100%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "1rem",
+            boxShadow: "0 4px 20px rgba(239, 68, 68, 0.08)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                background: "rgba(239, 68, 68, 0.2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "1.2rem",
+                flexShrink: 0,
+              }}
+            >
+              ⚠️
+            </div>
+            <div>
+              <div style={{ color: "#fff", fontWeight: 700, fontSize: "1rem" }}>
+                {subStatus.subscription_status === "trial"
+                  ? "3-Day Free Trial Expired — Analytics Paused"
+                  : "Subscription Inactive — Analytics Paused"}
+              </div>
+              <div style={{ color: "rgba(255, 255, 255, 0.75)", fontSize: "0.85rem", marginTop: "0.2rem" }}>
+                Website widget embedding and real-time chat capturing are paused. Upgrade to a paid plan to reactivate your AI assistant and resume live visitor analytics.
+              </div>
+            </div>
+          </div>
+          <Link
+            href="/workspace/billing"
+            style={{
+              padding: "0.6rem 1.1rem",
+              background: "#ef4444",
+              color: "#fff",
+              borderRadius: 6,
+              fontSize: "0.88rem",
+              fontWeight: 700,
+              textDecoration: "none",
+              boxShadow: "0 2px 10px rgba(239, 68, 68, 0.4)",
+            }}
+          >
+            Upgrade Plan Now →
+          </Link>
+        </div>
+      )}
 
       {/* Truncation warning when the backend has more rows than we fetched. */}
       {truncated && (

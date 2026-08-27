@@ -101,6 +101,9 @@ export const api = {
   patch: <T = unknown>(endpoint: string, data?: unknown) =>
     request<T>(endpoint, { method: "PATCH", json: data }),
 
+  put: <T = unknown>(endpoint: string, data?: unknown) =>
+    request<T>(endpoint, { method: "PUT", json: data }),
+
   delete: <T = unknown>(endpoint: string) =>
     request<T>(endpoint, { method: "DELETE" }),
 

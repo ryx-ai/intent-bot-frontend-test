@@ -10,6 +10,13 @@ import { api, ApiError } from "@/lib/api";
 interface UserInfo {
   name: string;
   role?: string;
+  tenant?: {
+    id: number;
+    slug: string;
+    name: string;
+    subscription_status?: string;
+    is_subscription_active?: boolean;
+  };
 }
 
 function getInitials(name: string) {
@@ -35,10 +42,12 @@ const NAV_ITEMS = [
 
 const SETTINGS_ITEMS = [
   { label: "AI Core Metrics", href: "/workspace/metrics" },
+  { label: "Billing & Plans", href: "/workspace/billing" },
 ];
 
 const SUPER_ADMIN_NAV_ITEMS = [
   { label: "Tenant Management", href: "/workspace/admin/tenants" },
+  { label: "Package Management", href: "/workspace/admin/plans" },
 ];
 
 const SUPER_ADMIN_SETTINGS_ITEMS: typeof SETTINGS_ITEMS = [];
@@ -282,6 +291,48 @@ export default function WorkspaceLayout({
           backgroundColor: "var(--bg)",
         }}
       >
+        {user?.tenant && user.tenant.is_subscription_active === false && !isSuperAdmin && (
+          <div
+            style={{
+              background: "linear-gradient(90deg, #991b1b 0%, #dc2626 100%)",
+              color: "#ffffff",
+              padding: "0.85rem 1.5rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "1rem",
+              boxShadow: "0 4px 12px rgba(220, 38, 38, 0.25)",
+              fontSize: "0.9rem",
+              fontWeight: 500,
+              position: "sticky",
+              top: 0,
+              zIndex: 50,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+              <span style={{ fontSize: "1.2rem" }}>🚨</span>
+              <span>
+                <strong>Subscription Expired:</strong> Your 3-day trial/subscription has ended. Your embedded chatbot is currently locked (402 Payment Required).
+              </span>
+            </div>
+            <Link
+              href="/workspace/billing"
+              style={{
+                background: "#ffffff",
+                color: "#991b1b",
+                padding: "0.45rem 1rem",
+                borderRadius: "6px",
+                fontWeight: 700,
+                fontSize: "0.85rem",
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+                boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+              }}
+            >
+              Upgrade Plan →
+            </Link>
+          </div>
+        )}
         {children}
       </main>
     </div>

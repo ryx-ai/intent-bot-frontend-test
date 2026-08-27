@@ -53,12 +53,16 @@ export default function DeployPage() {
   const [copyError, setCopyError] = useState("");
   const [health, setHealth] = useState<HealthState>("checking");
   const [tenantSlug, setTenantSlug] = useState("");
+  const [isSubActive, setIsSubActive] = useState<boolean | null>(null);
 
   useEffect(() => {
     async function loadTenant() {
       try {
-        const me = await api.get<{ tenant?: { slug: string } }>("/api/auth/me");
+        const me = await api.get<{ tenant?: { slug: string; is_subscription_active?: boolean } }>("/api/auth/me");
         setTenantSlug(me.tenant?.slug || "");
+        if (me.tenant && typeof me.tenant.is_subscription_active === "boolean") {
+          setIsSubActive(me.tenant.is_subscription_active);
+        }
       } catch (err) {
         console.error("Failed to load user info for deploy page", err);
       }
@@ -123,6 +127,47 @@ export default function DeployPage() {
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "2.5rem 2rem" }}>
+      {/* Expired Subscription Warning */}
+      {isSubActive === false && (
+        <div
+          style={{
+            background: "rgba(239, 68, 68, 0.12)",
+            border: "1px solid rgba(239, 68, 68, 0.35)",
+            borderRadius: 10,
+            padding: "1rem 1.25rem",
+            marginBottom: "1.5rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            fontSize: "0.9rem",
+            color: "#f87171",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: "1.1rem" }}>🔒</span>
+            <span>
+              <strong>Widget Disabled (Trial Expired):</strong> Your 3-day trial has ended. Chatbot calls on your website are currently locked (HTTP 402 Payment Required).
+            </span>
+          </div>
+          <a
+            href="/workspace/billing"
+            style={{
+              background: "#ef4444",
+              color: "#ffffff",
+              padding: "0.45rem 0.9rem",
+              borderRadius: 6,
+              fontWeight: 700,
+              fontSize: "0.85rem",
+              textDecoration: "none",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Upgrade Plan →
+          </a>
+        </div>
+      )}
+
       {/* Localhost warning */}
       {isLocalhost && (
         <div

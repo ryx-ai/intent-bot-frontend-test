@@ -41,6 +41,7 @@ const NAV_ITEMS = [
 ];
 
 const SETTINGS_ITEMS = [
+  { label: "Workspace Settings", href: "/workspace/settings" },
   { label: "AI Core Metrics", href: "/workspace/metrics" },
   { label: "Billing & Plans", href: "/workspace/billing" },
 ];

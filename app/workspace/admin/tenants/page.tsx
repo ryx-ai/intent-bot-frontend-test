@@ -36,6 +36,22 @@ interface TenantAdmin {
   role: string;
 }
 
+interface PaginationMeta {
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
+interface TenantStats {
+  total_workspaces: number;
+  active_tenants: number;
+  suspended: number;
+  assigned_plans: number;
+}
+
 interface DeleteTenantResponse {
   status: "deleted";
   slug: string;
@@ -106,6 +122,7 @@ export default function TenantManagementPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [availablePlans, setAvailablePlans] = useState<PlanOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tableLoading, setTableLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [updatingPlanId, setUpdatingPlanId] = useState<number | null>(null);
   const [tenantActionId, setTenantActionId] = useState<number | null>(null);
@@ -115,6 +132,27 @@ export default function TenantManagementPage() {
   const [success, setSuccess] = useState("");
   const [formError, setFormError] = useState("");
 
+  // Pagination & Filter States
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [stats, setStats] = useState<TenantStats>({
+    total_workspaces: 0,
+    active_tenants: 0,
+    suspended: 0,
+    assigned_plans: 0,
+  });
+  const [pagination, setPagination] = useState<PaginationMeta>({
+    page: 1,
+    page_size: 10,
+    total_items: 0,
+    total_pages: 1,
+    has_next: false,
+    has_prev: false,
+  });
+
+  // Form State
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [selectedPlanId, setSelectedPlanId] = useState<number | "">("");
@@ -140,10 +178,51 @@ export default function TenantManagementPage() {
     return "";
   }, [adminEmail, adminPassword, name, slug]);
 
-  const loadTenants = useCallback(async () => {
-    const data = await api.get<{ tenants: Tenant[] }>("/api/admin/tenants");
-    setTenants(data.tenants || []);
+  const loadStats = useCallback(async () => {
+    try {
+      const data = await api.get<TenantStats>("/api/admin/tenants/stats");
+      setStats(data);
+    } catch {
+      // Non-blocking
+    }
   }, []);
+
+  const loadTenants = useCallback(
+    async (
+      targetPage = page,
+      targetPageSize = pageSize,
+      targetSearch = searchQuery,
+      targetStatus = statusFilter
+    ) => {
+      setTableLoading(true);
+      try {
+        const params = new URLSearchParams({
+          page: String(targetPage),
+          page_size: String(targetPageSize),
+          sort_by: "created_at",
+          sort_order: "desc",
+        });
+        if (targetSearch.trim()) params.append("search", targetSearch.trim());
+        if (targetStatus) params.append("status", targetStatus);
+
+        const data = await api.get<{
+          items?: Tenant[];
+          tenants?: Tenant[];
+          pagination?: PaginationMeta;
+        }>(`/api/admin/tenants?${params.toString()}`);
+
+        setTenants(data.items || data.tenants || []);
+        if (data.pagination) {
+          setPagination(data.pagination);
+        }
+      } catch (err) {
+        setError(errorMessage(err, "Failed to load tenants."));
+      } finally {
+        setTableLoading(false);
+      }
+    },
+    [page, pageSize, searchQuery, statusFilter]
+  );
 
   const loadPlans = useCallback(async () => {
     try {
@@ -166,7 +245,7 @@ export default function TenantManagementPage() {
         setRole(me.role || null);
 
         if (me.role === "super_admin") {
-          await Promise.all([loadTenants(), loadPlans()]);
+          await Promise.all([loadTenants(1, 10, "", ""), loadStats(), loadPlans()]);
         }
       } catch (err) {
         if (!cancelled) {
@@ -181,7 +260,7 @@ export default function TenantManagementPage() {
     return () => {
       cancelled = true;
     };
-  }, [loadPlans, loadTenants]);
+  }, [loadPlans, loadStats, loadTenants]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -218,7 +297,8 @@ export default function TenantManagementPage() {
       setSelectedPlanId("");
       setAdminEmail("");
       setAdminPassword("");
-      await loadTenants();
+      await Promise.all([loadTenants(1, pageSize, searchQuery, statusFilter), loadStats()]);
+      setPage(1);
     } catch (err) {
       setFormError(errorMessage(err, "Tenant onboarding failed."));
     } finally {
@@ -238,6 +318,7 @@ export default function TenantManagementPage() {
         current.map((t) => (t.id === tenantId ? updated : t))
       );
       setSuccess(`Updated plan for tenant "${updated.name}".`);
+      await loadStats();
     } catch (err) {
       setError(errorMessage(err, "Failed to update tenant plan."));
     } finally {
@@ -282,8 +363,8 @@ export default function TenantManagementPage() {
         const deleted = await api.delete<DeleteTenantResponse>(
           `/api/admin/tenants/${tenant.id}`
         );
-        setTenants((current) => current.filter((item) => item.id !== tenant.id));
         setSuccess(`Deleted workspace tenant "${deleted.slug}".`);
+        await Promise.all([loadTenants(page, pageSize, searchQuery, statusFilter), loadStats()]);
       } else if (nextStatus) {
         const updated = await api.patch<Tenant>(
           `/api/admin/tenants/${tenant.id}`,
@@ -301,6 +382,7 @@ export default function TenantManagementPage() {
               : "Tenant admins can now log in."
           }`
         );
+        await loadStats();
       }
       setPendingAction(null);
     } catch (err) {
@@ -315,16 +397,6 @@ export default function TenantManagementPage() {
     : null;
   const actionInProgress =
     pendingAction !== null && tenantActionId === pendingAction.tenant.id;
-  const confirmDisabled =
-    actionInProgress ||
-    (pendingAction?.kind === "delete" &&
-      deleteConfirmationSlug.trim() !== pendingAction.tenant.slug);
-
-  // Compute Statistics
-  const totalTenants = tenants.length;
-  const activeTenants = tenants.filter((t) => t.status === "active").length;
-  const suspendedTenants = tenants.filter((t) => t.status === "suspended").length;
-  const paidOrAssignedPlans = tenants.filter((t) => t.plan_id).length;
 
   if (loading) {
     return (
@@ -379,19 +451,19 @@ export default function TenantManagementPage() {
       >
         <div style={statCardStyle}>
           <span style={statLabelStyle}>Total Workspaces</span>
-          <span style={statValueStyle}>{totalTenants}</span>
+          <span style={statValueStyle}>{stats.total_workspaces}</span>
         </div>
         <div style={statCardStyle}>
           <span style={statLabelStyle}>Active Tenants</span>
-          <span style={{ ...statValueStyle, color: "#10b981" }}>{activeTenants}</span>
+          <span style={{ ...statValueStyle, color: "#10b981" }}>{stats.active_tenants}</span>
         </div>
         <div style={statCardStyle}>
           <span style={statLabelStyle}>Suspended</span>
-          <span style={{ ...statValueStyle, color: "#f59e0b" }}>{suspendedTenants}</span>
+          <span style={{ ...statValueStyle, color: "#f59e0b" }}>{stats.suspended}</span>
         </div>
         <div style={statCardStyle}>
           <span style={statLabelStyle}>Assigned Plans</span>
-          <span style={{ ...statValueStyle, color: "#a78bfa" }}>{paidOrAssignedPlans}</span>
+          <span style={{ ...statValueStyle, color: "#a78bfa" }}>{stats.assigned_plans}</span>
         </div>
       </div>
 
@@ -553,8 +625,11 @@ export default function TenantManagementPage() {
             border: "1px solid var(--border)",
             borderRadius: 8,
             overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
           }}
         >
+          {/* Top Bar: Title & Refresh */}
           <div
             style={{
               padding: "1rem 1.25rem",
@@ -566,14 +641,18 @@ export default function TenantManagementPage() {
             }}
           >
             <h2 style={{ margin: 0, fontSize: "1rem", color: "#fff", fontWeight: 700 }}>
-              Tenants ({tenants.length})
+              Tenants ({pagination.total_items})
             </h2>
             <button
               type="button"
               onClick={() => {
                 setError("");
                 setSuccess("");
-                Promise.all([loadTenants(), loadPlans()]).catch((err) =>
+                Promise.all([
+                  loadTenants(page, pageSize, searchQuery, statusFilter),
+                  loadStats(),
+                  loadPlans(),
+                ]).catch((err) =>
                   setError(errorMessage(err, "Failed to refresh tenants."))
                 );
               }}
@@ -592,7 +671,69 @@ export default function TenantManagementPage() {
             </button>
           </div>
 
-          <div style={{ overflowX: "auto" }}>
+          {/* Search & Filter Bar */}
+          <div
+            style={{
+              padding: "0.75rem 1.25rem",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              gap: "0.75rem",
+              alignItems: "center",
+              backgroundColor: "rgba(255, 255, 255, 0.01)",
+            }}
+          >
+            <div style={{ position: "relative", flex: 1 }}>
+              <input
+                type="text"
+                placeholder="Search by company name or slug..."
+                value={searchQuery}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSearchQuery(val);
+                  setPage(1);
+                  loadTenants(1, pageSize, val, statusFilter);
+                }}
+                style={{
+                  width: "100%",
+                  padding: "0.45rem 0.75rem",
+                  borderRadius: 6,
+                  border: "1px solid var(--border)",
+                  background: "var(--bg-surface)",
+                  color: "#fff",
+                  fontSize: "0.85rem",
+                  outline: "none",
+                }}
+              />
+            </div>
+
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                const val = e.target.value;
+                setStatusFilter(val);
+                setPage(1);
+                loadTenants(1, pageSize, searchQuery, val);
+              }}
+              style={{
+                padding: "0.45rem 0.75rem",
+                borderRadius: 6,
+                border: "1px solid var(--border)",
+                background: "var(--bg-surface)",
+                color: "var(--text-secondary)",
+                fontSize: "0.85rem",
+                outline: "none",
+                cursor: "pointer",
+              }}
+            >
+              <option value="">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="suspended">Suspended</option>
+              <option value="expired">Expired</option>
+            </select>
+          </div>
+
+          {/* Table */}
+          <div style={{ overflowX: "auto", flex: 1, opacity: tableLoading ? 0.6 : 1, transition: "opacity 0.2s" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
               <thead>
                 <tr>
@@ -609,7 +750,7 @@ export default function TenantManagementPage() {
                 {tenants.length === 0 ? (
                   <tr>
                     <td colSpan={7} style={{ padding: "2.5rem", color: "var(--text-muted)", textAlign: "center" }}>
-                      No tenants onboarded yet.
+                      {searchQuery || statusFilter ? "No tenants match your filters." : "No tenants onboarded yet."}
                     </td>
                   </tr>
                 ) : (
@@ -688,8 +829,8 @@ export default function TenantManagementPage() {
                               color: tenant.status === "active" ? "var(--warning)" : "var(--success)",
                               borderColor:
                                 tenant.status === "active"
-                                  ? "rgba(245, 158, 11, 0.35)"
-                                  : "rgba(16, 185, 129, 0.35)",
+                                ? "rgba(245, 158, 11, 0.35)"
+                                : "rgba(16, 185, 129, 0.35)",
                             }}
                           >
                             {tenantActionId === tenant.id
@@ -728,6 +869,106 @@ export default function TenantManagementPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Table Footer Pagination */}
+          <div
+            style={{
+              padding: "0.85rem 1.25rem",
+              borderTop: "1px solid var(--border)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              backgroundColor: "rgba(255, 255, 255, 0.01)",
+              gap: "1rem",
+              flexWrap: "wrap",
+            }}
+          >
+            {/* Left: Summary & Page Size */}
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+              <span style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
+                Showing{" "}
+                {pagination.total_items === 0
+                  ? 0
+                  : (pagination.page - 1) * pagination.page_size + 1}
+                –{Math.min(pagination.page * pagination.page_size, pagination.total_items)} of{" "}
+                {pagination.total_items} tenants
+              </span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  const newSize = Number(e.target.value);
+                  setPageSize(newSize);
+                  setPage(1);
+                  loadTenants(1, newSize, searchQuery, statusFilter);
+                }}
+                style={{
+                  padding: "0.25rem 0.5rem",
+                  borderRadius: 4,
+                  border: "1px solid var(--border)",
+                  background: "var(--bg-surface)",
+                  color: "var(--text-secondary)",
+                  fontSize: "0.8rem",
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              >
+                <option value={10}>10 / page</option>
+                <option value={25}>25 / page</option>
+                <option value={50}>50 / page</option>
+              </select>
+            </div>
+
+            {/* Right: Page Navigation */}
+            <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+              <button
+                type="button"
+                disabled={!pagination.has_prev || tableLoading}
+                onClick={() => {
+                  const prev = Math.max(1, page - 1);
+                  setPage(prev);
+                  loadTenants(prev, pageSize, searchQuery, statusFilter);
+                }}
+                style={{
+                  padding: "0.35rem 0.7rem",
+                  borderRadius: 6,
+                  border: "1px solid var(--border)",
+                  background: "transparent",
+                  color: pagination.has_prev ? "var(--text-secondary)" : "var(--text-muted)",
+                  cursor: pagination.has_prev && !tableLoading ? "pointer" : "not-allowed",
+                  fontSize: "0.82rem",
+                  opacity: pagination.has_prev ? 1 : 0.45,
+                }}
+              >
+                Prev
+              </button>
+
+              <span style={{ fontSize: "0.82rem", color: "var(--text-secondary)", padding: "0 0.4rem" }}>
+                Page {pagination.page} of {pagination.total_pages || 1}
+              </span>
+
+              <button
+                type="button"
+                disabled={!pagination.has_next || tableLoading}
+                onClick={() => {
+                  const next = page + 1;
+                  setPage(next);
+                  loadTenants(next, pageSize, searchQuery, statusFilter);
+                }}
+                style={{
+                  padding: "0.35rem 0.7rem",
+                  borderRadius: 6,
+                  border: "1px solid var(--border)",
+                  background: "transparent",
+                  color: pagination.has_next ? "var(--text-secondary)" : "var(--text-muted)",
+                  cursor: pagination.has_next && !tableLoading ? "pointer" : "not-allowed",
+                  fontSize: "0.82rem",
+                  opacity: pagination.has_next ? 1 : 0.45,
+                }}
+              >
+                Next
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -810,9 +1051,9 @@ export default function TenantManagementPage() {
             </div>
 
             <ul style={impactListStyle}>
-              {pendingActionConfig.impact.map((item) => (
-                <li key={item} style={impactItemStyle}>
-                  {item}
+              {pendingActionConfig.impacts.map((impact) => (
+                <li key={impact} style={impactItemStyle}>
+                  {impact}
                 </li>
               ))}
             </ul>
@@ -820,22 +1061,17 @@ export default function TenantManagementPage() {
             {pendingAction.kind === "delete" && (
               <label style={{ display: "block", marginTop: "1rem" }}>
                 <span style={dangerLabelStyle}>
-                  Type <code style={inlineCodeStyle}>{pendingAction.tenant.slug}</code> to
-                  enable hard delete
+                  Type <code style={inlineCodeStyle}>{pendingAction.tenant.slug}</code> to confirm:
                 </span>
                 <input
                   value={deleteConfirmationSlug}
                   onChange={(e) => setDeleteConfirmationSlug(e.target.value)}
                   placeholder={pendingAction.tenant.slug}
-                  autoFocus
+                  disabled={actionInProgress}
                   style={{
                     ...inputStyle,
-                    marginTop: "0.55rem",
-                    borderColor:
-                      deleteConfirmationSlug &&
-                      deleteConfirmationSlug.trim() !== pendingAction.tenant.slug
-                        ? "rgba(239, 68, 68, 0.65)"
-                        : "var(--border)",
+                    borderColor: "rgba(239, 68, 68, 0.4)",
+                    marginTop: "0.45rem",
                   }}
                 />
               </label>
@@ -846,26 +1082,38 @@ export default function TenantManagementPage() {
                 type="button"
                 onClick={() => setPendingAction(null)}
                 disabled={actionInProgress}
-                style={{
-                  ...secondaryButtonStyle,
-                  opacity: actionInProgress ? 0.6 : 1,
-                  cursor: actionInProgress ? "not-allowed" : "pointer",
-                }}
+                style={secondaryButtonStyle}
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={() => void confirmTenantAction()}
-                disabled={confirmDisabled}
+                onClick={confirmTenantAction}
+                disabled={
+                  actionInProgress ||
+                  (pendingAction.kind === "delete" &&
+                    deleteConfirmationSlug.trim() !== pendingAction.tenant.slug)
+                }
                 style={{
                   ...primaryDangerButtonStyle,
-                  background: pendingActionConfig.buttonBackground,
-                  opacity: confirmDisabled ? 0.55 : 1,
-                  cursor: confirmDisabled ? "not-allowed" : "pointer",
+                  background: pendingActionConfig.primaryButtonBackground,
+                  opacity:
+                    actionInProgress ||
+                    (pendingAction.kind === "delete" &&
+                      deleteConfirmationSlug.trim() !== pendingAction.tenant.slug)
+                      ? 0.5
+                      : 1,
+                  cursor:
+                    actionInProgress ||
+                    (pendingAction.kind === "delete" &&
+                      deleteConfirmationSlug.trim() !== pendingAction.tenant.slug)
+                      ? "not-allowed"
+                      : "pointer",
                 }}
               >
-                {actionInProgress ? "Working..." : pendingActionConfig.confirmLabel}
+                {actionInProgress
+                  ? "Working..."
+                  : pendingActionConfig.confirmButtonLabel}
               </button>
             </div>
           </div>
@@ -876,63 +1124,59 @@ export default function TenantManagementPage() {
 }
 
 function getTenantActionConfig(action: PendingTenantAction) {
-  const { kind, tenant } = action;
-
-  if (kind === "delete") {
+  if (action.kind === "delete") {
     return {
-      eyebrow: "Permanent delete",
-      title: `Hard delete ${tenant.name}?`,
+      eyebrow: "Danger zone",
+      title: `Delete workspace "${action.tenant.name}"?`,
       description:
-        "This removes the tenant record and connected tenant resources. This action cannot be undone.",
-      confirmLabel: "Hard delete tenant",
-      icon: "!",
+        "This permanently removes the tenant, all associated workspace data, and all tenant admins.",
+      icon: "✕",
       color: "var(--error)",
       borderColor: "rgba(239, 68, 68, 0.35)",
       background: "rgba(239, 68, 68, 0.12)",
-      buttonBackground: "var(--error)",
-      impact: [
-        "Tenant admins lose access immediately.",
-        "Tenant data and the tenant filesystem folder are removed.",
-        "Recovery requires restoring from an external backup.",
+      primaryButtonBackground: "var(--error)",
+      confirmButtonLabel: "Permanently delete tenant",
+      impacts: [
+        "All customer accounts and visual mappings will be removed.",
+        "The tenant data directory on disk will be deleted.",
+        "This action cannot be undone.",
       ],
     };
   }
 
-  if (kind === "suspend") {
+  if (action.kind === "suspend") {
     return {
-      eyebrow: "Access change",
-      title: `Suspend ${tenant.name}?`,
+      eyebrow: "Tenant state",
+      title: `Suspend workspace "${action.tenant.name}"?`,
       description:
-        "Suspension blocks tenant access while preserving the workspace and data for later review or reactivation.",
-      confirmLabel: "Suspend tenant",
-      icon: "!",
+        "Suspending a tenant prevents all tenant administrators and bot users from signing in or executing requests.",
+      icon: "⏸",
       color: "var(--warning)",
-      borderColor: "rgba(245, 158, 11, 0.38)",
+      borderColor: "rgba(245, 158, 11, 0.35)",
       background: "rgba(245, 158, 11, 0.12)",
-      buttonBackground: "var(--warning)",
-      impact: [
-        "Tenant admins cannot log in until reactivated.",
-        "Tenant data stays in place.",
-        "You can reactivate this tenant from the same table.",
+      primaryButtonBackground: "var(--warning)",
+      confirmButtonLabel: "Suspend tenant",
+      impacts: [
+        "Tenant users cannot log into the dashboard.",
+        "Existing workspace configurations remain intact.",
+        "You can reactivate this workspace at any time.",
       ],
     };
   }
 
   return {
-    eyebrow: "Restore access",
-    title: `Reactivate ${tenant.name}?`,
-    description:
-      "Reactivation restores normal tenant access for admins and allows the workspace to be used again.",
-    confirmLabel: "Reactivate tenant",
-    icon: "+",
+    eyebrow: "Tenant state",
+    title: `Reactivate workspace "${action.tenant.name}"?`,
+    description: "Reactivating the tenant will restore access for administrators and users.",
+    icon: "▶",
     color: "var(--success)",
-    borderColor: "rgba(16, 185, 129, 0.38)",
+    borderColor: "rgba(16, 185, 129, 0.35)",
     background: "rgba(16, 185, 129, 0.12)",
-    buttonBackground: "var(--success)",
-    impact: [
-      "Tenant admins can log in again.",
-      "Existing tenant data remains available.",
-      "The status badge will return to active.",
+    primaryButtonBackground: "var(--success)",
+    confirmButtonLabel: "Reactivate tenant",
+    impacts: [
+      "Tenant admins will be able to log in immediately.",
+      "Visual mappings and knowledge will be available.",
     ],
   };
 }
@@ -941,111 +1185,114 @@ const statCardStyle: React.CSSProperties = {
   backgroundColor: "var(--bg-card)",
   border: "1px solid var(--border)",
   borderRadius: 8,
-  padding: "1.1rem 1.25rem",
+  padding: "1.2rem",
   display: "flex",
   flexDirection: "column",
-  gap: "0.35rem",
+  gap: "0.4rem",
 };
 
 const statLabelStyle: React.CSSProperties = {
-  fontSize: "0.75rem",
-  fontWeight: 600,
+  fontSize: "0.78rem",
+  color: "var(--text-muted)",
+  fontWeight: 700,
   textTransform: "uppercase",
-  color: "var(--text-secondary)",
-  letterSpacing: "0.03em",
+  letterSpacing: "0.04em",
 };
 
 const statValueStyle: React.CSSProperties = {
-  fontSize: "1.6rem",
+  fontSize: "1.75rem",
   fontWeight: 800,
   color: "#fff",
 };
 
 const formLabelStyle: React.CSSProperties = {
   display: "block",
-  marginBottom: 6,
-  fontSize: "0.8rem",
+  fontSize: "0.82rem",
   color: "var(--text-secondary)",
+  marginBottom: "0.4rem",
   fontWeight: 600,
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  borderRadius: 8,
+  padding: "0.65rem 0.85rem",
+  borderRadius: 6,
   border: "1px solid var(--border)",
-  padding: "0.75rem 0.85rem",
-  fontSize: "0.9rem",
-  color: "#fff",
   background: "var(--bg-surface)",
-  outline: "none",
+  color: "#fff",
   fontFamily: "inherit",
+  fontSize: "0.88rem",
+  outline: "none",
+  boxSizing: "border-box",
 };
 
 const thStyle: React.CSSProperties = {
-  backgroundColor: "var(--bg-surface)",
-  color: "var(--text-secondary)",
-  fontWeight: 600,
-  fontSize: "0.78rem",
-  padding: "0.85rem 1rem",
+  padding: "0.75rem 1rem",
+  fontSize: "0.75rem",
+  color: "var(--text-muted)",
+  fontWeight: 700,
   textTransform: "uppercase",
-  letterSpacing: 0,
+  letterSpacing: "0.04em",
+  borderBottom: "1px solid var(--border)",
 };
 
 const tdStyle: React.CSSProperties = {
-  padding: "0.95rem 1rem",
-  color: "var(--text-primary)",
-  fontSize: "0.9rem",
+  padding: "0.9rem 1rem",
+  fontSize: "0.88rem",
 };
 
 const actionButtonStyle: React.CSSProperties = {
-  padding: "0.32rem 0.6rem",
+  padding: "0.35rem 0.7rem",
   borderRadius: 6,
   border: "1px solid var(--border)",
   background: "transparent",
+  fontSize: "0.78rem",
+  fontWeight: 600,
   cursor: "pointer",
   fontFamily: "inherit",
-  fontSize: "0.78rem",
-  fontWeight: 700,
 };
 
 const modalOverlayStyle: React.CSSProperties = {
   position: "fixed",
   inset: 0,
-  zIndex: 50,
+  background: "rgba(0, 0, 0, 0.75)",
+  backdropFilter: "blur(4px)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   padding: "1rem",
-  background: "rgba(5, 7, 15, 0.75)",
-  backdropFilter: "blur(8px)",
+  zIndex: 100,
 };
 
 const modalStyle: React.CSSProperties = {
-  width: "min(100%, 520px)",
-  borderRadius: 8,
-  border: "1px solid var(--border)",
+  width: "100%",
+  maxWidth: 520,
   background: "var(--bg-card)",
-  boxShadow: "0 24px 80px rgba(0, 0, 0, 0.45)",
-  padding: "1.25rem",
+  border: "1px solid var(--border)",
+  borderRadius: 10,
+  padding: "1.5rem",
+  boxShadow: "0 20px 40px rgba(0, 0, 0, 0.5)",
 };
 
 const modalIconStyle: React.CSSProperties = {
   width: 38,
   height: 38,
-  flex: "0 0 auto",
   borderRadius: 8,
   border: "1px solid",
-  display: "grid",
-  placeItems: "center",
-  fontWeight: 800,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "1.1rem",
+  fontWeight: 700,
+  flexShrink: 0,
 };
 
 const tenantSummaryStyle: React.CSSProperties = {
-  marginTop: "1rem",
-  padding: "0.75rem 0.9rem",
-  borderRadius: 6,
-  border: "1px solid var(--border)",
+  margin: "1.25rem 0",
+  padding: "0.85rem 1rem",
+  borderRadius: 8,
   background: "var(--bg-surface)",
+  border: "1px solid var(--border)",
   display: "grid",
   gridTemplateColumns: "1fr 1fr 1fr",
   gap: "0.75rem",

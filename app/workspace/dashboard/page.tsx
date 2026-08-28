@@ -46,6 +46,15 @@ interface SubscriptionStatus {
   message: string;
 }
 
+/* ── Date parser helper ────────────────────────────────────── */
+function parseUtcDate(timestamp: string): Date {
+  if (!timestamp) return new Date();
+  const normalized = timestamp.endsWith("Z") || timestamp.includes("+")
+    ? timestamp
+    : `${timestamp}Z`;
+  return new Date(normalized);
+}
+
 /* ── Badge color helper ────────────────────────────────────── */
 function getBadgeStyle(metricId: string, val: string) {
   const baseStyle: React.CSSProperties = {
@@ -131,7 +140,7 @@ export default function DashboardPage() {
 
       const arr: Session[] = Object.entries(buckets).map(([sessionId, rows]) => {
         const sorted = [...rows].sort(
-          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+          (a, b) => parseUtcDate(a.timestamp).getTime() - parseUtcDate(b.timestamp).getTime()
         );
         const first = sorted[0];
         const last = sorted[sorted.length - 1];
@@ -142,8 +151,8 @@ export default function DashboardPage() {
         return {
           id: sessionId,
           messages: sorted,
-          latestTime: new Date(last.timestamp),
-          firstMessage: first.user_message || "...",
+          latestTime: parseUtcDate(last?.timestamp || ""),
+          firstMessage: first?.user_message || "...",
           finalValues,
         };
       });
@@ -191,7 +200,7 @@ export default function DashboardPage() {
 
         const arr: Session[] = Object.entries(buckets).map(([sessionId, rows]) => {
           const sorted = [...rows].sort(
-            (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+            (a, b) => parseUtcDate(a.timestamp).getTime() - parseUtcDate(b.timestamp).getTime()
           );
           const first = sorted[0];
           const last = sorted[sorted.length - 1];
@@ -202,8 +211,8 @@ export default function DashboardPage() {
           return {
             id: sessionId,
             messages: sorted,
-            latestTime: new Date(last.timestamp),
-            firstMessage: first.user_message || "...",
+            latestTime: parseUtcDate(last?.timestamp || ""),
+            firstMessage: first?.user_message || "...",
             finalValues,
           };
         });
@@ -498,7 +507,7 @@ export default function DashboardPage() {
                                 {session.messages.map((m, idx) => (
                                   <tr key={`${session.id}-${idx}`}>
                                     <td style={{ padding: "0.5rem 0", color: "var(--text-secondary)", fontSize: "0.85rem", whiteSpace: "nowrap", width: 140 }}>
-                                      {new Date(m.timestamp).toLocaleString("en-US", {
+                                      {parseUtcDate(m.timestamp).toLocaleString("en-US", {
                                         month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit",
                                       })}
                                     </td>

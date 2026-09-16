@@ -20,7 +20,10 @@ interface MetricRow extends MetricConfig {
 }
 
 function newUid(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return crypto.randomUUID();
   }
   return `uid_${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -39,7 +42,7 @@ export default function MetricsPage() {
       try {
         const data = await api.get<MetricConfig[]>("/api/metrics/config");
         setMetrics(
-          data.map((m) => ({ ...m, _uid: newUid(), _originalId: m.id }))
+          data.map((m) => ({ ...m, _uid: newUid(), _originalId: m.id })),
         );
       } catch (err) {
         console.error("Failed to load metrics config", err);
@@ -50,7 +53,11 @@ export default function MetricsPage() {
     load();
   }, []);
 
-  function updateField(index: number, field: keyof MetricConfig, value: string | boolean) {
+  function updateField(
+    index: number,
+    field: keyof MetricConfig,
+    value: string | boolean,
+  ) {
     setMetrics((prev) => {
       const copy = [...prev];
       if (field === "id" && typeof value === "string") {
@@ -110,27 +117,32 @@ export default function MetricsPage() {
     // on the backend (the id is the primary key) — orphaning any analytics
     // history bound to the old id. Warn before letting the user proceed.
     const renamed = metrics.filter(
-      (m) => m._originalId !== null && m._originalId !== m.id
+      (m) => m._originalId !== null && m._originalId !== m.id,
     );
     if (renamed.length > 0 && !skipRenameWarning) {
       setPendingRenames(renamed);
       return;
     }
     if (renamed.length > 0 && false) {
-      const lines = renamed.map((m) => `  • ${m._originalId} → ${m.id}`).join("\n");
+      const lines = renamed
+        .map((m) => `  • ${m._originalId} → ${m.id}`)
+        .join("\n");
       const ok = confirm(
         `You renamed ${renamed.length} metric ID${renamed.length === 1 ? "" : "s"}:\n\n${lines}\n\n` +
           `On save, the old metric${renamed.length === 1 ? "" : "s"} will be DELETED and ` +
-          `recreated with the new ID. Past analytics tied to the old ID will be orphaned. Proceed?`
+          `recreated with the new ID. Past analytics tied to the old ID will be orphaned. Proceed?`,
       );
       if (!ok) return;
     }
 
     // Strip internal fields before sending to the backend.
-    const payload: MetricConfig[] = metrics.map(({ _uid, _originalId, ...rest }) => {
-      void _uid; void _originalId;
-      return rest;
-    });
+    const payload: MetricConfig[] = metrics.map(
+      ({ _uid, _originalId, ...rest }) => {
+        void _uid;
+        void _originalId;
+        return rest;
+      },
+    );
 
     try {
       await api.post("/api/metrics/config", payload);
@@ -150,7 +162,13 @@ export default function MetricsPage() {
 
   if (loading) {
     return (
-      <div style={{ padding: "5rem", textAlign: "center", color: "var(--text-muted)" }}>
+      <div
+        style={{
+          padding: "5rem",
+          textAlign: "center",
+          color: "var(--text-muted)",
+        }}
+      >
         Loading configuration…
       </div>
     );
@@ -203,15 +221,6 @@ export default function MetricsPage() {
             transition: "background 0.2s",
             fontFamily: "inherit",
           }}
-          onMouseEnter={(e) =>{
-            (e.currentTarget.style.background = "var(--text-primary)"),
-            (e.currentTarget.style.color = "var(--border)")
-
-          }
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.background = "var(--border)")
-          }
         >
           + Add New Metric
         </button>

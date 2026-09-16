@@ -154,7 +154,7 @@ export default function DeployPage() {
             href="/workspace/billing"
             style={{
               background: "#ef4444",
-              color: "#ffffff",
+              color: "var(--text-primary)",
               padding: "0.45rem 0.9rem",
               borderRadius: 6,
               fontWeight: 700,
@@ -187,7 +187,7 @@ export default function DeployPage() {
           ⚠️ <strong>Dev Mode:</strong>&nbsp;Snippet points to localhost. Set{" "}
           <code
             style={{
-              background: "rgba(255,255,255,0.08)",
+              background: "var(--bg-hover)",
               padding: "2px 6px",
               borderRadius: 4,
             }}
@@ -206,7 +206,7 @@ export default function DeployPage() {
             gap: 6,
             background: "var(--accent-dim)",
             border: "1px solid var(--accent-glow)",
-            color: "var(--accent-light)",
+            color: "var(--accent)",
             borderRadius: 20,
             padding: "4px 12px",
             fontSize: "0.72rem",
@@ -223,11 +223,12 @@ export default function DeployPage() {
             margin: "0 0 0.5rem 0",
             fontSize: "2rem",
             fontWeight: 800,
-            background:
-              "linear-gradient(135deg, #fff 40%, var(--accent-light))",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
+            color: "var(--text-primary)",
+            // background:
+            //   "linear-gradient(135deg, #fff 40%, var(--accent-light))",
+            // WebkitBackgroundClip: "text",
+            // WebkitTextFillColor: "transparent",
+            // backgroundClip: "text",
           }}
         >
           Deploy Your Agent
@@ -244,7 +245,7 @@ export default function DeployPage() {
           Embed the RYX AI chatbot on any website in under 60 seconds — no
           developer needed. Just copy the snippet and paste it before your{" "}
           <code
-            style={{ color: "var(--accent-light)", fontFamily: "monospace" }}
+            style={{ color: "var(--accent)", fontFamily: "monospace" }}
           >
             &lt;/body&gt;
           </code>{" "}
@@ -371,7 +372,7 @@ export default function DeployPage() {
               justifyContent: "center",
               fontSize: "0.75rem",
               fontWeight: 700,
-              color: "var(--accent-light)",
+              color: "var(--accent)",
             }}
           >
             1
@@ -551,7 +552,7 @@ export default function DeployPage() {
               justifyContent: "center",
               fontSize: "0.75rem",
               fontWeight: 700,
-              color: "var(--accent-light)",
+              color: "var(--accent)",
             }}
           >
             2
@@ -578,7 +579,7 @@ export default function DeployPage() {
               Paste this single line just before the closing{" "}
               <code
                 style={{
-                  color: "var(--accent-light)",
+                  color: "var(--accent)",
                   fontFamily: "monospace",
                 }}
               >
@@ -622,7 +623,7 @@ export default function DeployPage() {
                       ? "rgba(16, 185, 129, 0.15)"
                       : "var(--accent-dim)",
                     border: `1px solid ${copied ? "rgba(16, 185, 129, 0.4)" : "var(--accent-glow)"}`,
-                    color: copied ? "#10b981" : "var(--accent-light)",
+                    color: copied ? "#10b981" : "var(--accent)",
                     borderRadius: 6,
                     padding: "4px 12px",
                     fontSize: "0.75rem",
@@ -732,7 +733,7 @@ export default function DeployPage() {
               justifyContent: "center",
               fontSize: "0.75rem",
               fontWeight: 700,
-              color: "var(--accent-light)",
+              color: "var(--accent)",
             }}
           >
             3

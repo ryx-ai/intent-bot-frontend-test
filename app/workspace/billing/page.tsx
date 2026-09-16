@@ -180,7 +180,7 @@ export default function BillingPage() {
         },
         prefill: {},
         theme: {
-          color: "#8A64E9",
+          color: "var(--accent)",
         },
         modal: {
           ondismiss: function () {
@@ -219,7 +219,7 @@ export default function BillingPage() {
 
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "2rem" }}>
         <header style={{ marginBottom: "2rem" }}>
-          <h1 style={{ margin: "0 0 0.25rem 0", fontSize: "1.5rem", fontWeight: 800, color: "#fff" }}>
+          <h1 style={{ margin: "0 0 0.25rem 0", fontSize: "1.5rem", fontWeight: 800, color: "var(--text-primary)" }}>
             Billing & Subscription
           </h1>
           <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.88rem" }}>
@@ -291,10 +291,10 @@ export default function BillingPage() {
                 ⚠️
               </div>
               <div>
-                <div style={{ color: "#fff", fontWeight: 700, fontSize: "0.95rem" }}>
+                <div style={{ color: "var(--text-primary)", fontWeight: 700, fontSize: "0.95rem" }}>
                   {isTrial ? "Your 3-Day Free Trial Has Expired" : "Subscription Inactive"}
                 </div>
-                <div style={{ color: "rgba(255, 255, 255, 0.7)", fontSize: "0.85rem", marginTop: "0.15rem" }}>
+                <div style={{ color: "var(--text-primary)", fontSize: "0.85rem", marginTop: "0.15rem" }}>
                   Website widget embedding is currently paused. Upgrade to a paid plan below to instantly reactivate your AI assistant.
                 </div>
               </div>
@@ -354,7 +354,7 @@ export default function BillingPage() {
                 {!isActive ? "● Expired" : isTrial ? "● Trial Active" : "● Active"}
               </span>
             </div>
-            <h2 style={{ margin: "0 0 0.35rem 0", fontSize: "1.4rem", color: "#fff", fontWeight: 800 }}>
+            <h2 style={{ margin: "0 0 0.35rem 0", fontSize: "1.4rem", color: "var(--text-primary)", fontWeight: 800 }}>
               {subStatus?.plan?.name || (isTrial ? "Free Trial Plan" : "Active Subscription")}
             </h2>
             <p style={{ margin: 0, color: !isActive ? "rgba(255, 255, 255, 0.65)" : "var(--text-secondary)", fontSize: "0.9rem" }}>
@@ -367,7 +367,7 @@ export default function BillingPage() {
               <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase" }}>
                 Monthly Chat Limit
               </div>
-              <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "#fff" }}>
+              <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>
                 {formatLimit(subStatus?.plan?.max_monthly_messages ?? 100, "msgs")}
               </div>
             </div>
@@ -376,7 +376,7 @@ export default function BillingPage() {
               <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase" }}>
                 KB File Limit
               </div>
-              <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "#fff" }}>
+              <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>
                 {formatLimit(subStatus?.plan?.max_kb_files ?? 3, "files")}
               </div>
             </div>
@@ -384,7 +384,7 @@ export default function BillingPage() {
         </section>
 
         {/* Pricing Cards Grid */}
-        <h2 style={{ margin: "0 0 1.25rem 0", fontSize: "1.2rem", color: "#fff", fontWeight: 800 }}>
+        <h2 style={{ margin: "0 0 1.25rem 0", fontSize: "1.2rem", color: "var(--text-primary)", fontWeight: 800 }}>
           Available Subscription Plans
         </h2>
 
@@ -431,7 +431,7 @@ export default function BillingPage() {
                       top: -12,
                       right: 20,
                       background: isCurrentExpired ? "#ef4444" : "var(--accent)",
-                      color: "#fff",
+                      color: "var(--bg)",
                       padding: "0.25rem 0.75rem",
                       borderRadius: 12,
                       fontSize: "0.72rem",
@@ -446,7 +446,7 @@ export default function BillingPage() {
                 )}
 
                 <div>
-                  <h3 style={{ margin: "0 0 0.5rem 0", fontSize: "1.2rem", color: "#fff", fontWeight: 700 }}>
+                  <h3 style={{ margin: "0 0 0.5rem 0", fontSize: "1.2rem", color: "var(--text-primary)", fontWeight: 700 }}>
                     {plan.name}
                   </h3>
                   {plan.description && (
@@ -456,7 +456,7 @@ export default function BillingPage() {
                   )}
 
                   <div style={{ marginBottom: "1.5rem" }}>
-                    <span style={{ fontSize: "2rem", fontWeight: 800, color: "#fff" }}>
+                    <span style={{ fontSize: "2rem", fontWeight: 800, color: "var(--text-primary)" }}>
                       {formatPrice(plan.price_inr, plan.billing_cycle)}
                     </span>
                   </div>
@@ -497,7 +497,7 @@ export default function BillingPage() {
                     borderRadius: 8,
                     border: "none",
                     background: isCurrent
-                      ? "rgba(255, 255, 255, 0.08)"
+                      ? "var(--bg-hover)"
                       : "var(--accent)",
                     color: isCurrent ? "var(--text-muted)" : "#fff",
                     fontWeight: 700,

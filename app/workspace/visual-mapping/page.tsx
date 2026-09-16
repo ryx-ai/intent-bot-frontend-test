@@ -127,12 +127,12 @@ export default function VisualMappingPage() {
       {/* Header */}
       <header style={{ marginBottom: "2rem", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h1 style={{ margin: "0 0 0.25rem 0", fontSize: "1.5rem", fontWeight: 800, color: "#fff" }}>
+          <h1 style={{ margin: "0 0 0.25rem 0", fontSize: "1.5rem", fontWeight: 800, color: "var(--text-primary)" }}>
             AI Visual Intelligence Map
           </h1>
           <p style={{ marginTop: "0.5rem", color: "var(--text-muted)", fontSize: "0.88rem" }}>
             This gallery represents the AI&apos;s internal visual decision logic. When a user conversation triggers one of these unique keywords, the engine automatically serves the associated image layout.
-            <strong style={{ color: "#d8b4fe" }}> Click any keyword badge to rename it.</strong>
+            <strong style={{ color: "var(--accent)" }}> Click any keyword badge to rename it.</strong>
           </p>
           
           {/* Count badge */}
@@ -158,7 +158,7 @@ export default function VisualMappingPage() {
             background: "linear-gradient(135deg, var(--accent-dim) 0%, rgba(107, 76, 255, 0.08) 100%)",
             border: "1px solid rgba(107, 76, 255, 0.35)",
             borderRadius: 10,
-            color: "#c4b5fd",
+            color: "var(--accent)",
             fontSize: "0.85rem",
             fontWeight: 600,
             fontFamily: "'Inter', sans-serif",
@@ -306,7 +306,7 @@ export default function VisualMappingPage() {
                         style={{
                           background: "transparent",
                           border: "1px solid rgba(107, 76, 255, 0.5)",
-                          color: "#d8b4fe",
+                          color: "var(--accent)",
                           fontSize: "0.85rem",
                           fontWeight: 600,
                           letterSpacing: 0.5,
@@ -333,7 +333,7 @@ export default function VisualMappingPage() {
                         alignItems: "center",
                         gap: 6,
                         background: "rgba(107, 76, 255, 0.2)",
-                        color: "#d8b4fe",
+                        color: "var(--accent)",
                         padding: "0.4rem 0.85rem",
                         borderRadius: 20,
                         fontSize: "0.85rem",
@@ -402,7 +402,7 @@ export default function VisualMappingPage() {
         <div style={{
           position: "fixed", bottom: 20, right: 20, zIndex: 50,
           background: toast.includes("failed") || toast.includes("Failed") ? "var(--error)" : "var(--success)",
-          color: "#fff", borderRadius: 8, padding: "0.7rem 1.5rem",
+          color: "var(--text-primary)", borderRadius: 8, padding: "0.7rem 1.5rem",
           fontSize: "0.85rem", fontWeight: 600,
         }}>
           {toast}

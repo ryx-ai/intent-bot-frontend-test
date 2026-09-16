@@ -60,9 +60,9 @@ function getBadgeStyle(metricId: string, val: string) {
   const baseStyle: React.CSSProperties = {
     display: "inline-block",
     padding: "0.25rem 0.6rem",
-    borderRadius: "4px",
+    borderRadius: "6px",
     fontSize: "0.8rem",
-    fontWeight: 500,
+    fontWeight: 600,
     textTransform: "capitalize",
   };
 
@@ -70,29 +70,29 @@ function getBadgeStyle(metricId: string, val: string) {
     const num = parseInt(val, 10);
     if (!isNaN(num)) {
       if (num >= 75) // hot
-        return { ...baseStyle, background: "#2d1515", color: "#fc5c5c" };
+        return { ...baseStyle, background: "#FEF2F2", color: "#DC2626" };
       if (num >= 40) // warm
-        return { ...baseStyle, background: "#2d1f0e", color: "#ffae42" };
-      return { ...baseStyle, background: "#0f1e2d", color: "#4db8ff" }; // cold
+        return { ...baseStyle, background: "#FFFBEE", color: "#D97706" };
+      return { ...baseStyle, background: "#EFF6FF", color: "#2563EB" }; // cold
     }
   }
 
   if (val === "lead_captured") {
-    return { ...baseStyle, background: "#0d2318", color: "#32d583", fontWeight: 600 };
+    return { ...baseStyle, background: "#ECFDF5", color: "#059669" };
   }
   if (val === "booked_demo") {
-    return { ...baseStyle, background: "var(--accent)", color: "#fff", fontWeight: 600 };
+    return { ...baseStyle, background: "var(--accent-light)", color: "var(--accent)" };
   }
   if (val === "dropped") {
-    return { ...baseStyle, background: "#2d1515", color: "#ff6b6b" };
+    return { ...baseStyle, background: "#FEF2F2", color: "#DC2626" };
   }
-  
+
   if (val === "just_chat" || val === "unknown") {
-    return { ...baseStyle, background: "#2a2d45", color: val === "just_chat" ? "#fff" : "var(--text-secondary)" };
+    return { ...baseStyle, background: "#F1F5F9", color: "var(--text-secondary)" };
   }
 
   // fallback
-  return { ...baseStyle, background: "#2a2d45", color: "var(--text-primary)" };
+  return { ...baseStyle, background: "#F1F5F9", color: "var(--text-primary)" };
 }
 
 /* ── Component ─────────────────────────────────────────────── */
@@ -274,7 +274,7 @@ export default function DashboardPage() {
         }}
       >
         <div>
-          <h1 style={{ margin: "0 0 0.25rem 0", fontSize: "1.5rem", fontWeight: 800, color: "#fff" }}>
+          <h1 style={{ margin: "0 0 0.25rem 0", fontSize: "1.5rem", fontWeight: 800, color: "var(--text-primary)" }}>
             Intent Flow Engine
           </h1>
           <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.88rem" }}>
@@ -381,12 +381,12 @@ export default function DashboardPage() {
               ⚠️
             </div>
             <div>
-              <div style={{ color: "#fff", fontWeight: 700, fontSize: "1rem" }}>
+              <div style={{ color: "var(--text-primary)", fontWeight: 700, fontSize: "1rem" }}>
                 {subStatus.subscription_status === "trial"
                   ? "3-Day Free Trial Expired — Analytics Paused"
                   : "Subscription Inactive — Analytics Paused"}
               </div>
-              <div style={{ color: "rgba(255, 255, 255, 0.75)", fontSize: "0.85rem", marginTop: "0.2rem" }}>
+              <div style={{ color: "var(--text-primary)", fontSize: "0.85rem", marginTop: "0.2rem" }}>
                 Website widget embedding and real-time chat capturing are paused. Upgrade to a paid plan to reactivate your AI assistant and resume live visitor analytics.
               </div>
             </div>
@@ -396,7 +396,7 @@ export default function DashboardPage() {
             style={{
               padding: "0.6rem 1.1rem",
               background: "#ef4444",
-              color: "#fff",
+              color: "var(--text-primary)",
               borderRadius: 6,
               fontSize: "0.88rem",
               fontWeight: 700,
@@ -468,11 +468,11 @@ export default function DashboardPage() {
                       onClick={() => setExpandedId(isExpanded ? null : session.id)}
                       style={{
                         cursor: "pointer",
-                        background: isExpanded ? "rgba(255, 255, 255, 0.02)" : "transparent",
+                        background: isExpanded ? "#F8FAFC" : "transparent",
                         transition: "background-color 0.2s",
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.02)"}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isExpanded ? "rgba(255, 255, 255, 0.02)" : "transparent"}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#F1F5F9"}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isExpanded ? "#F8FAFC" : "transparent"}
                     >
                       <td style={{ padding: "1rem", borderBottom: "1px solid var(--border)", color: "var(--text-secondary)", fontSize: "0.85rem", whiteSpace: "nowrap" }}>
                         {timeStr}
@@ -481,7 +481,7 @@ export default function DashboardPage() {
                       <td style={{ padding: "1rem", borderBottom: "1px solid var(--border)", fontFamily: "monospace", color: "var(--text-secondary)", fontSize: "0.85rem" }}>
                         {session.id.substring(0, 10)}
                       </td>
-                      <td style={{ padding: "1rem", borderBottom: "1px solid var(--border)", maxWidth: 300, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#fff", fontSize: "0.95rem" }}>
+                      <td style={{ padding: "1rem", borderBottom: "1px solid var(--border)", maxWidth: 300, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "var(--text-primary)", fontSize: "0.95rem" }}>
                         {session.firstMessage}
                       </td>
                       {metrics.map((m) => {

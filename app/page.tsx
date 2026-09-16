@@ -53,7 +53,7 @@ export default function AuthPage() {
         if (btnDiv) {
           btnDiv.innerHTML = "";
           (window as any).google.accounts.id.renderButton(btnDiv, {
-            theme: "filled_blue",
+            theme: "outline",
             size: "large",
             width: "320",
             text: mode === "signin" ? "signin_with" : "signup_with",
@@ -88,7 +88,10 @@ export default function AuthPage() {
           setError("This account has been suspended.\nPlease contact support.");
         } else if (err.detail === "tenant_deleted") {
           setError("This account is no longer active.");
-        } else if (err.status === 409 || err.detail === "Email already in use") {
+        } else if (
+          err.status === 409 ||
+          err.detail === "Email already in use"
+        ) {
           setError("An account with this email already exists.");
         } else if (err.status === 401) {
           setError("Invalid email or password.");
@@ -123,7 +126,7 @@ export default function AuthPage() {
           justifyContent: "center",
           position: "relative",
           overflow: "hidden",
-          background: "radial-gradient(circle at 50% 20%, #1a162b 0%, #0a0812 100%)",
+          background: "linear-gradient(135deg, #F8FAFC 0%, #EEF2FF 100%)",
         }}
       >
         {/* Glow background accent */}
@@ -133,9 +136,10 @@ export default function AuthPage() {
             top: "20%",
             left: "50%",
             transform: "translate(-50%, -50%)",
-            width: "500px",
-            height: "500px",
-            background: "radial-gradient(circle, rgba(138, 100, 233, 0.15) 0%, rgba(0,0,0,0) 70%)",
+            width: "600px",
+            height: "600px",
+            background:
+              "radial-gradient(circle, rgba(79, 70, 229, 0.08) 0%, rgba(248,250,252,0) 70%)",
             pointerEvents: "none",
           }}
         />
@@ -148,17 +152,17 @@ export default function AuthPage() {
             width: "100%",
             maxWidth: 420,
             borderRadius: 20,
-            border: "1px solid rgba(255, 255, 255, 0.1)",
+            border: "1px solid #E2E8F0",
             padding: "40px 36px",
-            background: "rgba(18, 16, 28, 0.85)",
-            backdropFilter: "blur(16px)",
-            boxShadow: "0 24px 48px -12px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05)",
+            background: "#FFFFFF",
+            boxShadow:
+              "0 20px 40px -15px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(226, 232, 240, 0.8)",
           }}
         >
           {/* Header */}
           <div style={{ textAlign: "center", marginBottom: 32 }}>
             <Image
-              src="/logo1.png"
+              src="/logo-only.png"
               alt="RYX AI Logo"
               width={180}
               height={60}
@@ -174,14 +178,14 @@ export default function AuthPage() {
               style={{
                 fontSize: 24,
                 fontWeight: 700,
-                color: "#ffffff",
+                color: "#0F172A",
                 letterSpacing: "-0.02em",
                 marginBottom: 6,
               }}
             >
               {mode === "signin" ? "Welcome back" : "Create your account"}
             </h1>
-            <p style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.6)" }}>
+            <p style={{ fontSize: 13, color: "#64748B" }}>
               {mode === "signin"
                 ? "Sign in to access your personal AI assistant"
                 : "Get started with your personal AI workspace in seconds"}
@@ -193,10 +197,10 @@ export default function AuthPage() {
             style={{
               display: "flex",
               borderRadius: 12,
-              background: "rgba(255, 255, 255, 0.05)",
+              background: "#F1F5F9",
               padding: 4,
               marginBottom: 28,
-              border: "1px solid rgba(255, 255, 255, 0.08)",
+              border: "1px solid #E2E8F0",
             }}
           >
             <button
@@ -211,9 +215,10 @@ export default function AuthPage() {
                 border: "none",
                 cursor: "pointer",
                 transition: "all 0.2s ease",
-                background: mode === "signin" ? "rgba(138, 100, 233, 0.25)" : "transparent",
-                color: mode === "signin" ? "#ffffff" : "rgba(255, 255, 255, 0.6)",
-                boxShadow: mode === "signin" ? "0 2px 8px rgba(138, 100, 233, 0.3)" : "none",
+                background: mode === "signin" ? "#FFFFFF" : "transparent",
+                color: mode === "signin" ? "#4F46E5" : "#64748B",
+                boxShadow:
+                  mode === "signin" ? "0 2px 4px rgba(0, 0, 0, 0.06)" : "none",
               }}
             >
               Sign In
@@ -230,9 +235,10 @@ export default function AuthPage() {
                 border: "none",
                 cursor: "pointer",
                 transition: "all 0.2s ease",
-                background: mode === "signup" ? "rgba(138, 100, 233, 0.25)" : "transparent",
-                color: mode === "signup" ? "#ffffff" : "rgba(255, 255, 255, 0.6)",
-                boxShadow: mode === "signup" ? "0 2px 8px rgba(138, 100, 233, 0.3)" : "none",
+                background: mode === "signup" ? "#FFFFFF" : "transparent",
+                color: mode === "signup" ? "#4F46E5" : "#64748B",
+                boxShadow:
+                  mode === "signup" ? "0 2px 4px rgba(0, 0, 0, 0.06)" : "none",
               }}
             >
               Sign Up
@@ -240,8 +246,22 @@ export default function AuthPage() {
           </div>
 
           {/* Google SSO Container */}
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
-            <div id="googleBtnContainer" style={{ width: "100%", maxWidth: 320, display: "flex", justifyContent: "center" }} />
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              marginBottom: 20,
+            }}
+          >
+            <div
+              id="googleBtnContainer"
+              style={{
+                width: "100%",
+                maxWidth: 320,
+                display: "flex",
+                justifyContent: "center",
+              }}
+            />
           </div>
 
           <div
@@ -249,15 +269,22 @@ export default function AuthPage() {
               display: "flex",
               alignItems: "center",
               margin: "20px 0",
-              color: "rgba(255, 255, 255, 0.3)",
+              color: "#94A3B8",
               fontSize: 12,
             }}
           >
-            <div style={{ flex: 1, height: 1, background: "rgba(255, 255, 255, 0.1)" }} />
-            <span style={{ padding: "0 12px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            <div style={{ flex: 1, height: 1, background: "#E2E8F0" }} />
+            <span
+              style={{
+                padding: "0 12px",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                fontWeight: 500,
+              }}
+            >
               or continue with email
             </span>
-            <div style={{ flex: 1, height: 1, background: "rgba(255, 255, 255, 0.1)" }} />
+            <div style={{ flex: 1, height: 1, background: "#E2E8F0" }} />
           </div>
 
           {/* Auth Form */}
@@ -270,7 +297,7 @@ export default function AuthPage() {
                     display: "block",
                     fontSize: 12,
                     fontWeight: 600,
-                    color: "rgba(255, 255, 255, 0.8)",
+                    color: "#334155",
                     marginBottom: 6,
                   }}
                 >
@@ -287,11 +314,11 @@ export default function AuthPage() {
                   style={{
                     width: "100%",
                     borderRadius: 10,
-                    border: "1px solid rgba(255, 255, 255, 0.12)",
+                    border: "1px solid #CBD5E1",
                     padding: "12px 14px",
                     fontSize: 14,
-                    color: "#fff",
-                    background: "rgba(0, 0, 0, 0.25)",
+                    color: "#0F172A",
+                    background: "#F8FAFC",
                     outline: "none",
                   }}
                 />
@@ -306,7 +333,7 @@ export default function AuthPage() {
                   display: "block",
                   fontSize: 12,
                   fontWeight: 600,
-                  color: "rgba(255, 255, 255, 0.8)",
+                  color: "#334155",
                   marginBottom: 6,
                 }}
               >
@@ -323,11 +350,11 @@ export default function AuthPage() {
                 style={{
                   width: "100%",
                   borderRadius: 10,
-                  border: "1px solid rgba(255, 255, 255, 0.12)",
+                  border: "1px solid #CBD5E1",
                   padding: "12px 14px",
                   fontSize: 14,
-                  color: "#fff",
-                  background: "rgba(0, 0, 0, 0.25)",
+                  color: "#0F172A",
+                  background: "#F8FAFC",
                   outline: "none",
                 }}
               />
@@ -341,7 +368,7 @@ export default function AuthPage() {
                   display: "block",
                   fontSize: 12,
                   fontWeight: 600,
-                  color: "rgba(255, 255, 255, 0.8)",
+                  color: "#334155",
                   marginBottom: 6,
                 }}
               >
@@ -356,15 +383,17 @@ export default function AuthPage() {
                   placeholder="••••••••"
                   required
                   minLength={6}
-                  autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                  autoComplete={
+                    mode === "signin" ? "current-password" : "new-password"
+                  }
                   style={{
                     width: "100%",
                     borderRadius: 10,
-                    border: "1px solid rgba(255, 255, 255, 0.12)",
+                    border: "1px solid #CBD5E1",
                     padding: "12px 14px",
                     fontSize: 14,
-                    color: "#fff",
-                    background: "rgba(0, 0, 0, 0.25)",
+                    color: "#0F172A",
+                    background: "#F8FAFC",
                     outline: "none",
                   }}
                 />
@@ -378,7 +407,7 @@ export default function AuthPage() {
                     transform: "translateY(-50%)",
                     background: "none",
                     border: "none",
-                    color: "rgba(255, 255, 255, 0.5)",
+                    color: "#64748B",
                     cursor: "pointer",
                     padding: "4px",
                     fontSize: 16,
@@ -393,11 +422,11 @@ export default function AuthPage() {
                   style={{
                     marginTop: 10,
                     fontSize: 12,
-                    color: "#FF6B6B",
-                    background: "rgba(255, 107, 107, 0.1)",
+                    color: "#DC2626",
+                    background: "#FEF2F2",
                     padding: "8px 12px",
                     borderRadius: 8,
-                    border: "1px solid rgba(255, 107, 107, 0.2)",
+                    border: "1px solid #FCA5A5",
                   }}
                 >
                   {error}
@@ -418,11 +447,11 @@ export default function AuthPage() {
                 color: "#ffffff",
                 background: success
                   ? "#10B981"
-                  : "linear-gradient(135deg, #8A64E9 0%, #6366F1 100%)",
+                  : "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)",
                 border: "none",
                 cursor: loading ? "not-allowed" : "pointer",
                 opacity: loading ? 0.7 : 1,
-                boxShadow: "0 4px 14px rgba(138, 100, 233, 0.4)",
+                boxShadow: "0 4px 14px rgba(79, 70, 229, 0.3)",
                 transition: "all 0.2s ease",
               }}
             >
@@ -442,4 +471,3 @@ export default function AuthPage() {
     </>
   );
 }
-

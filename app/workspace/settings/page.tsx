@@ -155,7 +155,7 @@ export default function WorkspaceSettingsPage() {
     <div style={{ maxWidth: 1000, margin: '0 auto', padding: '2rem' }}>
       <header style={{ marginBottom: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem' }}>
-          <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800, color: '#fff' }}>
+          <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800, color: "var(--text-primary)" }}>
             Workspace Settings
           </h1>
           {user?.auth_provider && (
@@ -165,9 +165,9 @@ export default function WorkspaceSettingsPage() {
                 fontWeight: 700,
                 padding: '0.2rem 0.6rem',
                 borderRadius: 20,
-                background: user.auth_provider === 'google' ? 'rgba(66, 133, 244, 0.15)' : 'rgba(167, 139, 250, 0.15)',
-                border: user.auth_provider === 'google' ? '1px solid rgba(66, 133, 244, 0.35)' : '1px solid rgba(167, 139, 250, 0.35)',
-                color: user.auth_provider === 'google' ? '#60a5fa' : '#a78bfa',
+                background: user.auth_provider === 'google' ? 'rgba(79, 70, 229, 0.1)' : 'var(--accent-dim)',
+                border: '1px solid var(--border)',
+                color: 'var(--accent)',
                 textTransform: 'capitalize',
               }}
             >
@@ -221,7 +221,7 @@ export default function WorkspaceSettingsPage() {
             padding: '1.75rem',
           }}
         >
-          <h2 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem', color: '#fff', fontWeight: 700 }}>
+          <h2 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem', color: "var(--text-primary)", fontWeight: 700 }}>
             Workspace Profile & Tenant Info
           </h2>
           <p style={{ margin: '0 0 1.5rem 0', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
@@ -237,7 +237,7 @@ export default function WorkspaceSettingsPage() {
                   marginBottom: '0.4rem',
                   fontSize: '0.85rem',
                   fontWeight: 600,
-                  color: '#fff',
+                  color: "var(--text-primary)",
                 }}
               >
                 Company Name / Workspace Name
@@ -256,7 +256,7 @@ export default function WorkspaceSettingsPage() {
                   borderRadius: 8,
                   border: '1px solid var(--border)',
                   background: 'var(--bg-surface)',
-                  color: '#fff',
+                  color: "var(--text-primary)",
                   fontSize: '0.9rem',
                   outline: 'none',
                   fontFamily: 'inherit',
@@ -275,7 +275,7 @@ export default function WorkspaceSettingsPage() {
                   marginBottom: '0.4rem',
                   fontSize: '0.85rem',
                   fontWeight: 600,
-                  color: '#fff',
+                  color: "var(--text-primary)",
                 }}
               >
                 Tenant Slug Identifier
@@ -294,7 +294,7 @@ export default function WorkspaceSettingsPage() {
                   borderRadius: 8,
                   border: '1px solid var(--border)',
                   background: 'var(--bg-surface)',
-                  color: '#fff',
+                  color: "var(--text-primary)",
                   fontSize: '0.9rem',
                   fontFamily: 'monospace',
                   outline: 'none',
@@ -321,13 +321,13 @@ export default function WorkspaceSettingsPage() {
                 <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>
                   Account Email
                 </span>
-                <span style={{ fontSize: '0.9rem', color: '#fff', fontWeight: 600 }}>{user?.email}</span>
+                <span style={{ fontSize: '0.9rem', color: "var(--text-primary)", fontWeight: 600 }}>{user?.email}</span>
               </div>
               <div>
                 <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>
                   Role
                 </span>
-                <span style={{ fontSize: '0.9rem', color: '#a78bfa', fontWeight: 600, textTransform: 'capitalize' }}>
+                <span style={{ fontSize: '0.9rem', color: 'var(--accent)', fontWeight: 600, textTransform: 'capitalize' }}>
                   {user?.role || 'Admin'}
                 </span>
               </div>
@@ -349,7 +349,7 @@ export default function WorkspaceSettingsPage() {
                 borderRadius: 8,
                 border: 'none',
                 background: 'var(--accent)',
-                color: '#fff',
+                color: "var(--bg)",
                 fontWeight: 700,
                 fontSize: '0.9rem',
                 fontFamily: 'inherit',
@@ -373,7 +373,7 @@ export default function WorkspaceSettingsPage() {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
             <div>
-              <h2 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem', color: '#fff', fontWeight: 700 }}>
+              <h2 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem', color: "var(--text-primary)", fontWeight: 700 }}>
                 Embed Code Snippet
               </h2>
               <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
@@ -403,9 +403,9 @@ export default function WorkspaceSettingsPage() {
             style={{
               padding: '1rem',
               borderRadius: 8,
-              background: '#080c14',
+              background: 'var(--bg-surface)',
               border: '1px solid var(--border)',
-              color: '#60a5fa',
+              color: 'var(--text-primary)',
               fontSize: '0.85rem',
               fontFamily: 'monospace',
               overflowX: 'auto',

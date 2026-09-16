@@ -53,8 +53,6 @@ const SUPER_ADMIN_NAV_ITEMS = [
 
 const SUPER_ADMIN_SETTINGS_ITEMS: typeof SETTINGS_ITEMS = [];
 
-// `pathname === href` would never highlight nested routes like
-// `/workspace/knowledge/anything`. Treat any descendant URL as active.
 function matchesNav(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
 }
@@ -74,11 +72,7 @@ export default function WorkspaceLayout({
       .get<UserInfo>("/api/auth/me")
       .then(setUser)
       .catch((err) => {
-        // 401 already triggers a redirect inside api.ts. Other failures
-        // (transient 5xx, network blip, CORS) shouldn't punt the user back
-        // to login — that destroys in-progress edits on every backend hiccup.
         if (err instanceof ApiError && err.status === 401) {
-          // api.ts has already set window.location.href; nothing to do.
           return;
         }
         console.error("Failed to load user info", err);
@@ -107,9 +101,6 @@ export default function WorkspaceLayout({
     <div
       style={{
         display: "flex",
-        // 100vw includes the vertical-scrollbar gutter on Windows browsers,
-        // producing a phantom horizontal scrollbar across every workspace
-        // page. 100% confines the layout to the actual content area.
         width: "100%",
         height: "100vh",
         overflow: "hidden",
@@ -131,13 +122,13 @@ export default function WorkspaceLayout({
         }}
       >
         {/* Brand / Logo */}
-        <div style={{ marginBottom: "2.5rem", padding: "0 0.5rem" }}>
+        <div style={{ marginBottom: "2.5rem",display:"flex",justifyContent:"center" }}>
           <Image
-            src="/logo1.png"
+            src="/logo-only.png"
             alt="RYX AI"
-            width={130}
-            height={40}
-            style={{ width: 130, height: "auto" }}
+            width={100}
+            height={30}
+            // style={{ width: 100, height: "auto" }}
             priority
           />
         </div>
@@ -147,7 +138,7 @@ export default function WorkspaceLayout({
           style={{
             fontSize: "0.75rem",
             textTransform: "uppercase",
-            color: "var(--text-secondary)",
+            color: "var(--text-muted)",
             fontWeight: 600,
             letterSpacing: "0.05em",
             marginBottom: "0.75rem",
@@ -166,11 +157,11 @@ export default function WorkspaceLayout({
                   style={{
                     display: "block",
                     padding: "0.75rem 1rem",
-                    borderRadius: 6,
+                    borderRadius: 8,
                     fontSize: "0.9rem",
                     fontWeight: isActive ? 600 : 500,
                     color: isActive ? "var(--accent)" : "var(--text-secondary)",
-                    background: isActive ? "var(--bg-hover)" : "transparent",
+                    background: isActive ? "var(--accent-light)" : "transparent",
                     textDecoration: "none",
                     transition: "all 0.2s ease",
                   }}
@@ -189,7 +180,7 @@ export default function WorkspaceLayout({
               style={{
                 fontSize: "0.75rem",
                 textTransform: "uppercase",
-                color: "var(--text-secondary)",
+                color: "var(--text-muted)",
                 fontWeight: 600,
                 letterSpacing: "0.05em",
                 marginBottom: "0.75rem",
@@ -208,11 +199,11 @@ export default function WorkspaceLayout({
                       style={{
                         display: "block",
                         padding: "0.75rem 1rem",
-                        borderRadius: 6,
+                        borderRadius: 8,
                         fontSize: "0.9rem",
                         fontWeight: isActive ? 600 : 500,
                         color: isActive ? "var(--accent)" : "var(--text-secondary)",
-                        background: isActive ? "var(--bg-hover)" : "transparent",
+                        background: isActive ? "var(--accent-light)" : "transparent",
                         textDecoration: "none",
                         transition: "all 0.2s ease",
                       }}
@@ -231,26 +222,26 @@ export default function WorkspaceLayout({
           <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", padding: "0.6rem 0.5rem", marginBottom: "0.25rem" }}>
             <div
               style={{
-                width: 28,
-                height: 28,
+                width: 32,
+                height: 32,
                 borderRadius: "50%",
                 background: "var(--accent)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: "0.7rem",
+                fontSize: "0.75rem",
                 fontWeight: 700,
-                color: "#fff",
+                color: "var(--bg)",
                 flexShrink: 0,
               }}
             >
               {user ? getInitials(user.name) : "—"}
             </div>
             <div style={{ overflow: "hidden" }}>
-              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {user?.name ?? "Loading..."}
               </div>
-              <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>{user?.role ?? "Member"}</div>
+              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{user?.role ?? "Member"}</div>
             </div>
           </div>
           <button
@@ -261,7 +252,7 @@ export default function WorkspaceLayout({
               gap: "0.5rem",
               width: "100%",
               padding: "0.65rem 1rem",
-              borderRadius: 6,
+              borderRadius: 8,
               background: "transparent",
               border: "none",
               color: "var(--text-secondary)",
@@ -296,7 +287,7 @@ export default function WorkspaceLayout({
           <div
             style={{
               background: "linear-gradient(90deg, #991b1b 0%, #dc2626 100%)",
-              color: "#ffffff",
+              color: "var(--text-primary)",
               padding: "0.85rem 1.5rem",
               display: "flex",
               alignItems: "center",

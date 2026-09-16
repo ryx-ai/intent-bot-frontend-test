@@ -51,9 +51,9 @@ const toneStyles: Record<
     icon: "+",
   },
   neutral: {
-    color: "var(--accent-light)",
-    borderColor: "rgba(107, 76, 255, 0.35)",
-    background: "rgba(107, 76, 255, 0.12)",
+    color: "var(--accent)",
+    borderColor: "rgba(79, 70, 229, 0.35)",
+    background: "var(--accent-light)",
     buttonBackground: "var(--accent)",
     icon: "i",
   },
@@ -120,7 +120,7 @@ export function ConfirmDialog({
             </p>
             <h2
               id="confirm-dialog-title"
-              style={{ margin: 0, color: "#fff", fontSize: "1.15rem" }}
+              style={{ margin: 0, color: "var(--text-primary)", fontSize: "1.15rem", fontWeight: 700 }}
             >
               {title}
             </h2>
@@ -170,16 +170,16 @@ const overlayStyle: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   padding: "1rem",
-  background: "rgba(5, 7, 15, 0.72)",
+  background: "rgba(15, 23, 42, 0.4)",
   backdropFilter: "blur(8px)",
 };
 
 const dialogStyle: React.CSSProperties = {
   width: "min(100%, 520px)",
-  borderRadius: 8,
+  borderRadius: 12,
   border: "1px solid var(--border)",
   background: "var(--bg-card)",
-  boxShadow: "0 24px 80px rgba(0, 0, 0, 0.45)",
+  boxShadow: "0 20px 40px -10px rgba(15, 23, 42, 0.15)",
   padding: "1.25rem",
 };
 
@@ -223,7 +223,7 @@ const secondaryButtonStyle: React.CSSProperties = {
   padding: "0.7rem 0.95rem",
   borderRadius: 8,
   border: "1px solid var(--border)",
-  background: "transparent",
+  background: "#ffffff",
   color: "var(--text-secondary)",
   fontFamily: "inherit",
   fontWeight: 700,
@@ -233,7 +233,7 @@ const primaryButtonStyle: React.CSSProperties = {
   padding: "0.7rem 0.95rem",
   borderRadius: 8,
   border: "none",
-  color: "#fff",
+  color: "#ffffff",
   fontFamily: "inherit",
   fontWeight: 800,
 };

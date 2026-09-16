@@ -159,12 +159,32 @@ export default function MetricsPage() {
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "2.5rem 2rem" }}>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "2rem" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          marginBottom: "2rem",
+        }}
+      >
         <div>
-          <h1 style={{ margin: "0 0 0.25rem 0", fontSize: "1.5rem", fontWeight: 800, color: "#fff" }}>
+          <h1
+            style={{
+              margin: "0 0 0.25rem 0",
+              fontSize: "1.5rem",
+              fontWeight: 800,
+              color: "var(--text-primary)",
+            }}
+          >
             Tracking & Schema Settings
           </h1>
-          <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.88rem" }}>
+          <p
+            style={{
+              margin: 0,
+              color: "var(--text-muted)",
+              fontSize: "0.88rem",
+            }}
+          >
             Define custom variables you want the AI brain to calculate, track,
             and inject into the dashboard.
           </p>
@@ -173,7 +193,7 @@ export default function MetricsPage() {
           onClick={addMetric}
           style={{
             background: "var(--border)",
-            color: "#fff",
+            color: "var(--text-primary)",
             border: "none",
             borderRadius: 6,
             padding: "0.6rem 1rem",
@@ -183,8 +203,15 @@ export default function MetricsPage() {
             transition: "background 0.2s",
             fontFamily: "inherit",
           }}
-          onMouseEnter={(e) => e.currentTarget.style.background = "#2e3150"}
-          onMouseLeave={(e) => e.currentTarget.style.background = "var(--border)"}
+          onMouseEnter={(e) =>{
+            (e.currentTarget.style.background = "var(--text-primary)"),
+            (e.currentTarget.style.color = "var(--border)")
+
+          }
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.background = "var(--border)")
+          }
         >
           + Add New Metric
         </button>
@@ -204,8 +231,21 @@ export default function MetricsPage() {
           >
             {/* Row: ID + Name */}
             <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-                <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)" }}>
+              <div
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.4rem",
+                }}
+              >
+                <label
+                  style={{
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    color: "var(--text-primary)",
+                  }}
+                >
                   Internal ID (no spaces)
                 </label>
                 <input
@@ -219,19 +259,36 @@ export default function MetricsPage() {
                     borderRadius: 8,
                     padding: "0.6rem 0.8rem",
                     fontSize: "0.85rem",
-                    color: "#fff",
+                    color: "var(--text-primary)",
                     outline: "none",
                     width: "100%",
                     boxSizing: "border-box",
                     opacity: metric.is_deletable === false ? 0.6 : 1,
-                    fontFamily: "inherit"
+                    fontFamily: "inherit",
                   }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = "var(--accent)"}
-                  onBlur={(e) => e.currentTarget.style.borderColor = "var(--border)"}
+                  onFocus={(e) =>
+                    (e.currentTarget.style.borderColor = "var(--accent)")
+                  }
+                  onBlur={(e) =>
+                    (e.currentTarget.style.borderColor = "var(--border)")
+                  }
                 />
               </div>
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-                <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)" }}>
+              <div
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.4rem",
+                }}
+              >
+                <label
+                  style={{
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    color: "var(--text-primary)",
+                  }}
+                >
                   Dashboard Column Name
                 </label>
                 <input
@@ -244,27 +301,45 @@ export default function MetricsPage() {
                     borderRadius: 8,
                     padding: "0.6rem 0.8rem",
                     fontSize: "0.85rem",
-                    color: "#fff",
+                    color: "var(--text-primary)",
                     outline: "none",
                     width: "100%",
                     boxSizing: "border-box",
-                    fontFamily: "inherit"
+                    fontFamily: "inherit",
                   }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = "var(--accent)"}
-                  onBlur={(e) => e.currentTarget.style.borderColor = "var(--border)"}
+                  onFocus={(e) =>
+                    (e.currentTarget.style.borderColor = "var(--accent)")
+                  }
+                  onBlur={(e) =>
+                    (e.currentTarget.style.borderColor = "var(--border)")
+                  }
                 />
               </div>
             </div>
 
             {/* Description */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-              <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.4rem",
+              }}
+            >
+              <label
+                style={{
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  color: "var(--text-primary)",
+                }}
+              >
                 AI Extraction Rules & Prompts
               </label>
               <input
                 type="text"
                 value={metric.description}
-                onChange={(e) => updateField(index, "description", e.target.value)}
+                onChange={(e) =>
+                  updateField(index, "description", e.target.value)
+                }
                 placeholder="e.g., Output 'Yes' if user asks for pricing"
                 style={{
                   backgroundColor: "var(--bg-surface)",
@@ -272,25 +347,53 @@ export default function MetricsPage() {
                   borderRadius: 4,
                   padding: "0.6rem 0.8rem",
                   fontSize: "0.85rem",
-                  color: "#fff",
+                  color: "var(--text-primary)",
                   outline: "none",
                   width: "100%",
                   boxSizing: "border-box",
-                  fontFamily: "inherit"
+                  fontFamily: "inherit",
                 }}
-                onFocus={(e) => e.currentTarget.style.borderColor = "var(--accent)"}
-                onBlur={(e) => e.currentTarget.style.borderColor = "var(--border)"}
+                onFocus={(e) =>
+                  (e.currentTarget.style.borderColor = "var(--accent)")
+                }
+                onBlur={(e) =>
+                  (e.currentTarget.style.borderColor = "var(--border)")
+                }
               />
             </div>
 
             {/* Checkbox + Delete */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "1.25rem" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", color: "#fff", cursor: "pointer", fontWeight: 500 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginTop: "1.25rem",
+              }}
+            >
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  fontSize: "0.85rem",
+                  color: "var(--text-primary)",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                }}
+              >
                 <input
                   type="checkbox"
                   checked={metric.display_on_dashboard}
-                  onChange={(e) => updateField(index, "display_on_dashboard", e.target.checked)}
-                  style={{ width: 16, height: 16, accentColor: "var(--accent)", cursor: "pointer" }}
+                  onChange={(e) =>
+                    updateField(index, "display_on_dashboard", e.target.checked)
+                  }
+                  style={{
+                    width: 16,
+                    height: 16,
+                    accentColor: "var(--accent)",
+                    cursor: "pointer",
+                  }}
                 />
                 Display as Table Column on Dashboard
               </label>
@@ -308,7 +411,7 @@ export default function MetricsPage() {
                     fontWeight: 600,
                     cursor: "pointer",
                     transition: "all 0.2s",
-                    fontFamily: "inherit"
+                    fontFamily: "inherit",
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = "var(--error)";
@@ -322,7 +425,13 @@ export default function MetricsPage() {
                   Delete Metric
                 </button>
               ) : (
-                <span style={{ color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: 500 }}>
+                <span
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: "0.8rem",
+                    fontWeight: 500,
+                  }}
+                >
                   System Required Field
                 </span>
               )}
@@ -332,8 +441,25 @@ export default function MetricsPage() {
       </div>
 
       {/* Footer action bar */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--border)", paddingTop: "1.5rem", marginTop: "2rem" }}>
-        <p style={{ margin: 0, maxWidth: 500, fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.5 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          borderTop: "1px solid var(--border)",
+          paddingTop: "1.5rem",
+          marginTop: "2rem",
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            maxWidth: 500,
+            fontSize: "0.85rem",
+            color: "var(--text-muted)",
+            lineHeight: 1.5,
+          }}
+        >
           Changes here alter the underlying Python architecture and change how
           the AI identifies user behavior in real-time.
         </p>
@@ -341,7 +467,7 @@ export default function MetricsPage() {
           onClick={() => saveConfiguration()}
           style={{
             background: "var(--accent)",
-            color: "#fff",
+            color: "var(--bg)",
             border: "none",
             borderRadius: 6,
             padding: "0.75rem 1.5rem",
@@ -349,10 +475,10 @@ export default function MetricsPage() {
             fontWeight: 600,
             cursor: "pointer",
             transition: "opacity 0.2s",
-            fontFamily: "inherit"
+            fontFamily: "inherit",
           }}
-          onMouseEnter={(e) => e.currentTarget.style.opacity = "0.9"}
-          onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
         >
           Deploy System Overhaul
         </button>
@@ -366,8 +492,10 @@ export default function MetricsPage() {
             bottom: 20,
             right: 20,
             zIndex: 50,
-            background: toast.toLowerCase().includes("fail") ? "var(--error)" : "var(--success)",
-            color: "#fff",
+            background: toast.toLowerCase().includes("fail")
+              ? "var(--error)"
+              : "var(--success)",
+            color: "var(--text-primary)",
             borderRadius: 8,
             padding: "0.7rem 1.5rem",
             fontSize: "0.85rem",

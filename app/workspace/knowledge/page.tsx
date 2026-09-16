@@ -314,15 +314,15 @@ export default function KnowledgeLakePage() {
                     fontSize: "0.7rem",
                     padding: "0.15rem 0.5rem",
                     borderRadius: 4,
-                    background: isExpired ? "rgba(239, 68, 68, 0.18)" : "rgba(138, 100, 233, 0.15)",
-                    color: isExpired ? "#f87171" : "#a78bfa",
+                    background: isExpired ? "rgba(239, 68, 68, 0.18)" : "var(--accent-light)",
+                    color: isExpired ? "#f87171" : "var(--accent)",
                     fontWeight: 700,
                   }}
                 >
                   {subStatus.plan?.name || "Trial Plan"}
                 </span>
               </div>
-              <div style={{ fontSize: "0.95rem", fontWeight: 700, color: isAtCapacity ? "#f87171" : "#fff" }}>
+              <div style={{ fontSize: "0.95rem", fontWeight: 700, color: isAtCapacity ? "#f87171" : "var(--text-primary)" }}>
                 {isUnlimited ? `${files.length} files (Unlimited)` : `${files.length} / ${maxKbFiles} files used`}
               </div>
             </div>
@@ -518,7 +518,7 @@ export default function KnowledgeLakePage() {
           <div style={{ fontSize: "3rem", color: isExpired ? "#ef4444" : "#6b7280", marginBottom: "1rem" }}>
             {isExpired ? "🔒" : isAtCapacity ? "📦" : "📁"}
           </div>
-          <div style={{ color: "#d1d5db", fontSize: "1.15rem", fontWeight: 600, marginBottom: "0.5rem" }}>
+          <div style={{ color: "var(--text-primary)", fontSize: "1.15rem", fontWeight: 600, marginBottom: "0.5rem" }}>
             {isExpired
               ? "Uploads Locked (Plan Expired)"
               : isAtCapacity

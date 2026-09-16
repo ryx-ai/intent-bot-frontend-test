@@ -24,16 +24,16 @@ interface SubscriptionStatus {
 
 // Design tokens as JS constants — bypasses CSS variable resolution issues with Tailwind v4
 const C = {
-  bg: "#0b0d17",
-  bgSurface: "#13162a",
-  bgCard: "#191c30",
-  bgHover: "#1e2238",
-  border: "#2c3058",
-  accent: "#6b4cff",
-  accentDim: "rgba(107, 76, 255, 0.2)",
-  textPrimary: "#e8eaf5",
-  textSecondary: "#8890b8",
-  textMuted: "#555a7a",
+  bg: "#f8fafc",
+  bgSurface: "#ffffff",
+  bgCard: "#ffffff",
+  bgHover: "#f1f5f9",
+  border: "#e2e8f0",
+  accent: "#4f46e5",
+  accentDim: "rgba(79, 70, 229, 0.08)",
+  textPrimary: "#0f172a",
+  textSecondary: "#475569",
+  textMuted: "#64748b",
   error: "#ef4444",
   success: "#10b981",
 };
@@ -116,7 +116,9 @@ export default function TestingPage() {
   const [calCredMessage, setCalCredMessage] = useState("");
   const [calCredError, setCalCredError] = useState("");
   const [calDialogOpen, setCalDialogOpen] = useState(false);
-  const [calDialogType, setCalDialogType] = useState<"disconnect" | "remove" | null>(null);
+  const [calDialogType, setCalDialogType] = useState<
+    "disconnect" | "remove" | null
+  >(null);
   const [calDialogCredId, setCalDialogCredId] = useState<number | null>(null);
   const [promptText, setPromptText] = useState("");
   const [subStatus, setSubStatus] = useState<SubscriptionStatus | null>(null);
@@ -457,7 +459,7 @@ export default function TestingPage() {
           style={{
             fontSize: "1.5rem",
             fontWeight: 800,
-            color: "#fff",
+            color: "var(--text-primary)",
             display: "flex",
             alignItems: "center",
             gap: 10,
@@ -517,7 +519,8 @@ export default function TestingPage() {
             padding: "1.1rem 1.35rem",
             borderRadius: 10,
             border: "1px solid rgba(239, 68, 68, 0.4)",
-            background: "linear-gradient(90deg, rgba(239, 68, 68, 0.14) 0%, rgba(239, 68, 68, 0.04) 100%)",
+            background:
+              "linear-gradient(90deg, rgba(239, 68, 68, 0.14) 0%, rgba(239, 68, 68, 0.04) 100%)",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -526,7 +529,9 @@ export default function TestingPage() {
             boxShadow: "0 4px 20px rgba(239, 68, 68, 0.08)",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
+          <div
+            style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}
+          >
             <div
               style={{
                 width: 40,
@@ -543,13 +548,27 @@ export default function TestingPage() {
               ⚠️
             </div>
             <div>
-              <div style={{ color: "#fff", fontWeight: 700, fontSize: "1rem" }}>
+              <div
+                style={{
+                  color: "var(--text-primary)",
+                  fontWeight: 700,
+                  fontSize: "1rem",
+                }}
+              >
                 {subStatus.subscription_status === "trial"
                   ? "3-Day Free Trial Expired — Live Widget Paused"
                   : "Subscription Inactive — Live Widget Paused"}
               </div>
-              <div style={{ color: "rgba(255, 255, 255, 0.75)", fontSize: "0.85rem", marginTop: "0.2rem" }}>
-                Your custom bot theme and configurations are saved, but live customer widget embedding is paused. Upgrade to reactivate public widget deployment.
+              <div
+                style={{
+                  color: "var(--text-primary)",
+                  fontSize: "0.85rem",
+                  marginTop: "0.2rem",
+                }}
+              >
+                Your custom bot theme and configurations are saved, but live
+                customer widget embedding is paused. Upgrade to reactivate
+                public widget deployment.
               </div>
             </div>
           </div>
@@ -558,7 +577,7 @@ export default function TestingPage() {
             style={{
               padding: "0.6rem 1.1rem",
               background: "#ef4444",
-              color: "#fff",
+              color: "var(--text-primary)",
               borderRadius: 6,
               fontSize: "0.88rem",
               fontWeight: 700,
@@ -929,7 +948,11 @@ export default function TestingPage() {
                 }}
               >
                 {calHideDetails && (
-                  <span style={{ color: "#fff", fontSize: "0.7rem" }}>✓</span>
+                  <span
+                    style={{ color: "var(--text-primary)", fontSize: "0.7rem" }}
+                  >
+                    ✓
+                  </span>
                 )}
               </div>
               <span style={{ fontSize: "0.8rem", color: C.textPrimary }}>
@@ -1128,7 +1151,7 @@ export default function TestingPage() {
               disabled={calCredSubmitting}
               style={{
                 backgroundColor: C.accent,
-                color: "#fff",
+                color: "var(--bg)",
                 border: "none",
                 borderRadius: 8,
                 padding: "0.6rem 1rem",
@@ -1366,7 +1389,7 @@ export default function TestingPage() {
           disabled={saving}
           style={{
             backgroundColor: C.accent,
-            color: "#fff",
+            color: "var(--bg)",
             border: "none",
             borderRadius: 8,
             padding: "0.65rem 1.8rem",
@@ -1393,7 +1416,7 @@ export default function TestingPage() {
             backgroundColor: toast.toLowerCase().includes("fail")
               ? C.error
               : C.success,
-            color: "#fff",
+            color: "var(--text-primary)",
             borderRadius: 8,
             padding: "0.7rem 1.5rem",
             fontSize: "0.85rem",

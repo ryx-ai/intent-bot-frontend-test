@@ -35,6 +35,7 @@ function getInitials(name: string) {
 const NAV_ITEMS = [
   { label: "Testing Platform", href: "/workspace/testing" },
   { label: "Chatbot Analytics", href: "/workspace/dashboard" },
+  { label: "SEO Health Auditor", href: "/workspace/seo" },
   { label: "Knowledge Lake", href: "/workspace/knowledge" },
   { label: "Visual Mapping", href: "/workspace/visual-mapping" },
   { label: "Deploy Agent", href: "/workspace/deploy" },

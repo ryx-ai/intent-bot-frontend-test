@@ -22,20 +22,20 @@ interface SubscriptionStatus {
   message: string;
 }
 
-// Design tokens as JS constants — bypasses CSS variable resolution issues with Tailwind v4
+// Design tokens mapped to CSS variables for dynamic dark/light mode support
 const C = {
-  bg: "#f8fafc",
-  bgSurface: "#ffffff",
-  bgCard: "#ffffff",
-  bgHover: "#f1f5f9",
-  border: "#e2e8f0",
-  accent: "#4f46e5",
-  accentDim: "rgba(79, 70, 229, 0.08)",
-  textPrimary: "#0f172a",
-  textSecondary: "#475569",
-  textMuted: "#64748b",
-  error: "#ef4444",
-  success: "#10b981",
+  bg: "var(--bg)",
+  bgSurface: "var(--bg-surface)",
+  bgCard: "var(--bg-card)",
+  bgHover: "var(--bg-hover)",
+  border: "var(--border)",
+  accent: "var(--accent)",
+  accentDim: "var(--accent-dim)",
+  textPrimary: "var(--text-primary)",
+  textSecondary: "var(--text-secondary)",
+  textMuted: "var(--text-muted)",
+  error: "var(--error)",
+  success: "var(--success)",
 };
 
 const ROLES = [

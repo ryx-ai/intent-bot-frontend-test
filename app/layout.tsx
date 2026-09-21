@@ -18,9 +18,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable} style={{ colorScheme: "light" }}>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
-        <meta name="color-scheme" content="light" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d){document.documentElement.setAttribute('data-theme','dark');document.documentElement.classList.add('dark');}else{document.documentElement.setAttribute('data-theme','light');document.documentElement.classList.remove('dark');}}catch(e){}})()`,
+          }}
+        />
       </head>
       <body className="antialiased" suppressHydrationWarning>{children}</body>
     </html>

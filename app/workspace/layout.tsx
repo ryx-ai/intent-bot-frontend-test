@@ -3,9 +3,10 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useAuth } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
+import { applyTheme, subscribeTheme, getThemeSnapshot, getServerThemeSnapshot } from "@/lib/theme";
 
 interface UserInfo {
   name: string;
@@ -67,6 +68,19 @@ export default function WorkspaceLayout({
   const router = useRouter();
   const { logout } = useAuth();
   const [user, setUser] = useState<UserInfo | null>(null);
+  const isDark = useSyncExternalStore(subscribeTheme, getThemeSnapshot, getServerThemeSnapshot);
+
+  const toggleTheme = () => {
+    const nextTheme = isDark ? "light" : "dark";
+    applyTheme(nextTheme);
+  };
+
+  useEffect(() => {
+    const saved = localStorage.getItem("theme");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const initial = saved === "dark" || (!saved && prefersDark) ? "dark" : "light";
+    applyTheme(initial);
+  }, []);
 
   useEffect(() => {
     api
@@ -114,113 +128,203 @@ export default function WorkspaceLayout({
       <aside
         style={{
           width: 250,
+          height: "100%",
           flexShrink: 0,
           display: "flex",
           flexDirection: "column",
           backgroundColor: "var(--bg-sidebar)",
           borderRight: "1px solid var(--border)",
-          padding: "1.5rem 1rem",
+          padding: "1.25rem 1rem",
         }}
       >
-        {/* Brand / Logo */}
-        <div style={{ marginBottom: "2.5rem",display:"flex",justifyContent:"center" }}>
-          <Image
-            src="/logo-only.png"
-            alt="RYX AI"
-            width={100}
-            height={30}
-            // style={{ width: 100, height: "auto" }}
-            priority
-          />
-        </div>
-
-        {/* Workspace section */}
+        {/* Brand / Logo & Dark Mode Toggle */}
         <div
           style={{
-            fontSize: "0.75rem",
-            textTransform: "uppercase",
-            color: "var(--text-muted)",
-            fontWeight: 600,
-            letterSpacing: "0.05em",
-            marginBottom: "0.75rem",
-            padding: "0 0.5rem",
+            marginBottom: "1.25rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0 0.25rem",
           }}
         >
-          Workspace
-        </div>
-        <ul style={{ display: "flex", flexDirection: "column", gap: "0.25rem", listStyle: "none", padding: 0, margin: "0 0 1.5rem 0" }}>
-          {navItems.map((item) => {
-            const isActive = matchesNav(pathname, item.href);
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  style={{
-                    display: "block",
-                    padding: "0.75rem 1rem",
-                    borderRadius: 8,
-                    fontSize: "0.9rem",
-                    fontWeight: isActive ? 600 : 500,
-                    color: isActive ? "var(--accent)" : "var(--text-secondary)",
-                    background: isActive ? "var(--accent-light)" : "transparent",
-                    textDecoration: "none",
-                    transition: "all 0.2s ease",
-                  }}
-                >
-                  {item.label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <Image
+              src="/logo-only.png"
+              alt="RYX AI"
+              width={95}
+              height={28}
+              priority
+              style={{ height: "auto" }}
+            />
+          </div>
 
-        {settingsItems.length > 0 && (
-          <>
-            {/* Settings section */}
-            <div
-              style={{
-                fontSize: "0.75rem",
-                textTransform: "uppercase",
-                color: "var(--text-muted)",
-                fontWeight: 600,
-                letterSpacing: "0.05em",
-                marginBottom: "0.75rem",
-                padding: "0 0.5rem",
-              }}
-            >
-              Settings
-            </div>
-            <ul style={{ display: "flex", flexDirection: "column", gap: "0.25rem", listStyle: "none", padding: 0, margin: 0 }}>
-              {settingsItems.map((item) => {
-                const isActive = matchesNav(pathname, item.href);
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      style={{
-                        display: "block",
-                        padding: "0.75rem 1rem",
-                        borderRadius: 8,
-                        fontSize: "0.9rem",
-                        fontWeight: isActive ? 600 : 500,
-                        color: isActive ? "var(--accent)" : "var(--text-secondary)",
-                        background: isActive ? "var(--accent-light)" : "transparent",
-                        textDecoration: "none",
-                        transition: "all 0.2s ease",
-                      }}
-                    >
-                      {item.label}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </>
-        )}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.04)",
+              border: "1px solid var(--border)",
+              color: isDark ? "#fbbf24" : "var(--text-secondary)",
+              cursor: "pointer",
+              transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = isDark ? "rgba(255, 255, 255, 0.14)" : "rgba(0, 0, 0, 0.08)";
+              e.currentTarget.style.transform = "scale(1.06)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.04)";
+              e.currentTarget.style.transform = "scale(1)";
+            }}
+          >
+            {isDark ? (
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2" />
+                <path d="M12 20v2" />
+                <path d="m4.93 4.93 1.41 1.41" />
+                <path d="m17.66 17.66 1.41 1.41" />
+                <path d="M2 12h2" />
+                <path d="M20 12h2" />
+                <path d="m6.34 17.66-1.41 1.41" />
+                <path d="m19.07 4.93-1.41 1.41" />
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+              </svg>
+            )}
+          </button>
+        </div>
+
+        {/* Scrollable Navigation Area */}
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+            overflowX: "hidden",
+            paddingRight: "0.25rem",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {/* Workspace section */}
+          <div
+            style={{
+              fontSize: "0.75rem",
+              textTransform: "uppercase",
+              color: "var(--text-muted)",
+              fontWeight: 600,
+              letterSpacing: "0.05em",
+              marginBottom: "0.5rem",
+              padding: "0 0.5rem",
+            }}
+          >
+            Workspace
+          </div>
+          <ul style={{ display: "flex", flexDirection: "column", gap: "0.25rem", listStyle: "none", padding: 0, margin: "0 0 1.25rem 0" }}>
+            {navItems.map((item) => {
+              const isActive = matchesNav(pathname, item.href);
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    style={{
+                      display: "block",
+                      padding: "0.6rem 0.85rem",
+                      borderRadius: 8,
+                      fontSize: "0.875rem",
+                      fontWeight: isActive ? 600 : 500,
+                      color: isActive ? "var(--accent)" : "var(--text-secondary)",
+                      background: isActive ? "var(--accent-light)" : "transparent",
+                      textDecoration: "none",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+
+          {settingsItems.length > 0 && (
+            <>
+              {/* Settings section */}
+              <div
+                style={{
+                  fontSize: "0.75rem",
+                  textTransform: "uppercase",
+                  color: "var(--text-muted)",
+                  fontWeight: 600,
+                  letterSpacing: "0.05em",
+                  marginBottom: "0.5rem",
+                  padding: "0 0.5rem",
+                }}
+              >
+                Settings
+              </div>
+              <ul style={{ display: "flex", flexDirection: "column", gap: "0.25rem", listStyle: "none", padding: 0, margin: 0 }}>
+                {settingsItems.map((item) => {
+                  const isActive = matchesNav(pathname, item.href);
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        style={{
+                          display: "block",
+                          padding: "0.6rem 0.85rem",
+                          borderRadius: 8,
+                          fontSize: "0.875rem",
+                          fontWeight: isActive ? 600 : 500,
+                          color: isActive ? "var(--accent)" : "var(--text-secondary)",
+                          background: isActive ? "var(--accent-light)" : "transparent",
+                          textDecoration: "none",
+                          transition: "all 0.2s ease",
+                        }}
+                      >
+                        {item.label}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+        </div>
 
         {/* Footer: User + Logout */}
-        <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid var(--border)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", padding: "0.6rem 0.5rem", marginBottom: "0.25rem" }}>
+        <div
+          style={{
+            flexShrink: 0,
+            marginTop: "auto",
+            paddingTop: "0.85rem",
+            borderTop: "1px solid var(--border)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.4rem",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.6rem",
+              padding: "0.5rem",
+              borderRadius: 8,
+              background: "rgba(0, 0, 0, 0.02)",
+            }}
+          >
             <div
               style={{
                 width: 32,
@@ -232,19 +336,31 @@ export default function WorkspaceLayout({
                 justifyContent: "center",
                 fontSize: "0.75rem",
                 fontWeight: 700,
-                color: "var(--bg)",
+                color: "#ffffff",
                 flexShrink: 0,
               }}
             >
               {user ? getInitials(user.name) : "—"}
             </div>
             <div style={{ overflow: "hidden" }}>
-              <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <div
+                style={{
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  color: "var(--text-primary)",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
                 {user?.name ?? "Loading..."}
               </div>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{user?.role ?? "Member"}</div>
+              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "capitalize" }}>
+                {user?.role ? user.role.replace("_", " ") : "Member"}
+              </div>
             </div>
           </div>
+
           <button
             onClick={logout}
             style={{
@@ -252,20 +368,30 @@ export default function WorkspaceLayout({
               alignItems: "center",
               gap: "0.5rem",
               width: "100%",
-              padding: "0.65rem 1rem",
+              padding: "0.55rem 0.85rem",
               borderRadius: 8,
               background: "transparent",
-              border: "none",
+              border: "1px solid var(--border)",
               color: "var(--text-secondary)",
-              fontSize: "0.875rem",
+              fontSize: "0.85rem",
               fontWeight: 500,
               fontFamily: "'Inter', sans-serif",
               cursor: "pointer",
               textAlign: "left" as const,
               transition: "all 0.2s ease",
             }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = "var(--error)";
+              e.currentTarget.style.borderColor = "var(--error)";
+              e.currentTarget.style.background = "rgba(239, 68, 68, 0.06)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = "var(--text-secondary)";
+              e.currentTarget.style.borderColor = "var(--border)";
+              e.currentTarget.style.background = "transparent";
+            }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
               <polyline points="16 17 21 12 16 7" />
               <line x1="21" y1="12" x2="9" y2="12" />

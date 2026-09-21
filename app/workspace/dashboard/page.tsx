@@ -56,43 +56,141 @@ function parseUtcDate(timestamp: string): Date {
 }
 
 /* ── Badge color helper ────────────────────────────────────── */
-function getBadgeStyle(metricId: string, val: string) {
+function getBadgeStyle(metricId: string, val: string): React.CSSProperties {
   const baseStyle: React.CSSProperties = {
-    display: "inline-block",
-    padding: "0.25rem 0.6rem",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "0.25rem 0.65rem",
     borderRadius: "6px",
     fontSize: "0.8rem",
     fontWeight: 600,
     textTransform: "capitalize",
+    whiteSpace: "nowrap",
+    transition: "all 0.2s ease",
   };
 
-  if (metricId.includes("score")) {
+  const cleanVal = (val || "").toLowerCase().trim();
+  const cleanId = (metricId || "").toLowerCase();
+
+  // 1. Numeric Lead Score
+  if (cleanId.includes("score")) {
     const num = parseInt(val, 10);
     if (!isNaN(num)) {
-      if (num >= 75) // hot
-        return { ...baseStyle, background: "#FEF2F2", color: "#DC2626" };
-      if (num >= 40) // warm
-        return { ...baseStyle, background: "#FFFBEE", color: "#D97706" };
-      return { ...baseStyle, background: "#EFF6FF", color: "#2563EB" }; // cold
+      if (num >= 75) {
+        return {
+          ...baseStyle,
+          background: "rgba(16, 185, 129, 0.14)",
+          color: "var(--success)",
+          border: "1px solid rgba(16, 185, 129, 0.28)",
+        };
+      }
+      if (num >= 40) {
+        return {
+          ...baseStyle,
+          background: "rgba(245, 158, 11, 0.14)",
+          color: "var(--warning)",
+          border: "1px solid rgba(245, 158, 11, 0.28)",
+        };
+      }
+      return {
+        ...baseStyle,
+        background: "rgba(99, 102, 241, 0.12)",
+        color: "var(--accent)",
+        border: "1px solid rgba(99, 102, 241, 0.25)",
+      };
     }
   }
 
-  if (val === "lead_captured") {
-    return { ...baseStyle, background: "#ECFDF5", color: "#059669" };
-  }
-  if (val === "booked_demo") {
-    return { ...baseStyle, background: "var(--accent-light)", color: "var(--accent)" };
-  }
-  if (val === "dropped") {
-    return { ...baseStyle, background: "#FEF2F2", color: "#DC2626" };
+  // 2. High-Intent / Captured / Converted
+  if (
+    cleanVal.includes("captured") ||
+    cleanVal.includes("converted") ||
+    cleanVal.includes("qualified") ||
+    cleanVal === "high intent" ||
+    cleanVal === "high"
+  ) {
+    return {
+      ...baseStyle,
+      background: "rgba(16, 185, 129, 0.14)",
+      color: "var(--success)",
+      border: "1px solid rgba(16, 185, 129, 0.28)",
+    };
   }
 
-  if (val === "just_chat" || val === "unknown") {
-    return { ...baseStyle, background: "#F1F5F9", color: "var(--text-secondary)" };
+  // 3. Booked Demo / Appointment
+  if (
+    cleanVal.includes("booked") ||
+    cleanVal.includes("demo") ||
+    cleanVal === "booking"
+  ) {
+    return {
+      ...baseStyle,
+      background: "var(--accent-dim)",
+      color: "var(--accent)",
+      border: "1px solid var(--accent-glow)",
+    };
   }
 
-  // fallback
-  return { ...baseStyle, background: "#F1F5F9", color: "var(--text-primary)" };
+  // 4. Dropped / Lost / Canceled
+  if (
+    cleanVal.includes("drop") ||
+    cleanVal.includes("lost") ||
+    cleanVal.includes("cancel")
+  ) {
+    return {
+      ...baseStyle,
+      background: "rgba(239, 68, 68, 0.14)",
+      color: "var(--error)",
+      border: "1px solid rgba(239, 68, 68, 0.28)",
+    };
+  }
+
+  // 5. Warm / Medium Stage
+  if (cleanVal.includes("warm") || cleanVal.includes("medium")) {
+    return {
+      ...baseStyle,
+      background: "rgba(245, 158, 11, 0.14)",
+      color: "var(--warning)",
+      border: "1px solid rgba(245, 158, 11, 0.28)",
+    };
+  }
+
+  // 6. Low Intent / Just Chat / Inquiry / Info
+  if (
+    cleanVal === "just_chat" ||
+    cleanVal === "just chat" ||
+    cleanVal.includes("info") ||
+    cleanVal.includes("low") ||
+    cleanVal === "unknown"
+  ) {
+    return {
+      ...baseStyle,
+      background: "var(--bg-hover)",
+      color: "var(--text-secondary)",
+      border: "1px solid var(--border)",
+    };
+  }
+
+  // 7. Budget / Numeric values
+  if (cleanId.includes("budget") || /^\$?\d+k?$/.test(cleanVal)) {
+    return {
+      ...baseStyle,
+      background: "var(--bg-hover)",
+      color: "var(--text-primary)",
+      border: "1px solid var(--border)",
+      fontFamily: "monospace",
+      fontSize: "0.82rem",
+    };
+  }
+
+  // 8. Default fallback
+  return {
+    ...baseStyle,
+    background: "var(--bg-hover)",
+    color: "var(--text-primary)",
+    border: "1px solid var(--border)",
+  };
 }
 
 /* ── Component ─────────────────────────────────────────────── */
@@ -468,11 +566,11 @@ export default function DashboardPage() {
                       onClick={() => setExpandedId(isExpanded ? null : session.id)}
                       style={{
                         cursor: "pointer",
-                        background: isExpanded ? "#F8FAFC" : "transparent",
+                        background: isExpanded ? "var(--bg-hover)" : "transparent",
                         transition: "background-color 0.2s",
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#F1F5F9"}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isExpanded ? "#F8FAFC" : "transparent"}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--bg-hover)"}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isExpanded ? "var(--bg-hover)" : "transparent"}
                     >
                       <td style={{ padding: "1rem", borderBottom: "1px solid var(--border)", color: "var(--text-secondary)", fontSize: "0.85rem", whiteSpace: "nowrap" }}>
                         {timeStr}

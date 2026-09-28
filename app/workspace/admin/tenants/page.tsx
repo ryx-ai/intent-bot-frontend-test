@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 
 interface Tenant {
@@ -15,52 +15,44 @@ interface Tenant {
   max_monthly_messages?: number;
 }
 
-const DEFAULT_MOCK_TENANTS: Tenant[] = [
-  {
-    id: 1,
-    name: "Acme Corporation",
-    slug: "acme-corp",
-    owner_email: "admin@acme.com",
-    plan_name: "Pro Plan",
-    subscription_status: "active",
-    created_at: "2026-01-15",
-    max_kb_files: 50,
-    max_monthly_messages: 10000,
-  },
-  {
-    id: 2,
-    name: "Starlight Tech",
-    slug: "starlight-tech",
-    owner_email: "contact@starlight.io",
-    plan_name: "Starter Plan",
-    subscription_status: "trial",
-    created_at: "2026-02-01",
-    max_kb_files: 10,
-    max_monthly_messages: 2000,
-  },
-  {
-    id: 3,
-    name: "Apex Logistics",
-    slug: "apex-logistics",
-    owner_email: "ops@apexlog.com",
-    plan_name: "Enterprise",
-    subscription_status: "active",
-    created_at: "2025-11-20",
-    max_kb_files: 200,
-    max_monthly_messages: 50000,
-  },
-  {
-    id: 4,
-    name: "Novus Digital",
-    slug: "novus-digital",
-    owner_email: "support@novus.dev",
-    plan_name: "Starter Plan",
-    subscription_status: "expired",
-    created_at: "2025-12-10",
-    max_kb_files: 10,
-    max_monthly_messages: 2000,
-  },
-];
+interface PaginationMeta {
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
+interface TenantStats {
+  total: number;
+  active: number;
+  trial: number;
+  expired: number;
+}
+
+interface StatsResponse {
+  total?: number;
+  total_workspaces?: number;
+  active?: number;
+  active_tenants?: number;
+  trial?: number;
+  expired?: number;
+  suspended?: number;
+}
+
+interface TenantsResponse {
+  tenants?: Tenant[];
+  items?: Tenant[];
+  pagination?: PaginationMeta;
+}
+
+function getPagePills(current: number, total: number): (number | string)[] {
+  if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
+  if (current <= 3) return [1, 2, 3, 4, "...", total];
+  if (current >= total - 2) return [1, "...", total - 3, total - 2, total - 1, total];
+  return [1, "...", current - 1, current, current + 1, "...", total];
+}
 
 function errorMessage(err: unknown, fallback: string) {
   if (!(err instanceof ApiError)) return "Network error. Check connection.";
@@ -74,7 +66,23 @@ export default function TenantsAdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+
+  // Server-side Pagination
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [pagination, setPagination] = useState<PaginationMeta>({
+    page: 1,
+    page_size: 10,
+    total_items: 0,
+    total_pages: 1,
+    has_next: false,
+    has_prev: false,
+  });
+
+  // KPI Metrics (Server-backed so totals never break with pagination)
+  const [stats, setStats] = useState<TenantStats>({ total: 0, active: 0, trial: 0, expired: 0 });
 
   // Modal State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -85,50 +93,102 @@ export default function TenantsAdminPage() {
   const [creating, setCreating] = useState(false);
   const [actionSuccess, setActionSuccess] = useState("");
 
+  // Delete State
+  const [deleteTarget, setDeleteTarget] = useState<Tenant | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteTenant = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setError("");
+    try {
+      await api.delete(`/api/admin/tenants/${deleteTarget.id}`);
+      setActionSuccess(`Tenant "${deleteTarget.name}" deleted successfully.`);
+      setDeleteTarget(null);
+      await loadStats();
+      await loadTenants();
+    } catch (err) {
+      setError(errorMessage(err, "Failed to delete tenant."));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Debounce search by 300ms
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [search]);
+
+  // Load KPI Stats
+  const loadStats = useCallback(async () => {
+    try {
+      const res = await api.get<StatsResponse>("/api/admin/tenants/stats");
+      if (res) {
+        setStats({
+          total: res.total ?? res.total_workspaces ?? 0,
+          active: res.active ?? res.active_tenants ?? 0,
+          trial: res.trial ?? 0,
+          expired: res.expired ?? res.suspended ?? 0,
+        });
+      }
+    } catch {
+      // Retain existing
+    }
+  }, []);
+
+  // Load Paginated Tenants from Backend
   const loadTenants = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await api.get<Tenant[]>("/api/admin/tenants");
-      if (Array.isArray(res) && res.length > 0) {
-        setTenants(res);
+      const params = new URLSearchParams({
+        page: String(page),
+        page_size: String(pageSize),
+      });
+      if (debouncedSearch.trim()) params.append("search", debouncedSearch.trim());
+      if (filterStatus !== "all") params.append("status", filterStatus);
+
+      const res = await api.get<TenantsResponse | Tenant[]>(`/api/admin/tenants?${params.toString()}`);
+      const list = Array.isArray(res)
+        ? res
+        : Array.isArray(res?.tenants)
+        ? res.tenants
+        : Array.isArray(res?.items)
+        ? res.items
+        : [];
+      setTenants(list);
+
+      if (!Array.isArray(res) && res?.pagination) {
+        setPagination(res.pagination);
       } else {
-        setTenants(DEFAULT_MOCK_TENANTS);
+        setPagination({
+          page,
+          page_size: pageSize,
+          total_items: list.length,
+          total_pages: Math.max(1, Math.ceil(list.length / pageSize)),
+          has_next: false,
+          has_prev: page > 1,
+        });
       }
-    } catch {
-      setTenants(DEFAULT_MOCK_TENANTS);
+    } catch (err) {
+      setError(errorMessage(err, "Failed to load tenants."));
+      setTenants([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, pageSize, debouncedSearch, filterStatus]);
+
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
 
   useEffect(() => {
     loadTenants();
   }, [loadTenants]);
-
-  const filteredTenants = useMemo(() => {
-    return tenants.filter((t) => {
-      const matchesSearch =
-        t.name.toLowerCase().includes(search.toLowerCase()) ||
-        t.slug.toLowerCase().includes(search.toLowerCase()) ||
-        (t.owner_email && t.owner_email.toLowerCase().includes(search.toLowerCase()));
-
-      const matchesStatus =
-        filterStatus === "all" || t.subscription_status === filterStatus;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [tenants, search, filterStatus]);
-
-  const stats = useMemo(() => {
-    const total = tenants.length;
-    const active = tenants.filter((t) => t.subscription_status === "active").length;
-    const trial = tenants.filter((t) => t.subscription_status === "trial").length;
-    const expired = tenants.filter(
-      (t) => t.subscription_status === "expired" || t.subscription_status === "suspended"
-    ).length;
-    return { total, active, trial, expired };
-  }, [tenants]);
 
   const handleCreateTenant = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,29 +197,16 @@ export default function TenantsAdminPage() {
     setError("");
 
     try {
-      const res = await api
-        .post<Tenant>("/api/admin/tenants", {
-          name: newTenantName,
-          slug: newTenantSlug,
-          owner_email: newOwnerEmail,
-          plan_name: newPlan,
-        })
-        .catch(() => null);
-
-      const createdItem: Tenant = res || {
-        id: Date.now(),
+      await api.post<Tenant>("/api/admin/tenants", {
         name: newTenantName,
-        slug: newTenantSlug.toLowerCase().replace(/\s+/g, "-"),
-        owner_email: newOwnerEmail || "owner@example.com",
+        slug: newTenantSlug,
+        owner_email: newOwnerEmail,
         plan_name: newPlan,
-        subscription_status: "active",
-        created_at: new Date().toISOString().split("T")[0],
-        max_kb_files: 20,
-        max_monthly_messages: 5000,
-      };
+      });
 
-      setTenants((prev) => [createdItem, ...prev]);
-      setActionSuccess(`Tenant "${createdItem.name}" created successfully!`);
+      await loadStats();
+      await loadTenants();
+      setActionSuccess(`Tenant "${newTenantName}" created successfully!`);
       setIsCreateOpen(false);
       setNewTenantName("");
       setNewTenantSlug("");
@@ -177,9 +224,13 @@ export default function TenantsAdminPage() {
       prev.map((t) => (t.id === id ? { ...t, subscription_status: nextStatus } : t))
     );
     try {
-      await api.patch(`/api/admin/tenants/${id}`, { subscription_status: nextStatus });
+      await api.patch(`/api/admin/tenants/${id}`, {
+        status: nextStatus,
+        subscription_status: nextStatus,
+      });
+      await loadStats();
     } catch {
-      // local state updated
+      await loadTenants();
     }
   };
 
@@ -373,7 +424,7 @@ export default function TenantsAdminPage() {
         </div>
       </div>
 
-      {/* Filter Bar & Search */}
+      {/* Filter and Search Bar */}
       <div
         style={{
           display: "flex",
@@ -382,7 +433,7 @@ export default function TenantsAdminPage() {
           flexWrap: "wrap",
           gap: "1rem",
           backgroundColor: "var(--bg-card)",
-          padding: "1rem",
+          padding: "0.75rem 1rem",
           borderRadius: 12,
           border: "1px solid var(--border)",
           boxShadow: "var(--shadow-sm)",
@@ -413,7 +464,10 @@ export default function TenantsAdminPage() {
             return (
               <button
                 key={status}
-                onClick={() => setFilterStatus(status)}
+                onClick={() => {
+                  setFilterStatus(status);
+                  setPage(1);
+                }}
                 style={{
                   padding: "0.4rem 0.85rem",
                   fontSize: "0.8rem",
@@ -448,7 +502,7 @@ export default function TenantsAdminPage() {
           <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>
             Loading tenants...
           </div>
-        ) : filteredTenants.length === 0 ? (
+        ) : tenants.length === 0 ? (
           <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>
             No tenants found matching your filter criteria.
           </div>
@@ -475,7 +529,7 @@ export default function TenantsAdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredTenants.map((t) => (
+                {tenants.map((t) => (
                   <tr
                     key={t.id}
                     style={{
@@ -522,26 +576,173 @@ export default function TenantsAdminPage() {
                       </span>
                     </td>
                     <td style={{ padding: "1rem 1.25rem", textAlign: "right" }}>
-                      <button
-                        onClick={() => toggleStatus(t.id, t.subscription_status)}
-                        style={{
-                          padding: "0.35rem 0.75rem",
-                          fontSize: "0.75rem",
-                          fontWeight: 600,
-                          borderRadius: 6,
-                          border: "1px solid var(--border)",
-                          backgroundColor: "var(--bg)",
-                          color: "var(--text-primary)",
-                          cursor: "pointer",
-                        }}
-                      >
-                        {t.subscription_status === "suspended" ? "Unsuspend" : "Suspend"}
-                      </button>
+                      <div style={{ display: "inline-flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+                        <button
+                          onClick={() => toggleStatus(t.id, t.subscription_status)}
+                          style={{
+                            padding: "0.35rem 0.75rem",
+                            fontSize: "0.75rem",
+                            fontWeight: 600,
+                            borderRadius: 6,
+                            border: "1px solid var(--border)",
+                            backgroundColor: "var(--bg)",
+                            color: "var(--text-primary)",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {t.subscription_status === "suspended" ? "Unsuspend" : "Suspend"}
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(t)}
+                          style={{
+                            padding: "0.35rem 0.75rem",
+                            fontSize: "0.75rem",
+                            fontWeight: 600,
+                            borderRadius: 6,
+                            border: "1px solid #ef4444",
+                            backgroundColor: "rgba(239, 68, 68, 0.1)",
+                            color: "#ef4444",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination Toolbar */}
+        {!loading && pagination.total_items > 0 && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "1rem",
+              padding: "0.85rem 1.25rem",
+              borderTop: "1px solid var(--border)",
+              fontSize: "0.85rem",
+              color: "var(--text-muted)",
+            }}
+          >
+            <div>
+              Showing{" "}
+              <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
+                {Math.min((page - 1) * pageSize + 1, pagination.total_items)}
+              </span>{" "}
+              to{" "}
+              <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
+                {Math.min(page * pageSize, pagination.total_items)}
+              </span>{" "}
+              of{" "}
+              <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
+                {pagination.total_items}
+              </span>{" "}
+              organizations
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+              {/* Per Page Selector */}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                <span>Per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  style={{
+                    padding: "0.25rem 0.5rem",
+                    borderRadius: 6,
+                    border: "1px solid var(--border)",
+                    backgroundColor: "var(--bg)",
+                    color: "var(--text-primary)",
+                    fontSize: "0.8rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  {[5, 10, 25, 50].map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Page Controls */}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
+                <button
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  style={{
+                    padding: "0.3rem 0.65rem",
+                    borderRadius: 6,
+                    border: "1px solid var(--border)",
+                    backgroundColor: page <= 1 ? "transparent" : "var(--bg)",
+                    color: page <= 1 ? "var(--text-muted)" : "var(--text-primary)",
+                    cursor: page <= 1 ? "not-allowed" : "pointer",
+                    opacity: page <= 1 ? 0.4 : 1,
+                    fontSize: "0.8rem",
+                    fontWeight: 600,
+                  }}
+                >
+                  Prev
+                </button>
+
+                {getPagePills(page, pagination.total_pages).map((p, idx) =>
+                  typeof p === "number" ? (
+                    <button
+                      key={idx}
+                      onClick={() => setPage(p)}
+                      style={{
+                        minWidth: 32,
+                        height: 30,
+                        borderRadius: 6,
+                        border: "none",
+                        backgroundColor: p === page ? "var(--accent)" : "transparent",
+                        color: p === page ? "#ffffff" : "var(--text-primary)",
+                        fontWeight: p === page ? 700 : 500,
+                        cursor: "pointer",
+                        fontSize: "0.8rem",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {p}
+                    </button>
+                  ) : (
+                    <span key={idx} style={{ padding: "0 0.3rem", color: "var(--text-muted)" }}>
+                      ...
+                    </span>
+                  )
+                )}
+
+                <button
+                  disabled={page >= pagination.total_pages}
+                  onClick={() => setPage((p) => Math.min(pagination.total_pages, p + 1))}
+                  style={{
+                    padding: "0.3rem 0.65rem",
+                    borderRadius: 6,
+                    border: "1px solid var(--border)",
+                    backgroundColor: page >= pagination.total_pages ? "transparent" : "var(--bg)",
+                    color: page >= pagination.total_pages ? "var(--text-muted)" : "var(--text-primary)",
+                    cursor: page >= pagination.total_pages ? "not-allowed" : "pointer",
+                    opacity: page >= pagination.total_pages ? 0.4 : 1,
+                    fontSize: "0.8rem",
+                    fontWeight: 600,
+                  }}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -575,118 +776,124 @@ export default function TenantsAdminPage() {
               gap: "1.25rem",
             }}
           >
-            <h2 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 700, color: "var(--text-primary)" }}>
-              Create New Organization Tenant
-            </h2>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h2 style={{ fontSize: "1.15rem", fontWeight: 700, margin: 0, color: "var(--text-primary)" }}>
+                Create New Tenant
+              </h2>
+              <button
+                onClick={() => setIsCreateOpen(false)}
+                style={{ background: "none", border: "none", fontSize: "1.25rem", cursor: "pointer", color: "var(--text-muted)" }}
+              >
+                ✕
+              </button>
+            </div>
+
             <form onSubmit={handleCreateTenant} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
               <div>
-                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "0.35rem" }}>
-                  Tenant Name
+                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "0.35rem" }}>
+                  Organization Name *
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Acme Corp"
+                  placeholder="Acme Corp"
                   value={newTenantName}
-                  onChange={(e) => {
-                    setNewTenantName(e.target.value);
-                    if (!newTenantSlug) {
-                      setNewTenantSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "-"));
-                    }
-                  }}
+                  onChange={(e) => setNewTenantName(e.target.value)}
                   style={{
                     width: "100%",
-                    padding: "0.6rem 0.85rem",
-                    fontSize: "0.875rem",
+                    padding: "0.6rem 0.75rem",
                     borderRadius: 8,
                     border: "1px solid var(--border)",
                     backgroundColor: "var(--bg)",
                     color: "var(--text-primary)",
+                    fontSize: "0.875rem",
+                    outline: "none",
                   }}
                 />
               </div>
 
               <div>
-                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "0.35rem" }}>
-                  Tenant Slug
+                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "0.35rem" }}>
+                  Slug (Workspace ID) *
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. acme-corp"
+                  placeholder="acme"
                   value={newTenantSlug}
-                  onChange={(e) => setNewTenantSlug(e.target.value)}
+                  onChange={(e) => setNewTenantSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
                   style={{
                     width: "100%",
-                    padding: "0.6rem 0.85rem",
-                    fontSize: "0.875rem",
-                    fontFamily: "monospace",
+                    padding: "0.6rem 0.75rem",
                     borderRadius: 8,
                     border: "1px solid var(--border)",
                     backgroundColor: "var(--bg)",
                     color: "var(--text-primary)",
+                    fontSize: "0.875rem",
+                    outline: "none",
                   }}
                 />
               </div>
 
               <div>
-                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "0.35rem" }}>
-                  Owner Email
+                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "0.35rem" }}>
+                  Owner / Admin Contact Email
                 </label>
                 <input
                   type="email"
-                  placeholder="owner@domain.com"
+                  placeholder="admin@acme.com"
                   value={newOwnerEmail}
                   onChange={(e) => setNewOwnerEmail(e.target.value)}
                   style={{
                     width: "100%",
-                    padding: "0.6rem 0.85rem",
-                    fontSize: "0.875rem",
+                    padding: "0.6rem 0.75rem",
                     borderRadius: 8,
                     border: "1px solid var(--border)",
                     backgroundColor: "var(--bg)",
                     color: "var(--text-primary)",
+                    fontSize: "0.875rem",
+                    outline: "none",
                   }}
                 />
               </div>
 
               <div>
-                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "0.35rem" }}>
-                  Initial Plan Tier
+                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "0.35rem" }}>
+                  Initial Subscription Plan
                 </label>
                 <select
                   value={newPlan}
                   onChange={(e) => setNewPlan(e.target.value)}
                   style={{
                     width: "100%",
-                    padding: "0.6rem 0.85rem",
-                    fontSize: "0.875rem",
+                    padding: "0.6rem 0.75rem",
                     borderRadius: 8,
                     border: "1px solid var(--border)",
                     backgroundColor: "var(--bg)",
                     color: "var(--text-primary)",
+                    fontSize: "0.875rem",
+                    outline: "none",
                   }}
                 >
-                  <option value="Free Tier">Free Tier</option>
-                  <option value="Starter Plan">Starter Plan</option>
+                  <option value="Starter Plan">Starter Plan (Trial)</option>
                   <option value="Pro Plan">Pro Plan</option>
                   <option value="Enterprise">Enterprise</option>
                 </select>
               </div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "0.5rem" }}>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
                 <button
                   type="button"
                   onClick={() => setIsCreateOpen(false)}
                   style={{
-                    padding: "0.55rem 1rem",
-                    fontSize: "0.85rem",
-                    fontWeight: 600,
+                    padding: "0.6rem 1rem",
                     borderRadius: 8,
                     border: "1px solid var(--border)",
-                    backgroundColor: "var(--bg)",
+                    backgroundColor: "transparent",
                     color: "var(--text-primary)",
+                    fontWeight: 600,
                     cursor: "pointer",
+                    fontSize: "0.85rem",
                   }}
                 >
                   Cancel
@@ -695,21 +902,126 @@ export default function TenantsAdminPage() {
                   type="submit"
                   disabled={creating}
                   style={{
-                    padding: "0.55rem 1.25rem",
-                    fontSize: "0.85rem",
-                    fontWeight: 600,
+                    padding: "0.6rem 1.25rem",
                     borderRadius: 8,
                     border: "none",
                     backgroundColor: "var(--accent)",
                     color: "#ffffff",
-                    cursor: "pointer",
-                    opacity: creating ? 0.6 : 1,
+                    fontWeight: 600,
+                    cursor: creating ? "not-allowed" : "pointer",
+                    fontSize: "0.85rem",
                   }}
                 >
                   {creating ? "Creating..." : "Save Tenant"}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            backgroundColor: "rgba(15, 23, 42, 0.6)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "var(--bg-surface)",
+              border: "1px solid var(--border)",
+              borderRadius: 16,
+              padding: "1.75rem",
+              width: "100%",
+              maxWidth: 440,
+              boxShadow: "var(--shadow-lg)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1.25rem",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    backgroundColor: "rgba(239, 68, 68, 0.15)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#ef4444",
+                    fontSize: "1.1rem",
+                  }}
+                >
+                  ⚠️
+                </div>
+                <h2 style={{ fontSize: "1.15rem", fontWeight: 700, margin: 0, color: "var(--text-primary)" }}>
+                  Delete Tenant
+                </h2>
+              </div>
+              <button
+                disabled={deleting}
+                onClick={() => setDeleteTarget(null)}
+                style={{ background: "none", border: "none", fontSize: "1.25rem", cursor: "pointer", color: "var(--text-muted)" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+              Are you sure you want to permanently delete tenant{" "}
+              <strong style={{ color: "var(--text-primary)" }}>{deleteTarget.name}</strong> (
+              <code style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{deleteTarget.slug}</code>)?
+              This action cannot be undone and will delete all associated data.
+            </p>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "0.5rem" }}>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => setDeleteTarget(null)}
+                style={{
+                  padding: "0.6rem 1rem",
+                  borderRadius: 8,
+                  border: "1px solid var(--border)",
+                  backgroundColor: "transparent",
+                  color: "var(--text-primary)",
+                  fontWeight: 600,
+                  cursor: deleting ? "not-allowed" : "pointer",
+                  fontSize: "0.85rem",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleDeleteTenant}
+                style={{
+                  padding: "0.6rem 1.25rem",
+                  borderRadius: 8,
+                  border: "none",
+                  backgroundColor: "#dc2626",
+                  color: "#ffffff",
+                  fontWeight: 600,
+                  cursor: deleting ? "not-allowed" : "pointer",
+                  fontSize: "0.85rem",
+                }}
+              >
+                {deleting ? "Deleting..." : "Delete Tenant"}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 
 interface CategoryInfo {
@@ -40,8 +41,23 @@ interface SeoAnalysisResult {
   audits: AuditItem[];
 }
 
+interface ConnectedWebsite {
+  id: number;
+  domain: string;
+  root_url: string;
+  is_primary: boolean;
+  authorization_status: "configured" | "admin_approved" | "legacy" | string;
+  is_authorized: boolean;
+  indexing_status: "unindexed" | "queued" | "indexing" | "ready" | "stale" | "failed" | string;
+  indexed_pages_count: number;
+  total_chunks_count: number;
+  last_indexed_at: string | null;
+  last_crawl_error: string | null;
+}
+
 interface AppPerformanceData {
   target_website_url: string | null;
+  connected_website?: ConnectedWebsite | null;
   seo_analysis: SeoAnalysisResult | null;
   traffic: {
     total_sessions: number;
@@ -73,52 +89,33 @@ interface AppPerformanceData {
 export default function AppPerformanceSeoHub() {
   const [data, setData] = useState<AppPerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [targetUrl, setTargetUrl] = useState("");
-  const [updatingUrl, setUpdatingUrl] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<"seo" | "retention" | "usage">("seo");
   const [auditFilter, setAuditFilter] = useState<"all" | "error" | "warning" | "passed">("all");
-  const [msg, setMsg] = useState("");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setMsg("");
+  const loadData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+    setErrorMsg(null);
     try {
       const res = await api.get<AppPerformanceData>("/api/analytics/app-performance");
       setData(res);
-      if (res.target_website_url) {
-        setTargetUrl(res.target_website_url);
-      }
     } catch (err: any) {
       console.error("Failed to load app performance matrix", err);
-      setMsg("Failed to load performance metrics.");
+      setErrorMsg("Unable to load performance and SEO matrix data.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  async function handleSaveTargetUrl(e: React.FormEvent) {
-    e.preventDefault();
-    if (!targetUrl.trim()) return;
-
-    setUpdatingUrl(true);
-    setMsg("");
-    try {
-      await api.post("/api/config/bot", {
-        targetWebsiteUrl: targetUrl.trim(),
-      });
-      setMsg("Website domain saved! Re-calculating App SEO score...");
-      await loadData();
-    } catch (err: any) {
-      console.error("Failed to save target URL", err);
-      setMsg("Failed to update target website URL.");
-    } finally {
-      setUpdatingUrl(false);
-    }
-  }
 
   const getScoreColor = (score: number) => {
     if (score >= 80) return "#10B981";
@@ -132,13 +129,12 @@ export default function AppPerformanceSeoHub() {
     return "Critical — Technical Fixes Needed";
   };
 
-  if (loading) {
-    return (
-      <div style={{ padding: "5rem", textAlign: "center", color: "var(--text-muted)" }}>
-        Loading App Performance, SEO & Matrix Analytics...
-      </div>
-    );
-  }
+  const connectedWebsite = data?.connected_website;
+  const targetUrl = data?.target_website_url;
+  const isConfigured = Boolean(connectedWebsite?.root_url || targetUrl);
+  const websiteUrl = connectedWebsite?.root_url || targetUrl || "";
+  const indexingStatus = connectedWebsite?.indexing_status || (targetUrl ? "ready" : "unindexed");
+  const lastIndexedAt = connectedWebsite?.last_indexed_at;
 
   const seo = data?.seo_analysis;
   const traffic = data?.traffic;
@@ -152,9 +148,22 @@ export default function AppPerformanceSeoHub() {
       })
     : [];
 
+  if (loading && !data) {
+    return (
+      <div style={{ padding: "6rem 2rem", textAlign: "center", color: "var(--text-muted)" }}>
+        <div style={{ fontSize: "2rem", marginBottom: "1rem", animation: "spin 1.5s linear infinite", display: "inline-block" }}>
+          🔄
+        </div>
+        <div style={{ fontSize: "1rem", fontWeight: 600, color: "var(--text-primary)" }}>
+          Loading Connected Website & Matrix Analytics...
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ maxWidth: 1300, margin: "0 auto", padding: "2.5rem 2rem" }}>
-      {/* ── Header ── */}
+      {/* ── Page Header ── */}
       <div style={{ marginBottom: "2rem" }}>
         <h1
           style={{
@@ -162,6 +171,7 @@ export default function AppPerformanceSeoHub() {
             fontSize: "1.75rem",
             fontWeight: 800,
             color: "var(--text-primary)",
+            letterSpacing: "-0.02em",
           }}
         >
           App SEO, Traffic & User Retention Matrix
@@ -179,7 +189,7 @@ export default function AppPerformanceSeoHub() {
         </p>
       </div>
 
-      {/* ── Domain Configuration & Quick Refresh Bar ── */}
+      {/* ── Connected Website Header Card (V5 Architecture) ── */}
       <div
         style={{
           backgroundColor: "var(--bg-card)",
@@ -187,88 +197,274 @@ export default function AppPerformanceSeoHub() {
           borderRadius: 12,
           padding: "1.25rem 1.5rem",
           marginBottom: "2rem",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: "1rem",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
         }}
       >
-        <form
-          onSubmit={handleSaveTargetUrl}
-          style={{ display: "flex", gap: "0.75rem", alignItems: "center", flex: 1, minWidth: 320 }}
-        >
-          <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-primary)", whiteSpace: "nowrap" }}>
-            Target Website Domain:
-          </span>
-          <input
-            type="text"
-            placeholder="e.g. https://yourdomain.com"
-            value={targetUrl}
-            onChange={(e) => setTargetUrl(e.target.value)}
-            style={{
-              flex: 1,
-              padding: "0.55rem 0.85rem",
-              borderRadius: 8,
-              border: "1px solid var(--border)",
-              backgroundColor: "var(--bg-surface)",
-              color: "var(--text-primary)",
-              fontSize: "0.88rem",
-              outline: "none",
-              fontFamily: "inherit",
-            }}
-          />
-          <button
-            type="submit"
-            disabled={updatingUrl}
-            style={{
-              padding: "0.55rem 1.25rem",
-              borderRadius: 8,
-              border: "none",
-              backgroundColor: "var(--accent)",
-              color: "var(--bg)",
-              fontSize: "0.85rem",
-              fontWeight: 700,
-              cursor: updatingUrl ? "not-allowed" : "pointer",
-              fontFamily: "inherit",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {updatingUrl ? "Saving..." : "Save & Audit"}
-          </button>
-        </form>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "1.25rem" }}>
+          {isConfigured ? (
+            /* Connected Website Information */
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem", flex: 1, minWidth: 280 }}>
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 10,
+                  background: "rgba(138, 100, 233, 0.15)",
+                  border: "1px solid rgba(138, 100, 233, 0.3)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "1.35rem",
+                  flexShrink: 0,
+                }}
+              >
+                🌐
+              </div>
+              <div>
+                <div style={{ fontSize: "0.74rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-muted)", marginBottom: 2 }}>
+                  Connected Website
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
+                  <a
+                    href={websiteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      fontSize: "1.08rem",
+                      fontWeight: 700,
+                      color: "var(--text-primary)",
+                      textDecoration: "none",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.35rem",
+                    }}
+                  >
+                    {websiteUrl}
+                    <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>↗</span>
+                  </a>
 
-        <button
-          onClick={() => loadData()}
-          style={{
-            padding: "0.55rem 1rem",
-            borderRadius: 8,
-            border: "1px solid var(--border)",
-            backgroundColor: "transparent",
-            color: "var(--text-secondary)",
-            fontSize: "0.85rem",
-            fontWeight: 600,
-            cursor: "pointer",
-            fontFamily: "inherit",
-          }}
-        >
-          ↻ Refresh Matrix
-        </button>
+                  {/* Badges */}
+                  <span
+                    style={{
+                      fontSize: "0.75rem",
+                      padding: "2px 8px",
+                      borderRadius: 9999,
+                      background: "rgba(138, 100, 233, 0.18)",
+                      color: "var(--accent, #8a64e9)",
+                      fontWeight: 700,
+                    }}
+                  >
+                    Authorized
+                  </span>
+
+                  {indexingStatus === "ready" && (
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        padding: "2px 8px",
+                        borderRadius: 9999,
+                        background: "rgba(16, 185, 129, 0.15)",
+                        border: "1px solid rgba(16, 185, 129, 0.3)",
+                        color: "#10B981",
+                        fontWeight: 700,
+                      }}
+                    >
+                      Indexed {connectedWebsite?.indexed_pages_count ? `(${connectedWebsite.indexed_pages_count} pages)` : ""}
+                    </span>
+                  )}
+
+                  {indexingStatus === "indexing" && (
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        padding: "2px 8px",
+                        borderRadius: 9999,
+                        background: "rgba(138, 100, 233, 0.2)",
+                        border: "1px solid rgba(138, 100, 233, 0.4)",
+                        color: "var(--accent, #8a64e9)",
+                        fontWeight: 700,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      <span style={{ animation: "spin 1s linear infinite", display: "inline-block" }}>🔄</span>
+                      Crawling & Indexing...
+                    </span>
+                  )}
+
+                  {indexingStatus === "queued" && (
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        padding: "2px 8px",
+                        borderRadius: 9999,
+                        background: "rgba(245, 158, 11, 0.15)",
+                        border: "1px solid rgba(245, 158, 11, 0.3)",
+                        color: "#F59E0B",
+                        fontWeight: 700,
+                      }}
+                    >
+                      ⏳ Queued
+                    </span>
+                  )}
+
+                  {indexingStatus === "unindexed" && (
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        padding: "2px 8px",
+                        borderRadius: 9999,
+                        background: "rgba(255, 255, 255, 0.06)",
+                        border: "1px solid var(--border)",
+                        color: "var(--text-secondary)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      ℹ️ Awaiting Widget Load
+                    </span>
+                  )}
+
+                  {indexingStatus === "failed" && (
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        padding: "2px 8px",
+                        borderRadius: 9999,
+                        background: "rgba(239, 68, 68, 0.15)",
+                        border: "1px solid rgba(239, 68, 68, 0.3)",
+                        color: "#EF4444",
+                        fontWeight: 700,
+                      }}
+                    >
+                      ❌ Index Failed
+                    </span>
+                  )}
+                </div>
+
+                {lastIndexedAt && (
+                  <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 3 }}>
+                    Last indexed: {new Date(lastIndexedAt).toLocaleString()}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* No Website Connected Card */
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem", flex: 1, minWidth: 280 }}>
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 10,
+                  background: "rgba(245, 158, 11, 0.15)",
+                  border: "1px solid rgba(245, 158, 11, 0.3)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "1.35rem",
+                  flexShrink: 0,
+                }}
+              >
+                ⚠️
+              </div>
+              <div>
+                <div style={{ fontSize: "0.74rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-muted)", marginBottom: 2 }}>
+                  Connected Website
+                </div>
+                <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                  No Website Connected
+                </div>
+                <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", marginTop: 2 }}>
+                  Configure and authorize your website in Knowledge Lake to enable automatic SEO analysis.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+            {!isConfigured && (
+              <Link
+                href="/workspace/knowledge"
+                style={{
+                  padding: "0.55rem 1.1rem",
+                  borderRadius: 8,
+                  backgroundColor: "var(--accent, #8a64e9)",
+                  color: "#fff",
+                  fontSize: "0.85rem",
+                  fontWeight: 700,
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  transition: "opacity 0.2s",
+                }}
+              >
+                Go to Knowledge Lake →
+              </Link>
+            )}
+
+            <button
+              onClick={() => void loadData(true)}
+              disabled={refreshing}
+              style={{
+                padding: "0.55rem 1.1rem",
+                borderRadius: 8,
+                border: "1px solid var(--border)",
+                backgroundColor: "var(--bg-surface)",
+                color: "var(--text-primary)",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                cursor: refreshing ? "not-allowed" : "pointer",
+                fontFamily: "inherit",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.45rem",
+                opacity: refreshing ? 0.7 : 1,
+                transition: "all 0.18s ease",
+              }}
+            >
+              <span style={{ display: "inline-block", animation: refreshing ? "spin 1s linear infinite" : "none" }}>
+                ↻
+              </span>
+              {refreshing ? "Refreshing Matrix..." : "Refresh Matrix"}
+            </button>
+          </div>
+        </div>
       </div>
 
-      {msg && (
+      {errorMsg && (
         <div
           style={{
             marginBottom: "1.5rem",
-            padding: "0.75rem 1rem",
+            padding: "0.85rem 1.1rem",
             borderRadius: 8,
-            backgroundColor: "rgba(16, 185, 129, 0.1)",
-            border: "1px solid rgba(16, 185, 129, 0.3)",
-            color: "var(--success)",
+            backgroundColor: "rgba(239, 68, 68, 0.1)",
+            border: "1px solid rgba(239, 68, 68, 0.3)",
+            color: "#EF4444",
             fontSize: "0.85rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}
         >
-          {msg}
+          <span>⚠️ {errorMsg}</span>
+          <button
+            onClick={() => void loadData(true)}
+            style={{
+              background: "transparent",
+              border: "1px solid rgba(239, 68, 68, 0.4)",
+              color: "#EF4444",
+              padding: "0.25rem 0.65rem",
+              borderRadius: 6,
+              fontSize: "0.78rem",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Retry
+          </button>
         </div>
       )}
 
@@ -303,7 +499,7 @@ export default function AppPerformanceSeoHub() {
             <span style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}>/ 100</span>
           </div>
           <span style={{ fontSize: "0.78rem", color: seo ? getScoreColor(seo.overall_score) : "var(--text-muted)", fontWeight: 600 }}>
-            {seo ? getScoreLabel(seo.overall_score) : "Set website URL to audit"}
+            {seo ? getScoreLabel(seo.overall_score) : isConfigured ? "Audit in progress / scheduled" : "No website connected"}
           </span>
         </div>
 
@@ -423,23 +619,82 @@ export default function AppPerformanceSeoHub() {
       {/* ── TAB 1: APP SEO TECHNICAL HEALTH ── */}
       {activeTab === "seo" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
-          {!seo ? (
+          {!isConfigured ? (
+            /* Empty State: No Website Connected */
             <div
               style={{
                 backgroundColor: "var(--bg-card)",
                 border: "1px solid var(--border)",
                 borderRadius: 12,
-                padding: "3rem",
+                padding: "3.5rem 2rem",
                 textAlign: "center",
                 color: "var(--text-muted)",
               }}
             >
-              <h3>No Target Website Configured</h3>
-              <p style={{ fontSize: "0.88rem", maxWidth: 500, margin: "0.5rem auto 1.5rem auto" }}>
-                Enter your website URL above (e.g. <code>https://yourdomain.com</code>) to calculate your app's technical SEO score and fix recommendations.
+              <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>🌐</div>
+              <h3 style={{ margin: "0 0 0.5rem 0", fontSize: "1.2rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                No Website Connected
+              </h3>
+              <p style={{ fontSize: "0.88rem", maxWidth: 500, margin: "0.5rem auto 1.5rem auto", lineHeight: 1.5 }}>
+                Configure and authorize your website in Knowledge Lake to enable technical SEO health audits, category scoring, and actionable fixes.
               </p>
+              <Link
+                href="/workspace/knowledge"
+                style={{
+                  padding: "0.65rem 1.35rem",
+                  borderRadius: 8,
+                  backgroundColor: "var(--accent, #8a64e9)",
+                  color: "#fff",
+                  fontSize: "0.88rem",
+                  fontWeight: 700,
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                }}
+              >
+                Configure in Knowledge Lake →
+              </Link>
+            </div>
+          ) : !seo ? (
+            /* Indexing in Progress State */
+            <div
+              style={{
+                backgroundColor: "var(--bg-card)",
+                border: "1px solid var(--border)",
+                borderRadius: 12,
+                padding: "3.5rem 2rem",
+                textAlign: "center",
+                color: "var(--text-muted)",
+              }}
+            >
+              <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>⏳</div>
+              <h3 style={{ margin: "0 0 0.5rem 0", fontSize: "1.2rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                Website Indexing in Progress
+              </h3>
+              <p style={{ fontSize: "0.88rem", maxWidth: 520, margin: "0.5rem auto 1.5rem auto", lineHeight: 1.5 }}>
+                Technical SEO health analysis and audit breakdown will become available once your website content has been crawled and indexed.
+              </p>
+              <button
+                onClick={() => void loadData(true)}
+                disabled={refreshing}
+                style={{
+                  padding: "0.6rem 1.25rem",
+                  borderRadius: 8,
+                  border: "1px solid var(--border)",
+                  backgroundColor: "var(--bg-surface)",
+                  color: "var(--text-primary)",
+                  fontSize: "0.88rem",
+                  fontWeight: 600,
+                  cursor: refreshing ? "not-allowed" : "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {refreshing ? "Checking..." : "↻ Check Status Now"}
+              </button>
             </div>
           ) : (
+            /* Category Matrix Cards & Detailed Audits */
             <>
               {/* Category Matrix Cards */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "1.25rem" }}>
@@ -471,12 +726,12 @@ export default function AppPerformanceSeoHub() {
 
               {/* Audit Details */}
               <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, padding: "1.5rem" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", paddingBottom: "1rem", borderBottom: "1px solid var(--border)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", paddingBottom: "1rem", borderBottom: "1px solid var(--border)", flexWrap: "wrap", gap: "0.75rem" }}>
                   <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>
                     Technical SEO Audits & Actionable Fixes ({seo.url})
                   </h3>
 
-                  <div style={{ display: "flex", gap: "0.4rem" }}>
+                  <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
                     {[
                       { id: "all", label: `All (${seo.audits.length})` },
                       { id: "error", label: `Critical (${seo.summary.errors})` },
@@ -507,7 +762,7 @@ export default function AppPerformanceSeoHub() {
                 <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                   {filteredAudits.map((item) => (
                     <div key={item.id} style={{ backgroundColor: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "1.25rem" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem" }}>
                         <div style={{ display: "flex", gap: "0.75rem" }}>
                           <span style={{ fontSize: "1.2rem" }}>
                             {item.status === "passed" && "✅"}
@@ -524,7 +779,7 @@ export default function AppPerformanceSeoHub() {
                           </div>
                         </div>
 
-                        <span style={{ fontSize: "0.8rem", fontWeight: 700, padding: "0.25rem 0.5rem", borderRadius: 4, backgroundColor: item.status === "passed" ? "#ECFDF5" : item.status === "warning" ? "#FFFBEE" : "#FEF2F2", color: item.status === "passed" ? "#059669" : item.status === "warning" ? "#D97706" : "#DC2626" }}>
+                        <span style={{ fontSize: "0.8rem", fontWeight: 700, padding: "0.25rem 0.5rem", borderRadius: 4, backgroundColor: item.status === "passed" ? "#ECFDF5" : item.status === "warning" ? "#FFFBEE" : "#FEF2F2", color: item.status === "passed" ? "#059669" : item.status === "warning" ? "#D97706" : "#DC2626", whiteSpace: "nowrap" }}>
                           {item.score_text}
                         </span>
                       </div>
@@ -602,7 +857,7 @@ export default function AppPerformanceSeoHub() {
               <div style={{ width: "100%", height: 12, backgroundColor: "#F59E0B", borderRadius: 6, overflow: "hidden", display: "flex" }}>
                 <div style={{ width: `${retention?.engaged_ratio_percent || 0}%`, height: "100%", backgroundColor: "#10B981" }} />
               </div>
-              <div style={{ display: "flex", gap: "1.5rem", marginTop: "0.5rem", fontSize: "0.78rem", color: "var(--text-muted)" }}>
+              <div style={{ display: "flex", gap: "1.5rem", marginTop: "0.5rem", fontSize: "0.78rem", color: "var(--text-muted)", flexWrap: "wrap" }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
                   <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10B981" }} />
                   Engaged Sessions (3+ msgs)
@@ -691,3 +946,4 @@ function roundPct(count: number, total: number): number {
   if (!total) return 0;
   return Math.round((count / total) * 100);
 }
+

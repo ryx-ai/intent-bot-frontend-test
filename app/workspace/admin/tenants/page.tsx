@@ -278,7 +278,7 @@ export default function TenantsAdminPage() {
             Super Admin dashboard for controlling client organizations, system access, and tenant status.
           </p>
         </div>
-        <button
+        {/* <button
           onClick={() => setIsCreateOpen(true)}
           style={{
             background: "var(--accent)",
@@ -296,7 +296,7 @@ export default function TenantsAdminPage() {
           }}
         >
           <span>+ Create New Tenant</span>
-        </button>
+        </button> */}
       </div>
 
       {/* Action Alerts */}

@@ -121,6 +121,7 @@ export default function TestingPage() {
   >(null);
   const [calDialogCredId, setCalDialogCredId] = useState<number | null>(null);
   const [promptText, setPromptText] = useState("");
+  const [generatingPrompt, setGeneratingPrompt] = useState(false);
   const [subStatus, setSubStatus] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -327,6 +328,37 @@ export default function TestingPage() {
       setTimeout(() => setToast(""), 3000);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function generateSystemPrompt() {
+    setGeneratingPrompt(true);
+    try {
+      const res = await api.post<{
+        system_prompt: string;
+        sources_detected?: Record<string, boolean>;
+      }>("/api/config/generate-system-prompt", {});
+
+      if (res && typeof res.system_prompt === "string") {
+        setPromptText(res.system_prompt);
+        setDirty(true);
+        setToast(
+          "System prompt generated successfully. Review the generated prompt before saving.",
+        );
+        setTimeout(() => setToast(""), 4500);
+      } else {
+        setToast("Failed to generate system prompt.");
+        setTimeout(() => setToast(""), 4000);
+      }
+    } catch (err: any) {
+      const msg =
+        err?.message ||
+        err?.detail ||
+        "Failed to generate system prompt.";
+      setToast(msg);
+      setTimeout(() => setToast(""), 4500);
+    } finally {
+      setGeneratingPrompt(false);
     }
   }
 
@@ -1337,27 +1369,96 @@ export default function TestingPage() {
           marginBottom: "1.5rem",
         }}
       >
-        <h2
+        <div
           style={{
-            fontSize: "0.7rem",
-            fontWeight: 700,
-            letterSpacing: "1.5px",
-            textTransform: "uppercase",
-            color: C.textMuted,
-            marginBottom: 4,
-          }}
-        >
-          Core System Prompt
-        </h2>
-        <p
-          style={{
-            color: C.textSecondary,
-            fontSize: "0.78rem",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
             marginBottom: "1rem",
+            flexWrap: "wrap",
+            gap: "0.75rem",
           }}
         >
-          AI Instructions (Raw JSON array flattened to text)
-        </p>
+          <div>
+            <h2
+              style={{
+                fontSize: "0.7rem",
+                fontWeight: 700,
+                letterSpacing: "1.5px",
+                textTransform: "uppercase",
+                color: C.textMuted,
+                marginBottom: 4,
+              }}
+            >
+              Core System Prompt
+            </h2>
+            <p
+              style={{
+                color: C.textSecondary,
+                fontSize: "0.78rem",
+                margin: 0,
+              }}
+            >
+              AI Instructions (Raw JSON array flattened to text)
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={generateSystemPrompt}
+            disabled={generatingPrompt || saving}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              backgroundColor: "rgba(138, 100, 233, 0.12)",
+              color: C.accent,
+              border: `1px solid ${C.accent}`,
+              borderRadius: 8,
+              padding: "0.5rem 1.1rem",
+              fontSize: "0.8rem",
+              fontWeight: 700,
+              cursor: generatingPrompt || saving ? "not-allowed" : "pointer",
+              opacity: generatingPrompt || saving ? 0.6 : 1,
+              transition: "all 0.2s ease",
+              fontFamily: "inherit",
+            }}
+          >
+            {generatingPrompt ? (
+              <>
+                <svg
+                  style={{
+                    width: "0.9rem",
+                    height: "0.9rem",
+                    animation: "spin 1s linear infinite",
+                  }}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                >
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeOpacity="0.25"
+                  />
+                  <path
+                    d="M12 2a10 10 0 0 1 10 10"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span>Generating...</span>
+              </>
+            ) : (
+              <>
+                <span style={{ fontSize: "0.9rem" }}>✨</span>
+                <span>Generate System Prompt</span>
+              </>
+            )}
+          </button>
+        </div>
         <textarea
           value={promptText}
           onChange={(e) => {
@@ -1413,9 +1514,14 @@ export default function TestingPage() {
             bottom: 20,
             right: 20,
             zIndex: 50,
-            backgroundColor: toast.toLowerCase().includes("fail")
-              ? C.error
-              : C.success,
+            backgroundColor:
+              toast.toLowerCase().includes("fail") ||
+              toast.toLowerCase().includes("error") ||
+              toast.toLowerCase().includes("fix") ||
+              toast.toLowerCase().includes("no knowledge") ||
+              toast.toLowerCase().includes("unconfigured")
+                ? C.error
+                : C.success,
             color: "var(--text-primary)",
             borderRadius: 8,
             padding: "0.7rem 1.5rem",

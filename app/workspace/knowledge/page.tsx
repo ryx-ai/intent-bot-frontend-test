@@ -91,7 +91,6 @@ export default function KnowledgeLakePage() {
 
   // ── Tenant Websites state (V5 Architecture) ──
   const [websites, setWebsites] = useState<TenantWebsite[]>([]);
-  const [websitesLoading, setWebsitesLoading] = useState(false);
   const [authorizingWebsite, setAuthorizingWebsite] = useState(false);
   const [reindexingWebsiteId, setReindexingWebsiteId] = useState<number | null>(null);
   const [websiteUrlInput, setWebsiteUrlInput] = useState("");
@@ -108,11 +107,34 @@ export default function KnowledgeLakePage() {
   const [deletingUrl, setDeletingUrl] = useState<string | null>(null);
   const [confirmDeleteUrl, setConfirmDeleteUrl] = useState<string | null>(null);
 
+  const loadWebUrls = useCallback(async (silent = false) => {
+    if (!silent) setWebLoading(true);
+    try {
+      const res = await api.get<{ urls: WebUrl[] }>("/api/knowledge/web/urls");
+      setWebUrls(res.urls || []);
+    } catch (err) {
+      console.error("Failed to load web URLs", err);
+    } finally {
+      if (!silent) setWebLoading(false);
+    }
+  }, []);
+
+  const loadWebsites = useCallback(async () => {
+    try {
+      const res = await api.get<{ websites: TenantWebsite[] }>("/api/knowledge/websites");
+      setWebsites(res.websites || []);
+    } catch (err) {
+      console.error("Failed to load tenant websites", err);
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
-      const [filesRes, statusRes] = await Promise.allSettled([
+      const [filesRes, statusRes, urlsRes, websitesRes] = await Promise.allSettled([
         api.get<{ files: KBFile[] }>("/api/knowledge/files"),
         api.get<SubscriptionStatus>("/api/payments/subscription-status"),
+        api.get<{ urls: WebUrl[] }>("/api/knowledge/web/urls"),
+        api.get<{ websites: TenantWebsite[] }>("/api/knowledge/websites"),
       ]);
 
       if (filesRes.status === "fulfilled") {
@@ -121,64 +143,29 @@ export default function KnowledgeLakePage() {
       if (statusRes.status === "fulfilled") {
         setSubStatus(statusRes.value);
       }
+      if (urlsRes.status === "fulfilled") {
+        setWebUrls(urlsRes.value.urls || []);
+      }
+      if (websitesRes.status === "fulfilled") {
+        setWebsites(websitesRes.value.websites || []);
+      }
     } catch (err) {
       console.error("Failed to load knowledge lake data", err);
     } finally {
       setLoading(false);
-    }
-  }, []);
-
-  // ── Web URL & Website data loaders ──
-  const loadWebUrls = useCallback(async () => {
-    setWebLoading(true);
-    try {
-      const res = await api.get<{ urls: WebUrl[] }>("/api/knowledge/web/urls");
-      setWebUrls(res.urls || []);
-    } catch (err) {
-      console.error("Failed to load web URLs", err);
-    } finally {
       setWebLoading(false);
     }
   }, []);
 
-  const loadWebsites = useCallback(async () => {
-    setWebsitesLoading(true);
-    try {
-      const res = await api.get<{ websites: TenantWebsite[] }>("/api/knowledge/websites");
-      setWebsites(res.websites || []);
-    } catch (err) {
-      console.error("Failed to load tenant websites", err);
-    } finally {
-      setWebsitesLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === "web") {
-      void loadWebUrls();
-      void loadWebsites();
-    }
-  }, [activeTab, loadWebUrls, loadWebsites]);
-
-  // Polling for active crawl jobs
-  useEffect(() => {
-    if (activeTab !== "web") return;
-    const hasActiveJob = websites.some((w) => w.indexing_status === "indexing" || w.indexing_status === "queued");
-    if (!hasActiveJob) return;
-    const interval = setInterval(() => {
-      void loadWebsites();
-      void loadWebUrls();
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [activeTab, websites, loadWebsites, loadWebUrls]);
-
   useEffect(() => {
     let cancelled = false;
-    async function load() {
+    async function init() {
       try {
-        const [filesRes, statusRes] = await Promise.allSettled([
+        const [filesRes, statusRes, urlsRes, websitesRes] = await Promise.allSettled([
           api.get<{ files: KBFile[] }>("/api/knowledge/files"),
           api.get<SubscriptionStatus>("/api/payments/subscription-status"),
+          api.get<{ urls: WebUrl[] }>("/api/knowledge/web/urls"),
+          api.get<{ websites: TenantWebsite[] }>("/api/knowledge/websites"),
         ]);
 
         if (cancelled) return;
@@ -188,17 +175,37 @@ export default function KnowledgeLakePage() {
         if (statusRes.status === "fulfilled") {
           setSubStatus(statusRes.value);
         }
+        if (urlsRes.status === "fulfilled") {
+          setWebUrls(urlsRes.value.urls || []);
+        }
+        if (websitesRes.status === "fulfilled") {
+          setWebsites(websitesRes.value.websites || []);
+        }
       } catch (err) {
         console.error("Failed to load knowledge lake data", err);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setWebLoading(false);
+        }
       }
     }
-    load();
+    void init();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  // Polling for active crawl jobs (updates badge counts & website status automatically in the background)
+  useEffect(() => {
+    const hasActiveJob = websites.some((w) => w.indexing_status === "indexing" || w.indexing_status === "queued");
+    if (!hasActiveJob) return;
+    const interval = setInterval(() => {
+      void loadWebsites();
+      void loadWebUrls(true);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [websites, loadWebsites, loadWebUrls]);
 
   const isTrial = subStatus?.subscription_status === "trial";
   const isExpired = subStatus ? !subStatus.is_active : false;
@@ -519,6 +526,10 @@ export default function KnowledgeLakePage() {
   });
 
   const primaryWebsite = websites.find((w) => w.is_primary) || websites[0];
+  const totalWebsitePages = websites.reduce((acc, site) => {
+    return acc + (site.indexed_pages_count > 0 ? site.indexed_pages_count : 1);
+  }, 0);
+  const totalWebCount = (websites.length > 0 ? totalWebsitePages : 0) + webUrls.length;
 
   return (
     <div style={{ maxWidth: 1400, margin: "0 auto", padding: "2rem" }}>
@@ -606,7 +617,7 @@ export default function KnowledgeLakePage() {
         <button style={tabStyle(activeTab === "web")} onClick={() => setActiveTab("web")}>
           🌐 Website & Web URLs
           <span style={{ marginLeft: 4, padding: "1px 8px", borderRadius: 9999, background: activeTab === "web" ? "rgba(138,100,233,0.25)" : "rgba(255,255,255,0.06)", color: activeTab === "web" ? "var(--accent)" : "var(--text-muted)", fontSize: "0.75rem", fontWeight: 700 }}>
-            {websites.length > 0 ? (primaryWebsite?.indexed_pages_count || 1) + webUrls.length : webUrls.length}
+            {totalWebCount}
           </span>
         </button>
       </div>

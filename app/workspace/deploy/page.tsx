@@ -84,7 +84,6 @@ export default function DeployPage() {
   // lie even when the server is down.
   useEffect(() => {
     let cancelled = false;
-    setHealth("checking");
     fetch(`${backendOrigin}/health`, { cache: "no-store" })
       .then((res) => {
         if (cancelled) return;
@@ -126,7 +125,7 @@ export default function DeployPage() {
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "2.5rem 2rem" }}>
+    <div style={{ maxWidth: 1400, margin: "0 auto", padding: "2rem" }}>
       {/* Expired Subscription Warning */}
       {isSubActive === false && (
         <div

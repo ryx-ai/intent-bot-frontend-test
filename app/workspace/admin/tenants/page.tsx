@@ -8,7 +8,9 @@ interface Tenant {
   name: string;
   slug: string;
   owner_email?: string;
+  plan_id?: number | null;
   plan_name?: string;
+  status?: string;
   subscription_status?: "active" | "trial" | "expired" | "suspended" | string;
   created_at?: string;
   max_kb_files?: number;
@@ -95,22 +97,70 @@ export default function TenantsAdminPage() {
 
   // Delete State
   const [deleteTarget, setDeleteTarget] = useState<Tenant | null>(null);
+  const [deleteSlugInput, setDeleteSlugInput] = useState("");
   const [deleting, setDeleting] = useState(false);
 
+  // Suspend Modal State
+  const [suspendTarget, setSuspendTarget] = useState<Tenant | null>(null);
+  const [suspending, setSuspending] = useState(false);
+
   const handleDeleteTenant = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || deleteSlugInput.trim() !== deleteTarget.slug) return;
     setDeleting(true);
     setError("");
     try {
       await api.delete(`/api/admin/tenants/${deleteTarget.id}`);
       setActionSuccess(`Tenant "${deleteTarget.name}" deleted successfully.`);
       setDeleteTarget(null);
+      setDeleteSlugInput("");
       await loadStats();
       await loadTenants();
     } catch (err) {
       setError(errorMessage(err, "Failed to delete tenant."));
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleConfirmSuspend = async () => {
+    if (!suspendTarget) return;
+    setSuspending(true);
+    setError("");
+    const isSuspended =
+      suspendTarget.status === "suspended" ||
+      suspendTarget.subscription_status === "suspended";
+    const nextStatus = isSuspended ? "active" : "suspended";
+
+    setTenants((prev) =>
+      prev.map((t) =>
+        t.id === suspendTarget.id
+          ? {
+              ...t,
+              status: nextStatus,
+              subscription_status: isSuspended ? "active" : "suspended",
+            }
+          : t
+      )
+    );
+
+    try {
+      await api.patch(`/api/admin/tenants/${suspendTarget.id}`, {
+        status: nextStatus,
+        subscription_status: nextStatus,
+      });
+      setActionSuccess(
+        `Tenant "${suspendTarget.name}" ${
+          isSuspended ? "unsuspended" : "suspended"
+        } successfully.`
+      );
+      setSuspendTarget(null);
+      await loadStats();
+      await loadTenants();
+    } catch (err) {
+      setError(errorMessage(err, `Failed to ${isSuspended ? "unsuspend" : "suspend"} tenant.`));
+      await loadTenants();
+    } finally {
+      setSuspending(false);
     }
   };
 
@@ -218,27 +268,12 @@ export default function TenantsAdminPage() {
     }
   };
 
-  const toggleStatus = async (id: number, currentStatus?: string) => {
-    const nextStatus = currentStatus === "suspended" ? "active" : "suspended";
-    setTenants((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, subscription_status: nextStatus } : t))
-    );
-    try {
-      await api.patch(`/api/admin/tenants/${id}`, {
-        status: nextStatus,
-        subscription_status: nextStatus,
-      });
-      await loadStats();
-    } catch {
-      await loadTenants();
-    }
-  };
 
   return (
     <div
       style={{
         padding: "2rem",
-        maxWidth: 1200,
+        maxWidth: 1400,
         margin: "0 auto",
         display: "flex",
         flexDirection: "column",
@@ -529,88 +564,114 @@ export default function TenantsAdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {tenants.map((t) => (
-                  <tr
-                    key={t.id}
-                    style={{
-                      borderBottom: "1px solid var(--border)",
-                      transition: "background 0.15s",
-                    }}
-                  >
-                    <td style={{ padding: "1rem 1.25rem", fontWeight: 600, color: "var(--text-primary)" }}>
-                      {t.name}
-                    </td>
-                    <td style={{ padding: "1rem 1.25rem", fontFamily: "monospace", fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                      {t.slug}
-                    </td>
-                    <td style={{ padding: "1rem 1.25rem", color: "var(--text-secondary)" }}>
-                      {t.owner_email || "N/A"}
-                    </td>
-                    <td style={{ padding: "1rem 1.25rem", fontWeight: 500, color: "var(--text-primary)" }}>
-                      {t.plan_name || "Starter Plan"}
-                    </td>
-                    <td style={{ padding: "1rem 1.25rem" }}>
-                      <span
-                        style={{
-                          display: "inline-block",
-                          padding: "0.2rem 0.65rem",
-                          borderRadius: 20,
-                          fontSize: "0.75rem",
-                          fontWeight: 700,
-                          textTransform: "capitalize",
-                          backgroundColor:
-                            t.subscription_status === "active"
-                              ? "#ecfdf5"
-                              : t.subscription_status === "trial"
-                              ? "#fffbeb"
-                              : "#fef2f2",
-                          color:
-                            t.subscription_status === "active"
-                              ? "#047857"
-                              : t.subscription_status === "trial"
-                              ? "#b45309"
-                              : "#b91c1c",
-                        }}
-                      >
-                        {t.subscription_status || "active"}
-                      </span>
-                    </td>
-                    <td style={{ padding: "1rem 1.25rem", textAlign: "right" }}>
-                      <div style={{ display: "inline-flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-                        <button
-                          onClick={() => toggleStatus(t.id, t.subscription_status)}
+                {tenants.map((t) => {
+                  const isSuspended = t.status === "suspended" || t.subscription_status === "suspended";
+                  const statusKey = isSuspended
+                    ? "suspended"
+                    : t.subscription_status === "expired" || t.status === "expired"
+                    ? "expired"
+                    : t.subscription_status === "active"
+                    ? "active"
+                    : "trial";
+
+                  return (
+                    <tr
+                      key={t.id}
+                      style={{
+                        borderBottom: "1px solid var(--border)",
+                        transition: "background 0.15s",
+                      }}
+                    >
+                      <td style={{ padding: "1rem 1.25rem", fontWeight: 600, color: "var(--text-primary)" }}>
+                        {t.name}
+                      </td>
+                      <td style={{ padding: "1rem 1.25rem", fontFamily: "monospace", fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                        {t.slug}
+                      </td>
+                      <td style={{ padding: "1rem 1.25rem", color: "var(--text-secondary)" }}>
+                        {t.owner_email || "N/A"}
+                      </td>
+                      <td style={{ padding: "1rem 1.25rem", fontWeight: 500, color: "var(--text-primary)" }}>
+                        {t.plan_name || (statusKey === "trial" ? "Trial Plan" : "Free Plan")}
+                      </td>
+                      <td style={{ padding: "1rem 1.25rem" }}>
+                        <span
                           style={{
-                            padding: "0.35rem 0.75rem",
+                            display: "inline-block",
+                            padding: "0.2rem 0.65rem",
+                            borderRadius: 20,
                             fontSize: "0.75rem",
-                            fontWeight: 600,
-                            borderRadius: 6,
-                            border: "1px solid var(--border)",
-                            backgroundColor: "var(--bg)",
-                            color: "var(--text-primary)",
-                            cursor: "pointer",
+                            fontWeight: 700,
+                            textTransform: "capitalize",
+                            backgroundColor:
+                              statusKey === "active"
+                                ? "#ecfdf5"
+                                : statusKey === "trial"
+                                ? "#fffbeb"
+                                : statusKey === "suspended"
+                                ? "#faf5ff"
+                                : "#fef2f2",
+                            color:
+                              statusKey === "active"
+                                ? "#047857"
+                                : statusKey === "trial"
+                                ? "#b45309"
+                                : statusKey === "suspended"
+                                ? "#7e22ce"
+                                : "#b91c1c",
+                            border:
+                              statusKey === "active"
+                                ? "1px solid #a7f3d0"
+                                : statusKey === "trial"
+                                ? "1px solid #fde68a"
+                                : statusKey === "suspended"
+                                ? "1px solid #e9d5ff"
+                                : "1px solid #fecaca",
                           }}
                         >
-                          {t.subscription_status === "suspended" ? "Unsuspend" : "Suspend"}
-                        </button>
-                        <button
-                          onClick={() => setDeleteTarget(t)}
-                          style={{
-                            padding: "0.35rem 0.75rem",
-                            fontSize: "0.75rem",
-                            fontWeight: 600,
-                            borderRadius: 6,
-                            border: "1px solid #ef4444",
-                            backgroundColor: "rgba(239, 68, 68, 0.1)",
-                            color: "#ef4444",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          {statusKey}
+                        </span>
+                      </td>
+                      <td style={{ padding: "1rem 1.25rem", textAlign: "right" }}>
+                        <div style={{ display: "inline-flex", gap: "0.5rem", justifyContent: "flex-end", alignItems: "center" }}>
+                          <button
+                            onClick={() => setSuspendTarget(t)}
+                            style={{
+                              padding: "0.35rem 0.75rem",
+                              fontSize: "0.75rem",
+                              fontWeight: 600,
+                              borderRadius: 6,
+                              border: "1px solid var(--border)",
+                              backgroundColor: "var(--bg)",
+                              color: "var(--text-primary)",
+                              cursor: "pointer",
+                            }}
+                          >
+                            {statusKey === "suspended" ? "Unsuspend" : "Suspend"}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setDeleteTarget(t);
+                              setDeleteSlugInput("");
+                            }}
+                            style={{
+                              padding: "0.35rem 0.75rem",
+                              fontSize: "0.75rem",
+                              fontWeight: 600,
+                              borderRadius: 6,
+                              border: "1px solid #ef4444",
+                              backgroundColor: "rgba(239, 68, 68, 0.1)",
+                              color: "#ef4444",
+                              cursor: "pointer",
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -986,6 +1047,30 @@ export default function TenantsAdminPage() {
               This action cannot be undone and will delete all associated data.
             </p>
 
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
+              <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)" }}>
+                To confirm deletion, type <span style={{ color: "#ef4444", fontWeight: 700, fontFamily: "monospace" }}>{deleteTarget.slug}</span> below:
+              </label>
+              <input
+                type="text"
+                autoFocus
+                placeholder={deleteTarget.slug}
+                value={deleteSlugInput}
+                onChange={(e) => setDeleteSlugInput(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "0.6rem 0.85rem",
+                  borderRadius: 8,
+                  border: "1px solid var(--border)",
+                  backgroundColor: "var(--bg)",
+                  color: "var(--text-primary)",
+                  fontSize: "0.875rem",
+                  fontFamily: "monospace",
+                  outline: "none",
+                }}
+              />
+            </div>
+
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "0.5rem" }}>
               <button
                 type="button"
@@ -1006,7 +1091,7 @@ export default function TenantsAdminPage() {
               </button>
               <button
                 type="button"
-                disabled={deleting}
+                disabled={deleting || deleteSlugInput.trim() !== deleteTarget.slug}
                 onClick={handleDeleteTenant}
                 style={{
                   padding: "0.6rem 1.25rem",
@@ -1015,8 +1100,10 @@ export default function TenantsAdminPage() {
                   backgroundColor: "#dc2626",
                   color: "#ffffff",
                   fontWeight: 600,
-                  cursor: deleting ? "not-allowed" : "pointer",
+                  cursor: deleting || deleteSlugInput.trim() !== deleteTarget.slug ? "not-allowed" : "pointer",
+                  opacity: deleting || deleteSlugInput.trim() !== deleteTarget.slug ? 0.45 : 1,
                   fontSize: "0.85rem",
+                  transition: "opacity 0.15s ease",
                 }}
               >
                 {deleting ? "Deleting..." : "Delete Tenant"}
@@ -1025,6 +1112,139 @@ export default function TenantsAdminPage() {
           </div>
         </div>
       )}
+
+      {/* Suspend / Unsuspend Confirmation Modal */}
+      {suspendTarget && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            backgroundColor: "rgba(15, 23, 42, 0.6)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "var(--bg-surface)",
+              border: "1px solid var(--border)",
+              borderRadius: 16,
+              padding: "1.75rem",
+              width: "100%",
+              maxWidth: 440,
+              boxShadow: "var(--shadow-lg)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1.25rem",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    backgroundColor:
+                      suspendTarget.status === "suspended" || suspendTarget.subscription_status === "suspended"
+                        ? "rgba(16, 185, 129, 0.15)"
+                        : "rgba(234, 88, 12, 0.15)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color:
+                      suspendTarget.status === "suspended" || suspendTarget.subscription_status === "suspended"
+                        ? "#10b981"
+                        : "#ea580c",
+                    fontSize: "1.1rem",
+                  }}
+                >
+                  {suspendTarget.status === "suspended" || suspendTarget.subscription_status === "suspended" ? "▶" : "⏸"}
+                </div>
+                <h2 style={{ fontSize: "1.15rem", fontWeight: 700, margin: 0, color: "var(--text-primary)" }}>
+                  {suspendTarget.status === "suspended" || suspendTarget.subscription_status === "suspended"
+                    ? "Unsuspend Tenant"
+                    : "Suspend Tenant"}
+                </h2>
+              </div>
+              <button
+                disabled={suspending}
+                onClick={() => setSuspendTarget(null)}
+                style={{ background: "none", border: "none", fontSize: "1.25rem", cursor: "pointer", color: "var(--text-muted)" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+              {suspendTarget.status === "suspended" || suspendTarget.subscription_status === "suspended" ? (
+                <>
+                  Are you sure you want to unsuspend tenant{" "}
+                  <strong style={{ color: "var(--text-primary)" }}>{suspendTarget.name}</strong> (
+                  <code style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{suspendTarget.slug}</code>)?
+                  This will restore workspace access and reactivate their chatbot.
+                </>
+              ) : (
+                <>
+                  Are you sure you want to suspend tenant{" "}
+                  <strong style={{ color: "var(--text-primary)" }}>{suspendTarget.name}</strong> (
+                  <code style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{suspendTarget.slug}</code>)?
+                  This will freeze workspace access and pause their live AI widget.
+                </>
+              )}
+            </p>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "0.5rem" }}>
+              <button
+                type="button"
+                disabled={suspending}
+                onClick={() => setSuspendTarget(null)}
+                style={{
+                  padding: "0.6rem 1rem",
+                  borderRadius: 8,
+                  border: "1px solid var(--border)",
+                  backgroundColor: "transparent",
+                  color: "var(--text-primary)",
+                  fontWeight: 600,
+                  cursor: suspending ? "not-allowed" : "pointer",
+                  fontSize: "0.85rem",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={suspending}
+                onClick={handleConfirmSuspend}
+                style={{
+                  padding: "0.6rem 1.25rem",
+                  borderRadius: 8,
+                  border: "none",
+                  backgroundColor:
+                    suspendTarget.status === "suspended" || suspendTarget.subscription_status === "suspended"
+                      ? "var(--accent)"
+                      : "#ea580c",
+                  color: "#ffffff",
+                  fontWeight: 600,
+                  cursor: suspending ? "not-allowed" : "pointer",
+                  fontSize: "0.85rem",
+                }}
+              >
+                {suspending
+                  ? "Updating..."
+                  : suspendTarget.status === "suspended" || suspendTarget.subscription_status === "suspended"
+                  ? "Unsuspend Tenant"
+                  : "Suspend Tenant"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

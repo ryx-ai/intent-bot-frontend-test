@@ -175,7 +175,7 @@ export default function MetricsPage() {
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "2.5rem 2rem" }}>
+    <div style={{ maxWidth: 1400, margin: "0 auto", padding: "2rem" }}>
       {/* Header */}
       <div
         style={{

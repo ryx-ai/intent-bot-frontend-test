@@ -536,7 +536,7 @@ export default function KnowledgeLakePage() {
       {/* Header */}
       <header style={{ marginBottom: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem" }}>
         <div>
-          <h1 style={{ margin: "0 0 0.25rem 0", fontSize: "1.6rem", fontWeight: 800, color: "#fff" }}>
+          <h1 style={{ margin: "0 0 0.25rem 0", fontSize: "1.6rem", fontWeight: 800, color: "var(--text-primary)" }}>
             Knowledge Lake
           </h1>
           <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.9rem" }}>
@@ -1029,10 +1029,10 @@ export default function KnowledgeLakePage() {
               ⚠️
             </div>
             <div>
-              <div style={{ color: "#fff", fontWeight: 700, fontSize: "1rem" }}>
+              <div style={{ color: "var(--text-primary)", fontWeight: 700, fontSize: "1rem" }}>
                 {isTrial ? "3-Day Free Trial Expired — Uploads Locked" : "Subscription Inactive — Uploads Locked"}
               </div>
-              <div style={{ color: "rgba(255, 255, 255, 0.75)", fontSize: "0.85rem", marginTop: "0.2rem" }}>
+              <div style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginTop: "0.2rem" }}>
                 Document uploading and live widget responses are paused. Upgrade to a paid plan to unlock uploads and reactivate your bot.
               </div>
             </div>
@@ -1088,10 +1088,10 @@ export default function KnowledgeLakePage() {
               📦
             </div>
             <div>
-              <div style={{ color: "#fff", fontWeight: 700, fontSize: "0.95rem" }}>
+              <div style={{ color: "var(--text-primary)", fontWeight: 700, fontSize: "0.95rem" }}>
                 Storage Limit Reached ({files.length}/{maxKbFiles} Files)
               </div>
-              <div style={{ color: "rgba(255, 255, 255, 0.7)", fontSize: "0.85rem", marginTop: "0.15rem" }}>
+              <div style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginTop: "0.15rem" }}>
                 You have used all {maxKbFiles} document slots in your {subStatus?.plan?.name || "Trial"}. Upgrade for up to 20 or unlimited files.
               </div>
             </div>

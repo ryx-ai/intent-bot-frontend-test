@@ -41,7 +41,7 @@ function getInitials(name: string) {
 const NAV_ITEMS = [
   { label: "Test Your Agent", href: "/workspace/testing" },
   { label: "Chatbot Analytics", href: "/workspace/dashboard" },
-  { label: "SEO Health Auditor", href: "/workspace/seo" },
+  { label: "SEO Health & Audit", href: "/workspace/seo" },
   { label: "Knowledge Lake", href: "/workspace/knowledge" },
   { label: "Visual Mapping", href: "/workspace/visual-mapping" },
   { label: "Deploy Agent", href: "/workspace/deploy" },
@@ -61,7 +61,8 @@ const SUPER_ADMIN_NAV_ITEMS = [
 const SUPER_ADMIN_SETTINGS_ITEMS: typeof SETTINGS_ITEMS = [];
 
 function matchesNav(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(href + "/");
+  if (pathname === href) return true;
+  return pathname.startsWith(href + "/");
 }
 
 export default function WorkspaceLayout({

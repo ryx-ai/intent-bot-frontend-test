@@ -165,7 +165,7 @@ export default function PlansAdminPage() {
     <div
       style={{
         padding: "2rem",
-        maxWidth: 1200,
+        maxWidth: 1400,
         margin: "0 auto",
         display: "flex",
         flexDirection: "column",

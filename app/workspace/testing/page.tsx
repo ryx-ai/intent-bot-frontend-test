@@ -350,11 +350,13 @@ export default function TestingPage() {
         setToast("Failed to generate system prompt.");
         setTimeout(() => setToast(""), 4000);
       }
-    } catch (err: any) {
-      const msg =
-        err?.message ||
-        err?.detail ||
-        "Failed to generate system prompt.";
+    } catch (err: unknown) {
+      let msg = "Failed to generate system prompt.";
+      if (err instanceof Error) {
+        msg = err.message;
+      } else if (err && typeof err === "object" && "detail" in err && typeof (err as { detail: unknown }).detail === "string") {
+        msg = (err as { detail: string }).detail;
+      }
       setToast(msg);
       setTimeout(() => setToast(""), 4500);
     } finally {
@@ -479,9 +481,9 @@ export default function TestingPage() {
   return (
     <div
       style={{
-        maxWidth: 920,
+        maxWidth: 1400,
         margin: "0 auto",
-        padding: "2rem 2.5rem 3rem",
+        padding: "2rem",
         backgroundColor: C.bg,
       }}
     >

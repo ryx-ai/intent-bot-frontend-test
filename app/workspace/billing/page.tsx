@@ -203,7 +203,7 @@ export default function BillingPage() {
 
   if (loading && !subStatus) {
     return (
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "2rem" }}>
+      <div style={{ maxWidth: 1400, margin: "0 auto", padding: "2rem" }}>
         <p style={{ color: "var(--text-secondary)" }}>Loading billing & subscription details...</p>
       </div>
     );
@@ -217,7 +217,7 @@ export default function BillingPage() {
     <>
       <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
 
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "2rem" }}>
+      <div style={{ maxWidth: 1400, margin: "0 auto", padding: "2rem" }}>
         <header style={{ marginBottom: "2rem" }}>
           <h1 style={{ margin: "0 0 0.25rem 0", fontSize: "1.5rem", fontWeight: 800, color: "var(--text-primary)" }}>
             Billing & Subscription
@@ -490,26 +490,36 @@ export default function BillingPage() {
                 <button
                   type="button"
                   onClick={() => handleUpgradePlan(plan)}
-                  disabled={isCurrent || isProcessing || plan.price_inr <= 0}
+                  disabled={
+                    (isCurrent && !isCurrentExpired) ||
+                    isProcessing ||
+                    plan.price_inr <= 0
+                  }
                   style={{
                     width: "100%",
                     padding: "0.85rem 1rem",
                     borderRadius: 8,
                     border: "none",
-                    background: isCurrent
-                      ? "var(--bg-hover)"
-                      : "var(--accent)",
-                    color: isCurrent ? "var(--text-muted)" : "#fff",
+                    background:
+                      isCurrent && !isCurrentExpired
+                        ? "var(--bg-hover)"
+                        : "var(--accent)",
+                    color: isCurrent && !isCurrentExpired ? "var(--text-muted)" : "#fff",
                     fontWeight: 700,
                     fontFamily: "inherit",
                     fontSize: "0.9rem",
-                    cursor: isCurrent || isProcessing || plan.price_inr <= 0 ? "not-allowed" : "pointer",
-                    opacity: isCurrent ? 0.7 : isProcessing ? 0.65 : 1,
+                    cursor:
+                      (isCurrent && !isCurrentExpired) || isProcessing || plan.price_inr <= 0
+                        ? "not-allowed"
+                        : "pointer",
+                    opacity: isCurrent && !isCurrentExpired ? 0.7 : isProcessing ? 0.65 : 1,
                   }}
                 >
                   {isCurrent
                     ? isCurrentExpired
-                      ? "Trial Expired"
+                      ? plan.price_inr > 0
+                        ? `Renew ${plan.name}`
+                        : "Trial Expired"
                       : "Current Active Plan"
                     : isProcessing
                     ? "Processing Order..."

@@ -145,14 +145,14 @@ export default function WorkspaceSettingsPage() {
 
   if (loading) {
     return (
-      <div style={{ maxWidth: 1000, margin: '0 auto', padding: '2rem' }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '2rem' }}>
         <p style={{ color: 'var(--text-secondary)' }}>Loading workspace settings...</p>
       </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto', padding: '2rem' }}>
+    <div style={{ maxWidth: 1400, margin: '0 auto', padding: '2rem' }}>
       <header style={{ marginBottom: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem' }}>
           <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800, color: "var(--text-primary)" }}>

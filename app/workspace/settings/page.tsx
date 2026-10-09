@@ -44,7 +44,6 @@ export default function WorkspaceSettingsPage() {
   const [tenantSlug, setTenantSlug] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [copied, setCopied] = useState(false);
 
   const loadUserData = useCallback(async () => {
     try {
@@ -129,18 +128,6 @@ export default function WorkspaceSettingsPage() {
     } finally {
       setSubmitting(false);
     }
-  }
-
-  const embedScriptCode = useMemo(() => {
-    const slug = tenantSlug || user?.tenant?.slug || 'your-tenant-slug';
-    const apiHost = typeof window !== 'undefined' ? window.location.origin : 'https://api-test.ryxai.in';
-    return `<script\n  src="${apiHost}/static/embed.js"\n  data-api="${apiHost}"\n  data-tenant="${slug}"\n></script>`;
-  }, [tenantSlug, user?.tenant?.slug]);
-
-  function copyEmbedScript() {
-    navigator.clipboard.writeText(embedScriptCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   }
 
   if (loading) {
@@ -361,59 +348,6 @@ export default function WorkspaceSettingsPage() {
               {submitting ? 'Saving changes...' : 'Save Workspace Changes'}
             </button>
           </form>
-        </section>
-
-        <section
-          style={{
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border)',
-            borderRadius: 10,
-            padding: '1.75rem',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-            <div>
-              <h2 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem', color: "var(--text-primary)", fontWeight: 700 }}>
-                Embed Code Snippet
-              </h2>
-              <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                Use this updated snippet on your website to embed your AI agent under tenant slug <code>{tenantSlug || '...'}</code>.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={copyEmbedScript}
-              style={{
-                padding: '0.45rem 0.9rem',
-                borderRadius: 6,
-                border: '1px solid var(--border)',
-                background: 'var(--bg-surface)',
-                color: copied ? '#10b981' : 'var(--text-secondary)',
-                fontSize: '0.82rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              {copied ? 'Copied!' : 'Copy Code'}
-            </button>
-          </div>
-
-          <pre
-            style={{
-              padding: '1rem',
-              borderRadius: 8,
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border)',
-              color: 'var(--text-primary)',
-              fontSize: '0.85rem',
-              fontFamily: 'monospace',
-              overflowX: 'auto',
-              margin: 0,
-            }}
-          >
-            {embedScriptCode}
-          </pre>
         </section>
       </div>
     </div>

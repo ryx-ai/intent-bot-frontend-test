@@ -253,6 +253,7 @@ export default function TestingPage() {
     if (tenantSlug) {
       script.setAttribute("data-tenant", tenantSlug);
     }
+    script.setAttribute("data-preview", "true");
 
     script.onload = () => {
       setWidgetState("ready");

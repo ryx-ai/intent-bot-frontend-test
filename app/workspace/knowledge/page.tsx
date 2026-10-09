@@ -104,6 +104,7 @@ export default function KnowledgeLakePage() {
   const [webIndexing, setWebIndexing] = useState(false);
   const [webUrlInput, setWebUrlInput] = useState("");
   const [forceReindex, setForceReindex] = useState(false);
+  const [showManualUrl, setShowManualUrl] = useState(false);
   const [deletingUrl, setDeletingUrl] = useState<string | null>(null);
   const [confirmDeleteUrl, setConfirmDeleteUrl] = useState<string | null>(null);
 
@@ -196,14 +197,18 @@ export default function KnowledgeLakePage() {
     };
   }, []);
 
-  // Polling for active crawl jobs (updates badge counts & website status automatically in the background)
+  // Polling for active crawl jobs or waiting for initial widget connection
   useEffect(() => {
     const hasActiveJob = websites.some((w) => w.indexing_status === "indexing" || w.indexing_status === "queued");
-    if (!hasActiveJob) return;
+    const hasNoWebsite = websites.length === 0;
+    if (!hasActiveJob && !hasNoWebsite) return;
+
+    // Fast 3s polling during active crawling, gentle 5s polling when waiting for widget ping
+    const intervalTime = hasActiveJob ? 3000 : 5000;
     const interval = setInterval(() => {
       void loadWebsites();
       void loadWebUrls(true);
-    }, 4000);
+    }, intervalTime);
     return () => clearInterval(interval);
   }, [websites, loadWebsites, loadWebUrls]);
 
@@ -625,37 +630,29 @@ export default function KnowledgeLakePage() {
       {/* ══════════════ WEB URLS & WEBSITE TAB (V5) ══════════════ */}
       {activeTab === "web" && (
         <div>
-          {/* SECTION 1: Authorized Tenant Website */}
+          {/* SECTION 1: Automated Workspace Website (Zero-Config or Live Ingestion Radar) */}
           <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, padding: "1.75rem", marginBottom: "2rem" }}>
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "1.25rem", flexWrap: "wrap", gap: "1rem" }}>
-              <div>
-                <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <span>🌐</span> Authorized Workspace Website
-                </div>
-                <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "0.25rem", maxWidth: 650, lineHeight: 1.5 }}>
-                  Authorize your company website. When your RYX chat widget loads on your site, it will automatically crawl and index your internal pages (up to 25 pages) for instant RAG responses.
-                </div>
-              </div>
-            </div>
-
             {primaryWebsite ? (
-              /* Authorized Website Card */
-              <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "1.25rem 1.5rem" }}>
+              /* ── Website Connected: Live Radar or Ready Status ── */
+              <div style={{ background: "var(--bg-surface)", border: primaryWebsite.indexing_status === "indexing" ? "1px solid rgba(138,100,233,0.5)" : "1px solid var(--border)", borderRadius: 10, padding: "1.5rem" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem", marginBottom: "1rem" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                    <div style={{ width: 42, height: 42, borderRadius: 8, background: "rgba(138,100,233,0.15)", border: "1px solid rgba(138,100,233,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.3rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 10, background: primaryWebsite.indexing_status === "indexing" ? "rgba(138,100,233,0.25)" : "rgba(138,100,233,0.15)", border: "1px solid rgba(138,100,233,0.35)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.4rem" }}>
                       🌐
                     </div>
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <a href={primaryWebsite.root_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text-primary)", textDecoration: "none" }}>
+                        <a href={primaryWebsite.root_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)", textDecoration: "none" }}>
                           {primaryWebsite.domain}
                         </a>
                         <span style={{ fontSize: "0.75rem", padding: "2px 8px", borderRadius: 9999, background: "rgba(138,100,233,0.2)", color: "var(--accent, #8a64e9)", fontWeight: 700 }}>
                           ⚡ Primary
                         </span>
+                        <span style={{ fontSize: "0.72rem", padding: "2px 8px", borderRadius: 9999, background: "rgba(16,185,129,0.15)", color: "#10b981", fontWeight: 600 }}>
+                          ✓ Widget Verified
+                        </span>
                       </div>
-                      <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: 2 }}>
+                      <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: 3 }}>
                         {primaryWebsite.root_url}
                       </div>
                     </div>
@@ -664,39 +661,63 @@ export default function KnowledgeLakePage() {
                   {/* Status badge */}
                   <div>
                     {primaryWebsite.indexing_status === "ready" && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 9999, background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)", color: "#10b981", fontSize: "0.82rem", fontWeight: 700 }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 14px", borderRadius: 9999, background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)", color: "#10b981", fontSize: "0.85rem", fontWeight: 700 }}>
                         <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981" }} />
                         Indexed & Ready ({primaryWebsite.indexed_pages_count} pages • {primaryWebsite.total_chunks_count} chunks)
                       </span>
                     )}
                     {primaryWebsite.indexing_status === "indexing" && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 9999, background: "rgba(138,100,233,0.2)", border: "1px solid rgba(138,100,233,0.4)", color: "var(--accent, #8a64e9)", fontSize: "0.82rem", fontWeight: 700 }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "5px 14px", borderRadius: 9999, background: "rgba(138,100,233,0.2)", border: "1px solid rgba(138,100,233,0.45)", color: "var(--accent, #8a64e9)", fontSize: "0.85rem", fontWeight: 700 }}>
                         <span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>🔄</span>
                         Crawling & Indexing Pages...
                       </span>
                     )}
                     {primaryWebsite.indexing_status === "queued" && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 9999, background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.3)", color: "#f59e0b", fontSize: "0.82rem", fontWeight: 700 }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 14px", borderRadius: 9999, background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.3)", color: "#f59e0b", fontSize: "0.85rem", fontWeight: 700 }}>
                         ⏳ Queued for Background Crawl
                       </span>
                     )}
                     {primaryWebsite.indexing_status === "unindexed" && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 9999, background: "rgba(255,255,255,0.06)", border: "1px solid var(--border)", color: "var(--text-secondary)", fontSize: "0.82rem", fontWeight: 600 }}>
-                        ℹ️ Authorized — Waiting for widget load to auto-crawl
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 14px", borderRadius: 9999, background: "rgba(255,255,255,0.06)", border: "1px solid var(--border)", color: "var(--text-secondary)", fontSize: "0.85rem", fontWeight: 600 }}>
+                        ℹ️ Ready for Crawl
                       </span>
                     )}
                     {primaryWebsite.indexing_status === "stale" && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 9999, background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.3)", color: "#f59e0b", fontSize: "0.82rem", fontWeight: 700 }}>
-                        ⚠️ Stale Index (Will refresh on next widget load)
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 14px", borderRadius: 9999, background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.3)", color: "#f59e0b", fontSize: "0.85rem", fontWeight: 700 }}>
+                        ⚠️ Stale Index (Click Re-crawl to refresh)
                       </span>
                     )}
                     {primaryWebsite.indexing_status === "failed" && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 9999, background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", color: "var(--error, #ef4444)", fontSize: "0.82rem", fontWeight: 700 }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 14px", borderRadius: 9999, background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", color: "var(--error, #ef4444)", fontSize: "0.85rem", fontWeight: 700 }}>
                         ❌ Crawl Failed ({primaryWebsite.last_crawl_error || "Check connectivity"})
                       </span>
                     )}
                   </div>
                 </div>
+
+                {/* Live Crawling Radar Visualization (when indexing or queued) */}
+                {(primaryWebsite.indexing_status === "indexing" || primaryWebsite.indexing_status === "queued") && (
+                  <div style={{ margin: "1.25rem 0", padding: "1.25rem", borderRadius: 8, background: "rgba(138,100,233,0.08)", border: "1px dashed rgba(138,100,233,0.3)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.6rem" }}>
+                      <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981", animation: "pulse 1.5s infinite" }} />
+                        Live Crawler Active: Scraping pages, removing noise & generating vector embeddings
+                      </div>
+                      <div style={{ fontSize: "0.8rem", color: "var(--accent, #8a64e9)", fontWeight: 700 }}>
+                        Auto-refreshing live...
+                      </div>
+                    </div>
+                    {/* Pulsing Progress Bar */}
+                    <div style={{ height: 6, background: "rgba(255,255,255,0.06)", borderRadius: 9999, overflow: "hidden", position: "relative" }}>
+                      <div style={{ height: "100%", width: "70%", background: "linear-gradient(90deg, #8a64e9, #10b981)", borderRadius: 9999, animation: "pulse 1.8s infinite" }} />
+                    </div>
+                    <div style={{ display: "flex", gap: "2rem", marginTop: "1rem", flexWrap: "wrap", fontSize: "0.82rem", color: "var(--text-muted)" }}>
+                      <div>Scope: <strong style={{ color: "var(--text-primary)" }}>Up to 25 same-origin pages</strong></div>
+                      <div>Max Depth: <strong style={{ color: "var(--text-primary)" }}>Level 2 internal links</strong></div>
+                      <div>Tenant Isolation: <strong style={{ color: "#10b981" }}>Protected & Isolated</strong></div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Details and Actions */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid var(--border)", paddingTop: "1rem", marginTop: "1rem", flexWrap: "wrap", gap: "1rem" }}>
@@ -754,116 +775,134 @@ export default function KnowledgeLakePage() {
                 </div>
               </div>
             ) : (
-              /* Website Authorization Form */
-              <div style={{ background: "var(--bg-surface)", border: "1px dashed var(--border)", borderRadius: 10, padding: "1.5rem" }}>
-                <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.85rem" }}>
-                  <input
-                    type="url"
-                    value={websiteUrlInput}
-                    onChange={(e) => setWebsiteUrlInput(e.target.value)}
-                    placeholder="https://yourcompany.com"
-                    disabled={authorizingWebsite}
-                    style={{
-                      flex: 1,
-                      minWidth: 280,
-                      background: "rgba(0,0,0,0.2)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 8,
-                      color: "var(--text-primary)",
-                      fontFamily: "inherit",
-                      fontSize: "0.92rem",
-                      padding: "0.7rem 1rem",
-                      outline: "none",
-                    }}
-                  />
-                  <button
-                    onClick={() => void handleAuthorizeWebsite()}
-                    disabled={authorizingWebsite || !websiteUrlInput.trim() || !permissionConfirmed}
-                    style={{
-                      padding: "0.7rem 1.4rem",
-                      borderRadius: 8,
-                      border: "none",
-                      background: "var(--accent, #8a64e9)",
-                      color: "#fff",
-                      fontFamily: "inherit",
-                      fontWeight: 700,
-                      fontSize: "0.9rem",
-                      cursor: !permissionConfirmed || !websiteUrlInput.trim() || authorizingWebsite ? "not-allowed" : "pointer",
-                      opacity: !permissionConfirmed || !websiteUrlInput.trim() || authorizingWebsite ? 0.55 : 1,
-                      transition: "all 0.18s",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {authorizingWebsite ? "Authorizing…" : "Save & Authorize Website"}
-                  </button>
-                </div>
+              /* ── Zero-Config Empty State: Direct Route to Deploy Agent ── */
+              <div
+                style={{
+                  background: "linear-gradient(135deg, rgba(26,26,42,0.95) 0%, rgba(18,18,30,0.95) 100%)",
+                  border: "1px solid rgba(138,100,233,0.25)",
+                  borderRadius: 12,
+                  padding: "2.25rem 2rem",
+                  position: "relative",
+                  overflow: "hidden",
+                }}
+              >
+                <div style={{ maxWidth: 720 }}>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "4px 12px", borderRadius: 9999, background: "rgba(138,100,233,0.15)", border: "1px solid rgba(138,100,233,0.3)", color: "var(--accent, #8a64e9)", fontSize: "0.8rem", fontWeight: 700, marginBottom: "1rem" }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981" }} />
+                    Zero-Config Automated Website Knowledge
+                  </div>
 
-                {/* Explicit Admin Confirmation Checkbox (V5 Mandatory Gate) */}
-                <label style={{ display: "flex", alignItems: "flex-start", gap: "0.6rem", fontSize: "0.86rem", color: "var(--text-primary)", cursor: "pointer", lineHeight: 1.4 }}>
-                  <input
-                    type="checkbox"
-                    checked={permissionConfirmed}
-                    onChange={(e) => setPermissionConfirmed(e.target.checked)}
-                    style={{ accentColor: "var(--accent, #8a64e9)", width: 16, height: 16, marginTop: 2 }}
-                  />
-                  <span>
-                    <strong>I confirm that I own or have permission to index this website.</strong>
-                    <span style={{ display: "block", color: "var(--text-muted)", fontSize: "0.78rem", marginTop: 2 }}>
-                      Explicit tenant confirmation is required before automatic website crawling begins.
-                    </span>
-                  </span>
-                </label>
+                  <h3 style={{ fontSize: "1.3rem", fontWeight: 800, color: "var(--text-primary)", margin: "0 0 0.5rem 0", letterSpacing: "-0.01em" }}>
+                    Connect & Crawl Your Website Automatically
+                  </h3>
+
+                  <p style={{ fontSize: "0.9rem", color: "var(--text-secondary)", lineHeight: 1.6, margin: "0 0 1.5rem 0" }}>
+                    No manual URL setup required. Once your chat widget is installed on your site, our crawler automatically detects your domain, indexes your public pages (up to 25 pages), and integrates them into your chatbot's RAG knowledge base.
+                  </p>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: "1.25rem", flexWrap: "wrap" }}>
+                    <Link
+                      href="/workspace/deploy"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.6rem",
+                        padding: "0.7rem 1.4rem",
+                        borderRadius: 8,
+                        background: "var(--accent, #8a64e9)",
+                        color: "#fff",
+                        fontWeight: 700,
+                        fontSize: "0.92rem",
+                        textDecoration: "none",
+                        boxShadow: "0 4px 14px rgba(138,100,233,0.35)",
+                        transition: "all 0.2s ease",
+                      }}
+                    >
+                      <span>🚀 Go to Deploy Agent</span>
+                      <span style={{ fontSize: "1.1rem" }}>→</span>
+                    </Link>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.83rem", color: "var(--text-muted)" }}>
+                      <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#f59e0b" }} />
+                      Waiting for first widget connection on your website...
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
 
-          {/* SECTION 2: Single Manual URL Indexing */}
-          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, padding: "1.5rem", marginBottom: "2rem" }}>
-            <div style={{ marginBottom: "1rem" }}>
-              <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: "0.25rem" }}>Index a Standalone Page</div>
-              <div style={{ fontSize: "0.83rem", color: "var(--text-muted)" }}>Paste any specific article or single landing page URL — it will be scraped and added to your chatbot knowledge.</div>
+          {/* SECTION 2: Optional Standalone Page Indexing (Collapsible) */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
+            <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--text-primary)" }}>
+              Indexed Web Pages & Knowledge Chunks
             </div>
-            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-              <input
-                type="url"
-                value={webUrlInput}
-                onChange={(e) => setWebUrlInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") void handleIndexUrl(); }}
-                placeholder="https://example.com/pricing"
-                disabled={webIndexing}
-                style={{
-                  flex: 1, minWidth: 260,
-                  background: "var(--bg-surface, #1a1a27)", border: "1px solid var(--border)",
-                  borderRadius: 8, color: "var(--text-primary)", fontFamily: "inherit",
-                  fontSize: "0.9rem", padding: "0.65rem 1rem", outline: "none",
-                  opacity: webIndexing ? 0.6 : 1,
-                }}
-              />
-              <button
-                onClick={() => void handleIndexUrl()}
-                disabled={webIndexing || !webUrlInput.trim()}
-                style={{
-                  padding: "0.65rem 1.35rem", borderRadius: 8, border: "none",
-                  background: "var(--accent, #8a64e9)", color: "#fff", fontFamily: "inherit",
-                  fontWeight: 700, fontSize: "0.9rem",
-                  cursor: webIndexing || !webUrlInput.trim() ? "not-allowed" : "pointer",
-                  opacity: webIndexing || !webUrlInput.trim() ? 0.55 : 1,
-                  transition: "opacity 0.18s",
-                }}
-              >
-                {webIndexing ? "Indexing…" : "Index Page"}
-              </button>
-            </div>
-            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.9rem", fontSize: "0.83rem", color: "var(--text-muted)", cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={forceReindex}
-                onChange={(e) => setForceReindex(e.target.checked)}
-                style={{ accentColor: "var(--accent, #8a64e9)", width: 14, height: 14 }}
-              />
-              Force re-index (replace existing chunks if this URL is already indexed)
-            </label>
+            <button
+              onClick={() => setShowManualUrl(!showManualUrl)}
+              style={{
+                background: "transparent",
+                border: "1px solid var(--border)",
+                color: "var(--text-secondary)",
+                padding: "0.4rem 0.85rem",
+                borderRadius: 6,
+                fontSize: "0.82rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                transition: "all 0.18s",
+              }}
+            >
+              {showManualUrl ? "✕ Close Single URL Indexer" : "+ Index Specific URL"}
+            </button>
           </div>
+
+          {showManualUrl && (
+            <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, padding: "1.25rem", marginBottom: "1.5rem" }}>
+              <div style={{ fontSize: "0.84rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
+                Paste any specific article or single landing page URL to scrape and add to your chatbot knowledge.
+              </div>
+              <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+                <input
+                  type="url"
+                  value={webUrlInput}
+                  onChange={(e) => setWebUrlInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") void handleIndexUrl(); }}
+                  placeholder="https://example.com/pricing"
+                  disabled={webIndexing}
+                  style={{
+                    flex: 1, minWidth: 260,
+                    background: "var(--bg-surface, #1a1a27)", border: "1px solid var(--border)",
+                    borderRadius: 8, color: "var(--text-primary)", fontFamily: "inherit",
+                    fontSize: "0.9rem", padding: "0.65rem 1rem", outline: "none",
+                    opacity: webIndexing ? 0.6 : 1,
+                  }}
+                />
+                <button
+                  onClick={() => void handleIndexUrl()}
+                  disabled={webIndexing || !webUrlInput.trim()}
+                  style={{
+                    padding: "0.65rem 1.35rem", borderRadius: 8, border: "none",
+                    background: "var(--accent, #8a64e9)", color: "#fff", fontFamily: "inherit",
+                    fontWeight: 700, fontSize: "0.9rem",
+                    cursor: webIndexing || !webUrlInput.trim() ? "not-allowed" : "pointer",
+                    opacity: webIndexing || !webUrlInput.trim() ? 0.55 : 1,
+                    transition: "opacity 0.18s",
+                  }}
+                >
+                  {webIndexing ? "Indexing…" : "Index Page"}
+                </button>
+              </div>
+              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.75rem", fontSize: "0.82rem", color: "var(--text-muted)", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={forceReindex}
+                  onChange={(e) => setForceReindex(e.target.checked)}
+                  style={{ accentColor: "var(--accent, #8a64e9)", width: 14, height: 14 }}
+                />
+                Force re-index (replace existing chunks if this URL is already indexed)
+              </label>
+            </div>
+          )}
 
           {/* Stats row */}
           {webUrls.length > 0 && (

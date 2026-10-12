@@ -20,17 +20,18 @@ class ApiError extends Error {
   }
 }
 
-// Skip the global 401 → login redirect for the auth endpoints (where 401 has
+// Skip the global 401/403 → login redirect for the auth endpoints (where 401/403 has
 // specific in-page meaning) and when we're already sitting on the login page.
-function maybeRedirectOn401(endpoint: string, status: number) {
+function maybeRedirectOnAuthError(endpoint: string, status: number, detail?: string) {
   if (
-    status === 401 &&
+    (status === 401 || (status === 403 && (detail === "tenant_suspended" || detail === "tenant_deleted"))) &&
     typeof window !== "undefined" &&
     !endpoint.startsWith("/api/auth/login") &&
     !endpoint.startsWith("/api/auth/logout") &&
+    !endpoint.startsWith("/api/auth/google") &&
     window.location.pathname !== "/"
   ) {
-    window.location.href = "/";
+    window.location.href = detail === "tenant_suspended" ? "/?error=suspended" : "/";
   }
 }
 
@@ -62,7 +63,6 @@ async function request<T = unknown>(
   const res = await fetchWithCreds(endpoint, options);
 
   if (!res.ok) {
-    maybeRedirectOn401(endpoint, res.status);
     const contentType = res.headers.get("content-type");
     let detail: string | undefined;
     let message = "Unknown error";
@@ -78,6 +78,8 @@ async function request<T = unknown>(
     } else {
       message = await res.text().catch(() => "Unknown error");
     }
+
+    maybeRedirectOnAuthError(endpoint, res.status, detail);
 
     throw new ApiError(message, res.status, detail);
   }

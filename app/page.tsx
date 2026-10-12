@@ -25,6 +25,17 @@ export default function AuthPage() {
     setError("");
   }, [mode]);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("error") === "suspended") {
+        setError("This account has been suspended.\nPlease contact support.");
+      } else if (params.get("error") === "deleted") {
+        setError("This account is no longer active.");
+      }
+    }
+  }, []);
+
   const initGoogleSignIn = () => {
     if (typeof window !== "undefined" && (window as any).google?.accounts?.id) {
       try {
@@ -40,7 +51,13 @@ export default function AuthPage() {
               } catch (err: any) {
                 setLoading(false);
                 if (err instanceof ApiError) {
-                  setError(err.detail || "Google authentication failed.");
+                  if (err.detail === "tenant_suspended") {
+                    setError("This account has been suspended.\nPlease contact support.");
+                  } else if (err.detail === "tenant_deleted") {
+                    setError("This account is no longer active.");
+                  } else {
+                    setError(err.detail || "Google authentication failed.");
+                  }
                 } else {
                   setError("Google authentication failed. Please try again.");
                 }

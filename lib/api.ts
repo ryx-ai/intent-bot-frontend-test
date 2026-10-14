@@ -29,7 +29,10 @@ function maybeRedirectOnAuthError(endpoint: string, status: number, detail?: str
     !endpoint.startsWith("/api/auth/login") &&
     !endpoint.startsWith("/api/auth/logout") &&
     !endpoint.startsWith("/api/auth/google") &&
-    window.location.pathname !== "/"
+    !endpoint.startsWith("/api/auth/forgot-password") &&
+    !endpoint.startsWith("/api/auth/reset-password") &&
+    window.location.pathname !== "/" &&
+    window.location.pathname !== "/reset-password"
   ) {
     window.location.href = detail === "tenant_suspended" ? "/?error=suspended" : "/";
   }
@@ -126,7 +129,7 @@ export const api = {
       method: "POST",
       body: formData,
     });
-    maybeRedirectOn401(endpoint, res.status);
+    maybeRedirectOnAuthError(endpoint, res.status);
     return res;
   },
 };

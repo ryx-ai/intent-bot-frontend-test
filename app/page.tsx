@@ -4,17 +4,18 @@ import { useState, useEffect, FormEvent } from "react";
 import Image from "next/image";
 import Script from "next/script";
 import { useAuth } from "@/lib/auth";
-import { ApiError } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 
 export default function AuthPage() {
   const { login, signup, googleAuth } = useAuth();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const GOOGLE_CLIENT_ID =
@@ -93,6 +94,13 @@ export default function AuthPage() {
     setLoading(true);
 
     try {
+      if (mode === "forgot") {
+        await api.post("/api/auth/forgot-password", { email });
+        setForgotSent(true);
+        setLoading(false);
+        return;
+      }
+
       if (mode === "signin") {
         await login(email, password);
       } else {
@@ -200,116 +208,227 @@ export default function AuthPage() {
                 marginBottom: 6,
               }}
             >
-              {mode === "signin" ? "Welcome back" : "Create your account"}
+              {mode === "signin"
+                ? "Welcome back"
+                : mode === "signup"
+                  ? "Create your account"
+                  : "Reset your password"}
             </h1>
             <p style={{ fontSize: 13, color: "#64748B" }}>
               {mode === "signin"
                 ? "Sign in to access your personal AI assistant"
-                : "Get started with your personal AI workspace in seconds"}
+                : mode === "signup"
+                  ? "Get started with your personal AI workspace in seconds"
+                  : "Enter your email to receive a password reset link"}
             </p>
           </div>
 
-          {/* Tab Switcher */}
-          <div
-            style={{
-              display: "flex",
-              borderRadius: 12,
-              background: "#F1F5F9",
-              padding: 4,
-              marginBottom: 28,
-              border: "1px solid #E2E8F0",
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => setMode("signin")}
-              style={{
-                flex: 1,
-                padding: "8px 0",
-                fontSize: 13,
-                fontWeight: 600,
-                borderRadius: 8,
-                border: "none",
-                cursor: "pointer",
-                transition: "all 0.2s ease",
-                background: mode === "signin" ? "#FFFFFF" : "transparent",
-                color: mode === "signin" ? "#4F46E5" : "#64748B",
-                boxShadow:
-                  mode === "signin" ? "0 2px 4px rgba(0, 0, 0, 0.06)" : "none",
-              }}
-            >
-              Sign In
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("signup")}
-              style={{
-                flex: 1,
-                padding: "8px 0",
-                fontSize: 13,
-                fontWeight: 600,
-                borderRadius: 8,
-                border: "none",
-                cursor: "pointer",
-                transition: "all 0.2s ease",
-                background: mode === "signup" ? "#FFFFFF" : "transparent",
-                color: mode === "signup" ? "#4F46E5" : "#64748B",
-                boxShadow:
-                  mode === "signup" ? "0 2px 4px rgba(0, 0, 0, 0.06)" : "none",
-              }}
-            >
-              Sign Up
-            </button>
-          </div>
+          {mode !== "forgot" && (
+            <>
+              {/* Tab Switcher */}
+              <div
+                style={{
+                  display: "flex",
+                  borderRadius: 12,
+                  background: "#F1F5F9",
+                  padding: 4,
+                  marginBottom: 28,
+                  border: "1px solid #E2E8F0",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setMode("signin")}
+                  style={{
+                    flex: 1,
+                    padding: "8px 0",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    borderRadius: 8,
+                    border: "none",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    background: mode === "signin" ? "#FFFFFF" : "transparent",
+                    color: mode === "signin" ? "#4F46E5" : "#64748B",
+                    boxShadow:
+                      mode === "signin" ? "0 2px 4px rgba(0, 0, 0, 0.06)" : "none",
+                  }}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("signup")}
+                  style={{
+                    flex: 1,
+                    padding: "8px 0",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    borderRadius: 8,
+                    border: "none",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    background: mode === "signup" ? "#FFFFFF" : "transparent",
+                    color: mode === "signup" ? "#4F46E5" : "#64748B",
+                    boxShadow:
+                      mode === "signup" ? "0 2px 4px rgba(0, 0, 0, 0.06)" : "none",
+                  }}
+                >
+                  Sign Up
+                </button>
+              </div>
 
-          {/* Google SSO Container */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              marginBottom: 20,
-            }}
-          >
-            <div
-              id="googleBtnContainer"
-              style={{
-                width: "100%",
-                maxWidth: 320,
-                display: "flex",
-                justifyContent: "center",
-              }}
-            />
-          </div>
+              {/* Google SSO Container */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  marginBottom: 20,
+                }}
+              >
+                <div
+                  id="googleBtnContainer"
+                  style={{
+                    width: "100%",
+                    maxWidth: 320,
+                    display: "flex",
+                    justifyContent: "center",
+                  }}
+                />
+              </div>
 
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              margin: "20px 0",
-              color: "#94A3B8",
-              fontSize: 12,
-            }}
-          >
-            <div style={{ flex: 1, height: 1, background: "#E2E8F0" }} />
-            <span
-              style={{
-                padding: "0 12px",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                fontWeight: 500,
-              }}
-            >
-              or continue with email
-            </span>
-            <div style={{ flex: 1, height: 1, background: "#E2E8F0" }} />
-          </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  margin: "20px 0",
+                  color: "#94A3B8",
+                  fontSize: 12,
+                }}
+              >
+                <div style={{ flex: 1, height: 1, background: "#E2E8F0" }} />
+                <span
+                  style={{
+                    padding: "0 12px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    fontWeight: 500,
+                  }}
+                >
+                  or continue with email
+                </span>
+                <div style={{ flex: 1, height: 1, background: "#E2E8F0" }} />
+              </div>
+            </>
+          )}
 
-          {/* Auth Form */}
-          <form onSubmit={handleSubmit}>
-            {mode === "signup" && (
+          {mode === "forgot" && forgotSent ? (
+            <div style={{ textAlign: "center", padding: "10px 0" }}>
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: "50%",
+                  background: "#ECFDF5",
+                  color: "#10B981",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 26,
+                  margin: "0 auto 18px auto",
+                  border: "1px solid #A7F3D0",
+                }}
+              >
+                ✓
+              </div>
+              <h3
+                style={{
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: "#0F172A",
+                  marginBottom: 8,
+                }}
+              >
+                Check your email
+              </h3>
+              <p
+                style={{
+                  fontSize: 13,
+                  color: "#64748B",
+                  lineHeight: 1.6,
+                  marginBottom: 24,
+                }}
+              >
+                If an account exists for{" "}
+                <strong style={{ color: "#0F172A" }}>{email}</strong>, we have
+                sent a link to reset your password. Please check your inbox and
+                spam folder.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("signin");
+                  setForgotSent(false);
+                  setError("");
+                }}
+                style={{
+                  width: "100%",
+                  borderRadius: 10,
+                  padding: "12px 0",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "#4F46E5",
+                  background: "#EEF2FF",
+                  border: "1px solid #C7D2FE",
+                  cursor: "pointer",
+                }}
+              >
+                ← Back to Sign In
+              </button>
+            </div>
+          ) : (
+            /* Auth Form */
+            <form onSubmit={handleSubmit}>
+              {mode === "signup" && (
+                <div style={{ marginBottom: 18 }}>
+                  <label
+                    htmlFor="fullName"
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "#334155",
+                      marginBottom: 6,
+                    }}
+                  >
+                    Full Name
+                  </label>
+                  <input
+                    id="fullName"
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="John Doe"
+                    required
+                    autoComplete="name"
+                    style={{
+                      width: "100%",
+                      borderRadius: 10,
+                      border: "1px solid #CBD5E1",
+                      padding: "12px 14px",
+                      fontSize: 14,
+                      color: "#0F172A",
+                      background: "#F8FAFC",
+                      outline: "none",
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Email Field */}
               <div style={{ marginBottom: 18 }}>
                 <label
-                  htmlFor="fullName"
+                  htmlFor="email"
                   style={{
                     display: "block",
                     fontSize: 12,
@@ -318,16 +437,16 @@ export default function AuthPage() {
                     marginBottom: 6,
                   }}
                 >
-                  Full Name
+                  Email Address
                 </label>
                 <input
-                  id="fullName"
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="John Doe"
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
                   required
-                  autoComplete="name"
+                  autoComplete="email"
                   style={{
                     width: "100%",
                     borderRadius: 10,
@@ -340,104 +459,99 @@ export default function AuthPage() {
                   }}
                 />
               </div>
-            )}
 
-            {/* Email Field */}
-            <div style={{ marginBottom: 18 }}>
-              <label
-                htmlFor="email"
-                style={{
-                  display: "block",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: "#334155",
-                  marginBottom: 6,
-                }}
-              >
-                Email Address
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                autoComplete="email"
-                style={{
-                  width: "100%",
-                  borderRadius: 10,
-                  border: "1px solid #CBD5E1",
-                  padding: "12px 14px",
-                  fontSize: 14,
-                  color: "#0F172A",
-                  background: "#F8FAFC",
-                  outline: "none",
-                }}
-              />
-            </div>
-
-            {/* Password Field */}
-            <div style={{ marginBottom: 22 }}>
-              <label
-                htmlFor="password"
-                style={{
-                  display: "block",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: "#334155",
-                  marginBottom: 6,
-                }}
-              >
-                Password
-              </label>
-              <div style={{ position: "relative" }}>
-                <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  minLength={6}
-                  autoComplete={
-                    mode === "signin" ? "current-password" : "new-password"
-                  }
-                  style={{
-                    width: "100%",
-                    borderRadius: 10,
-                    border: "1px solid #CBD5E1",
-                    padding: "12px 14px",
-                    fontSize: 14,
-                    color: "#0F172A",
-                    background: "#F8FAFC",
-                    outline: "none",
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{
-                    position: "absolute",
-                    right: 12,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    background: "none",
-                    border: "none",
-                    color: "#64748B",
-                    cursor: "pointer",
-                    padding: "4px",
-                    fontSize: 16,
-                  }}
-                >
-                  {showPassword ? "👁️" : "👁️‍🗨️"}
-                </button>
-              </div>
+              {/* Password Field (Only for signin/signup) */}
+              {mode !== "forgot" && (
+                <div style={{ marginBottom: 22 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 6,
+                    }}
+                  >
+                    <label
+                      htmlFor="password"
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: "#334155",
+                      }}
+                    >
+                      Password
+                    </label>
+                    {mode === "signin" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode("forgot");
+                          setError("");
+                          setForgotSent(false);
+                        }}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#4F46E5",
+                          fontSize: 12,
+                          fontWeight: 500,
+                          cursor: "pointer",
+                          padding: 0,
+                        }}
+                      >
+                        Forgot password?
+                      </button>
+                    )}
+                  </div>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      required
+                      minLength={6}
+                      autoComplete={
+                        mode === "signin" ? "current-password" : "new-password"
+                      }
+                      style={{
+                        width: "100%",
+                        borderRadius: 10,
+                        border: "1px solid #CBD5E1",
+                        padding: "12px 14px",
+                        fontSize: 14,
+                        color: "#0F172A",
+                        background: "#F8FAFC",
+                        outline: "none",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{
+                        position: "absolute",
+                        right: 12,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        background: "none",
+                        border: "none",
+                        color: "#64748B",
+                        cursor: "pointer",
+                        padding: "4px",
+                        fontSize: 16,
+                      }}
+                    >
+                      {showPassword ? "👁️" : "👁️‍🗨️"}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {error && (
                 <p
                   style={{
-                    marginTop: 10,
+                    marginBottom: 16,
                     fontSize: 12,
                     color: "#DC2626",
                     background: "#FEF2F2",
@@ -449,40 +563,67 @@ export default function AuthPage() {
                   {error}
                 </p>
               )}
-            </div>
 
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                width: "100%",
-                borderRadius: 10,
-                padding: "14px 0",
-                fontSize: 14,
-                fontWeight: 600,
-                color: "#ffffff",
-                background: success
-                  ? "#10B981"
-                  : "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)",
-                border: "none",
-                cursor: loading ? "not-allowed" : "pointer",
-                opacity: loading ? 0.7 : 1,
-                boxShadow: "0 4px 14px rgba(79, 70, 229, 0.3)",
-                transition: "all 0.2s ease",
-              }}
-            >
-              {success
-                ? "Redirecting..."
-                : loading
-                  ? mode === "signin"
-                    ? "Signing in..."
-                    : "Creating account..."
-                  : mode === "signin"
-                    ? "Sign In"
-                    : "Create Account"}
-            </button>
-          </form>
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  borderRadius: 10,
+                  padding: "14px 0",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "#ffffff",
+                  background: success
+                    ? "#10B981"
+                    : "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)",
+                  border: "none",
+                  cursor: loading ? "not-allowed" : "pointer",
+                  opacity: loading ? 0.7 : 1,
+                  boxShadow: "0 4px 14px rgba(79, 70, 229, 0.3)",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                {success
+                  ? "Redirecting..."
+                  : loading
+                    ? mode === "signin"
+                      ? "Signing in..."
+                      : mode === "signup"
+                        ? "Creating account..."
+                        : "Sending reset link..."
+                    : mode === "signin"
+                      ? "Sign In"
+                      : mode === "signup"
+                        ? "Create Account"
+                        : "Send Reset Link"}
+              </button>
+
+              {/* Back to Sign In button for forgot mode */}
+              {mode === "forgot" && (
+                <div style={{ textAlign: "center", marginTop: 18 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("signin");
+                      setError("");
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#64748B",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      cursor: "pointer",
+                    }}
+                  >
+                    ← Back to Sign In
+                  </button>
+                </div>
+              )}
+            </form>
+          )}
         </div>
       </div>
     </>

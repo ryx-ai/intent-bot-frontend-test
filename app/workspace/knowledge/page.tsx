@@ -517,14 +517,14 @@ export default function KnowledgeLakePage() {
   const tabStyle = (active: boolean): React.CSSProperties => ({
     display: "inline-flex",
     alignItems: "center",
-    gap: "0.4rem",
-    padding: "0.55rem 1.1rem",
+    gap: "0.5rem",
+    padding: "0.6rem 1.15rem",
     borderRadius: 8,
     fontWeight: 600,
     fontSize: "0.88rem",
     cursor: "pointer",
-    border: active ? "1px solid rgba(138,100,233,0.4)" : "1px solid transparent",
-    background: active ? "rgba(138,100,233,0.15)" : "transparent",
+    border: active ? "1px solid var(--accent)" : "1px solid transparent",
+    background: active ? "var(--accent-dim)" : "transparent",
     color: active ? "var(--accent)" : "var(--text-muted)",
     transition: "all 0.18s ease",
     fontFamily: "inherit",
@@ -562,6 +562,7 @@ export default function KnowledgeLakePage() {
               border: isExpired ? "1px solid rgba(239, 68, 68, 0.4)" : "1px solid var(--border)",
               borderRadius: 10,
               padding: "0.75rem 1.25rem",
+              boxShadow: "var(--shadow-sm)",
             }}
           >
             <div>
@@ -617,11 +618,11 @@ export default function KnowledgeLakePage() {
       <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.75rem", borderBottom: "1px solid var(--border)", paddingBottom: "1rem" }}>
         <button style={tabStyle(activeTab === "documents")} onClick={() => setActiveTab("documents")}>
           📄 Documents
-          <span style={{ marginLeft: 4, padding: "1px 8px", borderRadius: 9999, background: activeTab === "documents" ? "rgba(138,100,233,0.25)" : "rgba(255,255,255,0.06)", color: activeTab === "documents" ? "var(--accent)" : "var(--text-muted)", fontSize: "0.75rem", fontWeight: 700 }}>{files.length}</span>
+          <span style={{ marginLeft: 6, padding: "2px 8px", borderRadius: 9999, background: activeTab === "documents" ? "var(--accent-light, rgba(79,70,229,0.15))" : "var(--bg-hover, #e2e8f0)", color: activeTab === "documents" ? "var(--accent)" : "var(--text-muted)", fontSize: "0.75rem", fontWeight: 700 }}>{files.length}</span>
         </button>
         <button style={tabStyle(activeTab === "web")} onClick={() => setActiveTab("web")}>
           🌐 Website & Web URLs
-          <span style={{ marginLeft: 4, padding: "1px 8px", borderRadius: 9999, background: activeTab === "web" ? "rgba(138,100,233,0.25)" : "rgba(255,255,255,0.06)", color: activeTab === "web" ? "var(--accent)" : "var(--text-muted)", fontSize: "0.75rem", fontWeight: 700 }}>
+          <span style={{ marginLeft: 6, padding: "2px 8px", borderRadius: 9999, background: activeTab === "web" ? "var(--accent-light, rgba(79,70,229,0.15))" : "var(--bg-hover, #e2e8f0)", color: activeTab === "web" ? "var(--accent)" : "var(--text-muted)", fontSize: "0.75rem", fontWeight: 700 }}>
             {totalWebCount}
           </span>
         </button>
@@ -631,13 +632,21 @@ export default function KnowledgeLakePage() {
       {activeTab === "web" && (
         <div>
           {/* SECTION 1: Automated Workspace Website (Zero-Config or Live Ingestion Radar) */}
-          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, padding: "1.75rem", marginBottom: "2rem" }}>
+          <div style={{ marginBottom: "2rem" }}>
             {primaryWebsite ? (
               /* ── Website Connected: Live Radar or Ready Status ── */
-              <div style={{ background: "var(--bg-surface)", border: primaryWebsite.indexing_status === "indexing" ? "1px solid rgba(138,100,233,0.5)" : "1px solid var(--border)", borderRadius: 10, padding: "1.5rem" }}>
+              <div
+                style={{
+                  background: "var(--bg-card)",
+                  border: primaryWebsite.indexing_status === "indexing" ? "1px solid rgba(99,102,241,0.5)" : "1px solid var(--border)",
+                  borderRadius: 14,
+                  padding: "1.75rem",
+                  boxShadow: "var(--shadow-sm)",
+                }}
+              >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem", marginBottom: "1rem" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
-                    <div style={{ width: 44, height: 44, borderRadius: 10, background: primaryWebsite.indexing_status === "indexing" ? "rgba(138,100,233,0.25)" : "rgba(138,100,233,0.15)", border: "1px solid rgba(138,100,233,0.35)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.4rem" }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 10, background: primaryWebsite.indexing_status === "indexing" ? "var(--accent-light)" : "var(--accent-dim)", border: "1px solid rgba(99,102,241,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.4rem" }}>
                       🌐
                     </div>
                     <div>
@@ -645,7 +654,7 @@ export default function KnowledgeLakePage() {
                         <a href={primaryWebsite.root_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)", textDecoration: "none" }}>
                           {primaryWebsite.domain}
                         </a>
-                        <span style={{ fontSize: "0.75rem", padding: "2px 8px", borderRadius: 9999, background: "rgba(138,100,233,0.2)", color: "var(--accent, #8a64e9)", fontWeight: 700 }}>
+                        <span style={{ fontSize: "0.75rem", padding: "2px 8px", borderRadius: 9999, background: "var(--accent-dim)", color: "var(--accent)", fontWeight: 700 }}>
                           ⚡ Primary
                         </span>
                         <span style={{ fontSize: "0.72rem", padding: "2px 8px", borderRadius: 9999, background: "rgba(16,185,129,0.15)", color: "#10b981", fontWeight: 600 }}>
@@ -667,7 +676,7 @@ export default function KnowledgeLakePage() {
                       </span>
                     )}
                     {primaryWebsite.indexing_status === "indexing" && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "5px 14px", borderRadius: 9999, background: "rgba(138,100,233,0.2)", border: "1px solid rgba(138,100,233,0.45)", color: "var(--accent, #8a64e9)", fontSize: "0.85rem", fontWeight: 700 }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "5px 14px", borderRadius: 9999, background: "var(--accent-dim)", border: "1px solid rgba(99,102,241,0.45)", color: "var(--accent)", fontSize: "0.85rem", fontWeight: 700 }}>
                         <span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>🔄</span>
                         Crawling & Indexing Pages...
                       </span>
@@ -678,7 +687,7 @@ export default function KnowledgeLakePage() {
                       </span>
                     )}
                     {primaryWebsite.indexing_status === "unindexed" && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 14px", borderRadius: 9999, background: "rgba(255,255,255,0.06)", border: "1px solid var(--border)", color: "var(--text-secondary)", fontSize: "0.85rem", fontWeight: 600 }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 14px", borderRadius: 9999, background: "var(--bg-hover)", border: "1px solid var(--border)", color: "var(--text-secondary)", fontSize: "0.85rem", fontWeight: 600 }}>
                         ℹ️ Ready for Crawl
                       </span>
                     )}
@@ -697,19 +706,19 @@ export default function KnowledgeLakePage() {
 
                 {/* Live Crawling Radar Visualization (when indexing or queued) */}
                 {(primaryWebsite.indexing_status === "indexing" || primaryWebsite.indexing_status === "queued") && (
-                  <div style={{ margin: "1.25rem 0", padding: "1.25rem", borderRadius: 8, background: "rgba(138,100,233,0.08)", border: "1px dashed rgba(138,100,233,0.3)" }}>
+                  <div style={{ margin: "1.25rem 0", padding: "1.25rem", borderRadius: 8, background: "var(--accent-dim)", border: "1px dashed rgba(99,102,241,0.35)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.6rem" }}>
                       <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981", animation: "pulse 1.5s infinite" }} />
                         Live Crawler Active: Scraping pages, removing noise & generating vector embeddings
                       </div>
-                      <div style={{ fontSize: "0.8rem", color: "var(--accent, #8a64e9)", fontWeight: 700 }}>
+                      <div style={{ fontSize: "0.8rem", color: "var(--accent)", fontWeight: 700 }}>
                         Auto-refreshing live...
                       </div>
                     </div>
                     {/* Pulsing Progress Bar */}
-                    <div style={{ height: 6, background: "rgba(255,255,255,0.06)", borderRadius: 9999, overflow: "hidden", position: "relative" }}>
-                      <div style={{ height: "100%", width: "70%", background: "linear-gradient(90deg, #8a64e9, #10b981)", borderRadius: 9999, animation: "pulse 1.8s infinite" }} />
+                    <div style={{ height: 6, background: "var(--bg-hover)", borderRadius: 9999, overflow: "hidden", position: "relative" }}>
+                      <div style={{ height: "100%", width: "70%", background: "linear-gradient(90deg, var(--accent), #10b981)", borderRadius: 9999, animation: "pulse 1.8s infinite" }} />
                     </div>
                     <div style={{ display: "flex", gap: "2rem", marginTop: "1rem", flexWrap: "wrap", fontSize: "0.82rem", color: "var(--text-muted)" }}>
                       <div>Scope: <strong style={{ color: "var(--text-primary)" }}>Up to 25 same-origin pages</strong></div>
@@ -738,9 +747,9 @@ export default function KnowledgeLakePage() {
                       onClick={() => void handleReindexWebsite(primaryWebsite.id)}
                       disabled={primaryWebsite.indexing_status === "indexing" || primaryWebsite.indexing_status === "queued" || reindexingWebsiteId === primaryWebsite.id}
                       style={{
-                        background: "rgba(138,100,233,0.12)",
-                        border: "1px solid rgba(138,100,233,0.3)",
-                        color: "var(--accent, #8a64e9)",
+                        background: "var(--accent-dim)",
+                        border: "1px solid rgba(99,102,241,0.3)",
+                        color: "var(--accent)",
                         padding: "0.45rem 0.9rem",
                         borderRadius: 6,
                         cursor: primaryWebsite.indexing_status === "indexing" ? "not-allowed" : "pointer",
@@ -775,28 +784,78 @@ export default function KnowledgeLakePage() {
                 </div>
               </div>
             ) : (
-              /* ── Zero-Config Empty State: Direct Route to Deploy Agent ── */
+              /* ── Zero-Config Empty State: Premium Theme-Adaptive Hero Card ── */
               <div
                 style={{
-                  background: "linear-gradient(135deg, rgba(26,26,42,0.95) 0%, rgba(18,18,30,0.95) 100%)",
-                  border: "1px solid rgba(138,100,233,0.25)",
-                  borderRadius: 12,
-                  padding: "2.25rem 2rem",
+                  background: "linear-gradient(135deg, var(--bg-card) 0%, var(--accent-dim) 100%)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 14,
+                  padding: "2.25rem 2.25rem",
                   position: "relative",
                   overflow: "hidden",
+                  boxShadow: "var(--shadow-sm)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "2.5rem",
+                  flexWrap: "wrap",
                 }}
               >
-                <div style={{ maxWidth: 720 }}>
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "4px 12px", borderRadius: 9999, background: "rgba(138,100,233,0.15)", border: "1px solid rgba(138,100,233,0.3)", color: "var(--accent, #8a64e9)", fontSize: "0.8rem", fontWeight: 700, marginBottom: "1rem" }}>
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981" }} />
+                {/* Ambient glow decoration */}
+                <div
+                  style={{
+                    position: "absolute",
+                    top: -50,
+                    right: -50,
+                    width: 200,
+                    height: 200,
+                    borderRadius: "50%",
+                    background: "radial-gradient(circle, var(--accent-glow) 0%, transparent 70%)",
+                    pointerEvents: "none",
+                  }}
+                />
+
+                <div style={{ maxWidth: 660, flex: "1 1 400px", position: "relative", zIndex: 1 }}>
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "5px 12px",
+                      borderRadius: 9999,
+                      background: "var(--accent-light, rgba(79, 70, 229, 0.12))",
+                      border: "1px solid rgba(79, 70, 229, 0.25)",
+                      color: "var(--accent, #4f46e5)",
+                      fontSize: "0.8rem",
+                      fontWeight: 700,
+                      marginBottom: "1rem",
+                    }}
+                  >
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981", boxShadow: "0 0 6px rgba(16, 185, 129, 0.6)" }} />
                     Zero-Config Automated Website Knowledge
                   </div>
 
-                  <h3 style={{ fontSize: "1.3rem", fontWeight: 800, color: "var(--text-primary)", margin: "0 0 0.5rem 0", letterSpacing: "-0.01em" }}>
+                  <h3
+                    style={{
+                      fontSize: "1.4rem",
+                      fontWeight: 800,
+                      color: "var(--text-primary)",
+                      margin: "0 0 0.6rem 0",
+                      letterSpacing: "-0.015em",
+                      lineHeight: 1.3,
+                    }}
+                  >
                     Connect & Crawl Your Website Automatically
                   </h3>
 
-                  <p style={{ fontSize: "0.9rem", color: "var(--text-secondary)", lineHeight: 1.6, margin: "0 0 1.5rem 0" }}>
+                  <p
+                    style={{
+                      fontSize: "0.92rem",
+                      color: "var(--text-secondary)",
+                      lineHeight: 1.65,
+                      margin: "0 0 1.5rem 0",
+                    }}
+                  >
                     No manual URL setup required. Once your chat widget is installed on your site, our crawler automatically detects your domain, indexes your public pages (up to 25 pages), and integrates them into your chatbot's RAG knowledge base.
                   </p>
 
@@ -807,14 +866,14 @@ export default function KnowledgeLakePage() {
                         display: "inline-flex",
                         alignItems: "center",
                         gap: "0.6rem",
-                        padding: "0.7rem 1.4rem",
+                        padding: "0.72rem 1.4rem",
                         borderRadius: 8,
-                        background: "var(--accent, #8a64e9)",
+                        background: "linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%)",
                         color: "#fff",
                         fontWeight: 700,
                         fontSize: "0.92rem",
                         textDecoration: "none",
-                        boxShadow: "0 4px 14px rgba(138,100,233,0.35)",
+                        boxShadow: "0 4px 14px var(--accent-glow)",
                         transition: "all 0.2s ease",
                       }}
                     >
@@ -822,9 +881,65 @@ export default function KnowledgeLakePage() {
                       <span style={{ fontSize: "1.1rem" }}>→</span>
                     </Link>
 
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.83rem", color: "var(--text-muted)" }}>
-                      <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#f59e0b" }} />
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                        fontSize: "0.83rem",
+                        color: "var(--text-secondary)",
+                        padding: "0.45rem 0.9rem",
+                        borderRadius: 6,
+                        background: "var(--bg-surface)",
+                        border: "1px solid var(--border)",
+                      }}
+                    >
+                      <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: "#f59e0b", boxShadow: "0 0 6px rgba(245, 158, 11, 0.45)" }} />
                       Waiting for first widget connection on your website...
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column: 3-step auto-ingestion flow preview */}
+                <div
+                  style={{
+                    background: "var(--bg-surface)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 12,
+                    padding: "1.25rem 1.4rem",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.9rem",
+                    minWidth: 260,
+                    maxWidth: 320,
+                    flex: "0 1 320px",
+                    boxShadow: "var(--shadow-sm)",
+                    position: "relative",
+                    zIndex: 1,
+                  }}
+                >
+                  <div style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--text-muted)" }}>
+                    How Auto-Ingestion Works
+                  </div>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                    <div style={{ width: 22, height: 22, borderRadius: 6, background: "var(--accent-dim)", color: "var(--accent)", fontSize: "0.75rem", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>1</div>
+                    <div>
+                      <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "var(--text-primary)" }}>Embed Widget Script</div>
+                      <div style={{ fontSize: "0.76rem", color: "var(--text-muted)", marginTop: 2 }}>Add one line to your website header</div>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                    <div style={{ width: 22, height: 22, borderRadius: 6, background: "var(--accent-dim)", color: "var(--accent)", fontSize: "0.75rem", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>2</div>
+                    <div>
+                      <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "var(--text-primary)" }}>Origin Auto-Discovery</div>
+                      <div style={{ fontSize: "0.76rem", color: "var(--text-muted)", marginTop: 2 }}>Crawler detects & verifies domain</div>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                    <div style={{ width: 22, height: 22, borderRadius: 6, background: "rgba(16,185,129,0.12)", color: "#10b981", fontSize: "0.75rem", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>3</div>
+                    <div>
+                      <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "var(--text-primary)" }}>Instant RAG Chunks</div>
+                      <div style={{ fontSize: "0.76rem", color: "var(--text-muted)", marginTop: 2 }}>Public pages scraped & vector indexed</div>
                     </div>
                   </div>
                 </div>
@@ -833,23 +948,40 @@ export default function KnowledgeLakePage() {
           </div>
 
           {/* SECTION 2: Optional Standalone Page Indexing (Collapsible) */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
-            <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--text-primary)" }}>
-              Indexed Web Pages & Knowledge Chunks
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem", flexWrap: "wrap", gap: "0.75rem" }}>
+            <div>
+              <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "var(--text-primary)" }}>
+                Indexed Web Pages & Knowledge Chunks
+              </div>
+              <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", marginTop: 2 }}>
+                Specific URLs and scraped pages powering your chatbot's vector responses
+              </div>
             </div>
             <button
               onClick={() => setShowManualUrl(!showManualUrl)}
               style={{
-                background: "transparent",
+                background: showManualUrl ? "var(--bg-hover)" : "var(--bg-card)",
                 border: "1px solid var(--border)",
-                color: "var(--text-secondary)",
-                padding: "0.4rem 0.85rem",
-                borderRadius: 6,
-                fontSize: "0.82rem",
+                color: "var(--text-primary)",
+                padding: "0.45rem 0.95rem",
+                borderRadius: 8,
+                fontSize: "0.84rem",
                 fontWeight: 600,
                 cursor: "pointer",
                 fontFamily: "inherit",
-                transition: "all 0.18s",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                transition: "all 0.18s ease",
+                boxShadow: "var(--shadow-sm)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "var(--accent)";
+                e.currentTarget.style.color = "var(--accent)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "var(--border)";
+                e.currentTarget.style.color = "var(--text-primary)";
               }}
             >
               {showManualUrl ? "✕ Close Single URL Indexer" : "+ Index Specific URL"}
@@ -921,12 +1053,12 @@ export default function KnowledgeLakePage() {
           )}
 
           {/* URLs table */}
-          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
               <thead>
                 <tr>
                   {(["Indexed Page URL", "Chunks", "Indexed On", ""] as const).map((h) => (
-                    <th key={h} style={{ background: "var(--bg-surface)", color: "var(--text-secondary)", fontWeight: 600, fontSize: "0.78rem", padding: "0.9rem 1.25rem", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid var(--border)", textAlign: h === "" ? "right" : "left" }}>{h}</th>
+                    <th key={h} style={{ background: "var(--bg)", color: "var(--text-secondary)", fontWeight: 700, fontSize: "0.78rem", padding: "0.95rem 1.25rem", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid var(--border)", textAlign: h === "" ? "right" : "left" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -934,17 +1066,26 @@ export default function KnowledgeLakePage() {
                 {webLoading ? (
                   <tr><td colSpan={4} style={{ textAlign: "center", padding: "2.5rem", color: "var(--text-secondary)" }}>Loading indexed pages…</td></tr>
                 ) : webUrls.length === 0 ? (
-                  <tr><td colSpan={4} style={{ textAlign: "center", padding: "3rem", color: "var(--text-muted)" }}>
-                    <div style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>🌐</div>
-                    No standalone pages indexed yet.
-                  </td></tr>
+                  <tr>
+                    <td colSpan={4} style={{ textAlign: "center", padding: "3.5rem 1.5rem" }}>
+                      <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--bg-hover)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 0.75rem auto", fontSize: "1.4rem" }}>
+                        🌐
+                      </div>
+                      <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: "0.3rem" }}>
+                        No standalone pages indexed yet
+                      </div>
+                      <div style={{ fontSize: "0.83rem", color: "var(--text-muted)", maxWidth: 420, margin: "0 auto" }}>
+                        Individual URLs you manually crawl will appear here. Or connect your website above for zero-config automated indexing.
+                      </div>
+                    </td>
+                  </tr>
                 ) : (
                   webUrls.map((u) => {
                     const isDeleting = deletingUrl === u.url;
                     const dt = u.indexed_at ? new Date(u.indexed_at).toLocaleString() : "Unknown";
                     return (
                       <tr key={u.url} style={{ borderBottom: "1px solid var(--border)", transition: "background 0.15s" }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
                         onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
                         <td style={{ padding: "0.9rem 1.25rem", maxWidth: 400 }}>
                           <a href={u.url} target="_blank" rel="noopener noreferrer"

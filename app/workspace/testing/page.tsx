@@ -882,7 +882,20 @@ export default function TestingPage() {
               marginBottom: "1rem",
             }}
           >
-            This is the public URL of your Cal.com event (No API keys required).
+            This is the public URL of your{" "}
+            <a
+              href="https://app.cal.com/event-types"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: C.accent,
+                textDecoration: "underline",
+                textUnderlineOffset: 2,
+              }}
+            >
+              Cal.com event ↗
+            </a>{" "}
+            (No API keys required).
           </p>
         )}
 

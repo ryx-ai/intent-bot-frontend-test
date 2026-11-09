@@ -164,7 +164,9 @@ export default function PlansAdminPage() {
   return (
     <div
       style={{
+        width: "100%",
         padding: "2rem",
+        boxSizing: "border-box",
         maxWidth: 1400,
         margin: "0 auto",
         display: "flex",
@@ -280,7 +282,7 @@ export default function PlansAdminPage() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 380px))",
             gap: "1.5rem",
           }}
         >

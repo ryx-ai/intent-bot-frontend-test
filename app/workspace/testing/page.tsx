@@ -482,7 +482,9 @@ export default function TestingPage() {
   return (
     <div
       style={{
+        width: "100%",
         maxWidth: 1400,
+        boxSizing: "border-box",
         margin: "0 auto",
         padding: "2rem",
         backgroundColor: C.bg,

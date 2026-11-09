@@ -547,7 +547,7 @@ export default function AuditDetailPage() {
   }
 
   return (
-    <div style={{ maxWidth: 1400, margin: "0 auto", padding: "2rem" }}>
+    <div style={{ width: "100%", maxWidth: 1400, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
       {/* ── Top Navigation Bar ── */}
       <div style={{ marginBottom: "1.5rem" }}>
         <Link

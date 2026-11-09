@@ -537,7 +537,7 @@ export default function KnowledgeLakePage() {
   const totalWebCount = (websites.length > 0 ? totalWebsitePages : 0) + webUrls.length;
 
   return (
-    <div style={{ maxWidth: 1400, margin: "0 auto", padding: "2rem" }}>
+    <div style={{ width: "100%", maxWidth: 1400, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
       {/* Header */}
       <header style={{ marginBottom: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem" }}>
         <div>

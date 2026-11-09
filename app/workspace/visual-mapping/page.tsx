@@ -123,7 +123,7 @@ export default function VisualMappingPage() {
   }
 
   return (
-    <div style={{ maxWidth: 1400, margin: "0 auto", padding: "2rem" }}>
+    <div style={{ width: "100%", maxWidth: 1400, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
       {/* Header */}
       <header style={{ marginBottom: "2rem", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>

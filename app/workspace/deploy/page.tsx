@@ -125,7 +125,7 @@ export default function DeployPage() {
   }
 
   return (
-    <div style={{ maxWidth: 1400, margin: "0 auto", padding: "2rem" }}>
+    <div style={{ width: "100%", maxWidth: 1400, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
       {/* Expired Subscription Warning */}
       {isSubActive === false && (
         <div

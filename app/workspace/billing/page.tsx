@@ -203,7 +203,7 @@ export default function BillingPage() {
 
   if (loading && !subStatus) {
     return (
-      <div style={{ maxWidth: 1400, margin: "0 auto", padding: "2rem" }}>
+      <div style={{ width: "100%", maxWidth: 1400, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
         <p style={{ color: "var(--text-secondary)" }}>Loading billing & subscription details...</p>
       </div>
     );
@@ -217,7 +217,7 @@ export default function BillingPage() {
     <>
       <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
 
-      <div style={{ maxWidth: 1400, margin: "0 auto", padding: "2rem" }}>
+      <div style={{ width: "100%", maxWidth: 1400, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
         <header style={{ marginBottom: "2rem" }}>
           <h1 style={{ margin: "0 0 0.25rem 0", fontSize: "1.5rem", fontWeight: 800, color: "var(--text-primary)" }}>
             Billing & Subscription
@@ -391,7 +391,7 @@ export default function BillingPage() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 380px))",
             gap: "1.5rem",
             alignItems: "stretch",
           }}

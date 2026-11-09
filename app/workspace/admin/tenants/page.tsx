@@ -272,7 +272,9 @@ export default function TenantsAdminPage() {
   return (
     <div
       style={{
+        width: "100%",
         padding: "2rem",
+        boxSizing: "border-box",
         maxWidth: 1400,
         margin: "0 auto",
         display: "flex",

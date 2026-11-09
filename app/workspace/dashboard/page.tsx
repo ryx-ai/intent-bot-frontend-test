@@ -7,230 +7,243 @@ import { api } from "@/lib/api";
 const ANALYTICS_LIMIT = 500;
 
 /* ── Types ─────────────────────────────────────────────────── */
-interface MetricConfig {
+export interface MetricConfig {
   id: string;
   name: string;
   description: string;
   display_on_dashboard: boolean;
 }
 
-interface AnalyticsRow {
+export interface AnalyticsRow {
   timestamp: string;
   session_id: string;
   user_message: string;
-  [key: string]: string | undefined;
+  assistant_message?: string | null;
+  conversion_outcome?: string;
+  lead_stage?: string;
+  use_case?: string;
+  lead_score?: string;
+  customer_budget?: string;
+  [key: string]: string | undefined | null;
 }
 
-interface Session {
+export interface Session {
   id: string;
-  messages: AnalyticsRow[];
   latestTime: Date;
   firstMessage: string;
+  latestMessage: string;
+  messageCount: number;
   finalValues: Record<string, string>;
 }
 
-interface Plan {
-  id: number;
-  slug: string;
-  name: string;
-  price_inr: number;
+export interface TranscriptMessage {
+  id: string;
+  role: "visitor" | "assistant";
+  content: string;
+  timestamp: string;
 }
 
-interface SubscriptionStatus {
-  subscription_status: "trial" | "active" | "expired" | "canceled" | string;
-  is_active: boolean;
-  plan: Plan | null;
-  trial_ends_at?: string;
-  subscription_ends_at?: string;
-  days_remaining: number;
-  message: string;
+export interface SessionTranscript {
+  session_id: string;
+  messages: TranscriptMessage[];
+  message_count: number;
+  first_message: string;
+  latest_timestamp: string;
+  details: {
+    lead_stage?: string;
+    use_case?: string;
+    customer_budget?: string;
+    lead_score?: string;
+    conversion_outcome?: string;
+    [key: string]: string | undefined;
+  };
 }
+
+export type FilterType = "all" | "leads" | "chat";
 
 /* ── Date parser helper ────────────────────────────────────── */
-function parseUtcDate(timestamp: string): Date {
+export function parseUtcDate(timestamp: string): Date {
   if (!timestamp) return new Date();
-  const normalized = timestamp.endsWith("Z") || timestamp.includes("+")
-    ? timestamp
-    : `${timestamp}Z`;
+  const normalized =
+    timestamp.endsWith("Z") || timestamp.includes("+")
+      ? timestamp
+      : `${timestamp}Z`;
   return new Date(normalized);
 }
 
-/* ── Badge color helper ────────────────────────────────────── */
-function getBadgeStyle(metricId: string, val: string): React.CSSProperties {
+/* ── Formatting Helpers ────────────────────────────────────── */
+export function formatRelativeTime(date: Date): string {
+  const now = new Date();
+  const isToday =
+    date.getDate() === now.getDate() &&
+    date.getMonth() === now.getMonth() &&
+    date.getFullYear() === now.getFullYear();
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday =
+    date.getDate() === yesterday.getDate() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getFullYear() === yesterday.getFullYear();
+
+  const timeStr = date.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+  if (isToday) return `Today, ${timeStr}`;
+  if (isYesterday) return `Yesterday, ${timeStr}`;
+
+  const dateStr = date.toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short",
+  });
+  return `${dateStr}, ${timeStr}`;
+}
+
+export function formatTimeOnly(timestamp: string): string {
+  const d = parseUtcDate(timestamp);
+  return d.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+export function isLeadOrBooking(outcome?: string | null): boolean {
+  if (!outcome) return false;
+  const clean = outcome.toLowerCase().replace(/[\s_-]+/g, "");
+  return clean === "bookeddemo" || clean === "leadcaptured";
+}
+
+export function getPlainResultLabel(outcome?: string | null): string {
+  if (!outcome) return "Just chatted";
+  const clean = outcome.toLowerCase().replace(/[\s_-]+/g, "");
+  if (clean === "bookeddemo") return "Booked a demo";
+  if (clean === "leadcaptured") return "Left contact details";
+  if (clean === "justchat" || clean === "unknown") return "Just chatted";
+  return outcome.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export function getLeadScoreTier(scoreStr?: string | null): {
+  label: string;
+  tier: "hot" | "warm" | "cold";
+  style: React.CSSProperties;
+} {
   const baseStyle: React.CSSProperties = {
     display: "inline-flex",
     alignItems: "center",
-    justifyContent: "center",
+    gap: "0.35rem",
     padding: "0.25rem 0.65rem",
     borderRadius: "6px",
-    fontSize: "0.8rem",
+    fontSize: "0.82rem",
     fontWeight: 600,
-    textTransform: "capitalize",
     whiteSpace: "nowrap",
-    transition: "all 0.2s ease",
   };
 
-  const cleanVal = (val || "").toLowerCase().trim();
-  const cleanId = (metricId || "").toLowerCase();
-
-  // 1. Numeric Lead Score
-  if (cleanId.includes("score")) {
-    const num = parseInt(val, 10);
-    if (!isNaN(num)) {
-      if (num >= 75) {
-        return {
-          ...baseStyle,
-          background: "rgba(16, 185, 129, 0.14)",
-          color: "var(--success)",
-          border: "1px solid rgba(16, 185, 129, 0.28)",
-        };
-      }
-      if (num >= 40) {
-        return {
-          ...baseStyle,
-          background: "rgba(245, 158, 11, 0.14)",
-          color: "var(--warning)",
-          border: "1px solid rgba(245, 158, 11, 0.28)",
-        };
-      }
-      return {
+  const num = parseInt(scoreStr || "", 10);
+  if (isNaN(num)) {
+    return {
+      label: "--",
+      tier: "cold",
+      style: {
         ...baseStyle,
-        background: "rgba(99, 102, 241, 0.12)",
-        color: "var(--accent)",
-        border: "1px solid rgba(99, 102, 241, 0.25)",
-      };
-    }
-  }
-
-  // 2. High-Intent / Captured / Converted
-  if (
-    cleanVal.includes("captured") ||
-    cleanVal.includes("converted") ||
-    cleanVal.includes("qualified") ||
-    cleanVal === "high intent" ||
-    cleanVal === "high"
-  ) {
-    return {
-      ...baseStyle,
-      background: "rgba(16, 185, 129, 0.14)",
-      color: "var(--success)",
-      border: "1px solid rgba(16, 185, 129, 0.28)",
+        background: "var(--bg-hover)",
+        color: "var(--text-muted)",
+        border: "1px solid var(--border)",
+      },
     };
   }
 
-  // 3. Booked Demo / Appointment
-  if (
-    cleanVal.includes("booked") ||
-    cleanVal.includes("demo") ||
-    cleanVal === "booking"
-  ) {
+  if (num >= 75) {
     return {
-      ...baseStyle,
-      background: "var(--accent-dim)",
-      color: "var(--accent)",
-      border: "1px solid var(--accent-glow)",
+      label: `${num} · Hot`,
+      tier: "hot",
+      style: {
+        ...baseStyle,
+        background: "rgba(16, 185, 129, 0.14)",
+        color: "var(--success)",
+        border: "1px solid rgba(16, 185, 129, 0.3)",
+      },
     };
   }
 
-  // 4. Dropped / Lost / Canceled
-  if (
-    cleanVal.includes("drop") ||
-    cleanVal.includes("lost") ||
-    cleanVal.includes("cancel")
-  ) {
+  if (num >= 40) {
     return {
-      ...baseStyle,
-      background: "rgba(239, 68, 68, 0.14)",
-      color: "var(--error)",
-      border: "1px solid rgba(239, 68, 68, 0.28)",
+      label: `${num} · Warm`,
+      tier: "warm",
+      style: {
+        ...baseStyle,
+        background: "rgba(245, 158, 11, 0.14)",
+        color: "var(--warning)",
+        border: "1px solid rgba(245, 158, 11, 0.3)",
+      },
     };
   }
 
-  // 5. Warm / Medium Stage
-  if (cleanVal.includes("warm") || cleanVal.includes("medium")) {
-    return {
-      ...baseStyle,
-      background: "rgba(245, 158, 11, 0.14)",
-      color: "var(--warning)",
-      border: "1px solid rgba(245, 158, 11, 0.28)",
-    };
-  }
-
-  // 6. Low Intent / Just Chat / Inquiry / Info
-  if (
-    cleanVal === "just_chat" ||
-    cleanVal === "just chat" ||
-    cleanVal.includes("info") ||
-    cleanVal.includes("low") ||
-    cleanVal === "unknown"
-  ) {
-    return {
-      ...baseStyle,
-      background: "var(--bg-hover)",
-      color: "var(--text-secondary)",
-      border: "1px solid var(--border)",
-    };
-  }
-
-  // 7. Budget / Numeric values
-  if (cleanId.includes("budget") || /^\$?\d+k?$/.test(cleanVal)) {
-    return {
-      ...baseStyle,
-      background: "var(--bg-hover)",
-      color: "var(--text-primary)",
-      border: "1px solid var(--border)",
-      fontFamily: "monospace",
-      fontSize: "0.82rem",
-    };
-  }
-
-  // 8. Default fallback
   return {
-    ...baseStyle,
-    background: "var(--bg-hover)",
-    color: "var(--text-primary)",
-    border: "1px solid var(--border)",
+    label: `${num} · Cold`,
+    tier: "cold",
+    style: {
+      ...baseStyle,
+      background: "rgba(99, 102, 241, 0.12)",
+      color: "var(--accent)",
+      border: "1px solid rgba(99, 102, 241, 0.25)",
+    },
   };
 }
 
-/* ── Component ─────────────────────────────────────────────── */
+export function formatInterestLevel(val?: string | null): string {
+  if (!val) return "Not available";
+  const clean = val.toLowerCase().replace(/[\s_-]+/g, "");
+  if (clean === "highintent") return "High interest";
+  if (clean === "midintent") return "Medium interest";
+  if (clean === "lowintent") return "Low interest";
+  if (clean === "unknown") return "Not available";
+  return val.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/* ── Main Component ────────────────────────────────────────── */
 export default function DashboardPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [metrics, setMetrics] = useState<MetricConfig[]>([]);
-  const [subStatus, setSubStatus] = useState<SubscriptionStatus | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  // When the backend reports more rows than we fetched, surface that to the
-  // user rather than silently showing a partial dashboard.
+  const [filter, setFilter] = useState<FilterType>("all");
   const [truncated, setTruncated] = useState<{ shown: number; total: number } | null>(null);
 
-  const load = useCallback(async (isManualRefresh = false) => {
+  // Lazy-loaded transcript cache: sessionId -> transcript payload
+  const [transcriptCache, setTranscriptCache] = useState<Record<string, SessionTranscript>>({});
+  const [loadingTranscriptId, setLoadingTranscriptId] = useState<string | null>(null);
+
+  const loadData = useCallback(async (isManualRefresh = false) => {
     if (isManualRefresh) setLoading(true);
     try {
-      const [metricsData, analyticsResponse, statusResponse] = await Promise.allSettled([
+      const [metricsData, analyticsResponse] = await Promise.allSettled([
         api.get<MetricConfig[]>("/api/metrics/config"),
         api.get<{ records: AnalyticsRow[]; total: number }>(
           `/api/analytics?limit=${ANALYTICS_LIMIT}`
         ),
-        api.get<SubscriptionStatus>("/api/payments/subscription-status"),
       ]);
 
-      if (statusResponse.status === "fulfilled") {
-        setSubStatus(statusResponse.value);
-      }
-
-      const metricsList = metricsData.status === "fulfilled" ? metricsData.value : [];
-      const analyticsData = analyticsResponse.status === "fulfilled" ? analyticsResponse.value.records || [] : [];
-      const total = analyticsResponse.status === "fulfilled" ? analyticsResponse.value.total ?? analyticsData.length : analyticsData.length;
+      const metricsList =
+        metricsData.status === "fulfilled" ? metricsData.value : [];
+      const analyticsData =
+        analyticsResponse.status === "fulfilled"
+          ? analyticsResponse.value.records || []
+          : [];
+      const total =
+        analyticsResponse.status === "fulfilled"
+          ? analyticsResponse.value.total ?? analyticsData.length
+          : analyticsData.length;
 
       setTruncated(
         total > analyticsData.length ? { shown: analyticsData.length, total } : null
       );
       setMetrics(metricsList.filter((m) => m.display_on_dashboard));
 
-      // Group rows by session, then sort each session's messages once
-      // (chronologically ascending). Doing it here — not in render — avoids
-      // mutating arrays during render and lets us derive first/last cheaply.
+      // Group rows by session_id
       const buckets: Record<string, AnalyticsRow[]> = {};
       analyticsData.forEach((row) => {
         (buckets[row.session_id] ??= []).push(row);
@@ -238,19 +251,23 @@ export default function DashboardPage() {
 
       const arr: Session[] = Object.entries(buckets).map(([sessionId, rows]) => {
         const sorted = [...rows].sort(
-          (a, b) => parseUtcDate(a.timestamp).getTime() - parseUtcDate(b.timestamp).getTime()
+          (a, b) =>
+            parseUtcDate(a.timestamp).getTime() -
+            parseUtcDate(b.timestamp).getTime()
         );
         const first = sorted[0];
         const last = sorted[sorted.length - 1];
         const finalValues: Record<string, string> = {};
         metricsList.forEach((m) => {
-          finalValues[m.id] = (last && last[m.id]) || "unknown";
+          finalValues[m.id] = (last && (last[m.id] as string)) || "unknown";
         });
+
         return {
           id: sessionId,
-          messages: sorted,
           latestTime: parseUtcDate(last?.timestamp || ""),
           firstMessage: first?.user_message || "...",
+          latestMessage: last?.user_message || first?.user_message || "...",
+          messageCount: sorted.length,
           finalValues,
         };
       });
@@ -265,80 +282,43 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    async function fetchData() {
-      try {
-        const [metricsData, analyticsResponse, statusResponse] = await Promise.allSettled([
-          api.get<MetricConfig[]>("/api/metrics/config"),
-          api.get<{ records: AnalyticsRow[]; total: number }>(
-            `/api/analytics?limit=${ANALYTICS_LIMIT}`
-          ),
-          api.get<SubscriptionStatus>("/api/payments/subscription-status"),
-        ]);
+    loadData();
+  }, [loadData]);
 
-        if (cancelled) return;
-
-        if (statusResponse.status === "fulfilled") {
-          setSubStatus(statusResponse.value);
-        }
-
-        const metricsList = metricsData.status === "fulfilled" ? metricsData.value : [];
-        const analyticsData = analyticsResponse.status === "fulfilled" ? analyticsResponse.value.records || [] : [];
-        const total = analyticsResponse.status === "fulfilled" ? analyticsResponse.value.total ?? analyticsData.length : analyticsData.length;
-
-        setTruncated(
-          total > analyticsData.length ? { shown: analyticsData.length, total } : null
-        );
-        setMetrics(metricsList.filter((m) => m.display_on_dashboard));
-
-        const buckets: Record<string, AnalyticsRow[]> = {};
-        analyticsData.forEach((row) => {
-          (buckets[row.session_id] ??= []).push(row);
-        });
-
-        const arr: Session[] = Object.entries(buckets).map(([sessionId, rows]) => {
-          const sorted = [...rows].sort(
-            (a, b) => parseUtcDate(a.timestamp).getTime() - parseUtcDate(b.timestamp).getTime()
-          );
-          const first = sorted[0];
-          const last = sorted[sorted.length - 1];
-          const finalValues: Record<string, string> = {};
-          metricsList.forEach((m) => {
-            finalValues[m.id] = (last && last[m.id]) || "unknown";
-          });
-          return {
-            id: sessionId,
-            messages: sorted,
-            latestTime: parseUtcDate(last?.timestamp || ""),
-            firstMessage: first?.user_message || "...",
-            finalValues,
-          };
-        });
-
-        arr.sort((a, b) => b.latestTime.getTime() - a.latestTime.getTime());
-        setSessions(arr);
-      } catch (err) {
-        console.error("Failed to load dashboard data", err);
-      } finally {
-        if (!cancelled) setLoading(false);
+  // Lazy-load conversation transcript when expanding
+  const toggleExpand = useCallback(
+    async (sessionId: string) => {
+      if (expandedId === sessionId) {
+        setExpandedId(null);
+        return;
       }
-    }
+      setExpandedId(sessionId);
 
-    fetchData();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+      if (!transcriptCache[sessionId]) {
+        setLoadingTranscriptId(sessionId);
+        try {
+          const res = await api.get<SessionTranscript>(
+            `/api/analytics/sessions/${encodeURIComponent(sessionId)}`
+          );
+          setTranscriptCache((prev) => ({ ...prev, [sessionId]: res }));
+        } catch (err) {
+          console.error("Failed to load conversation transcript", err);
+        } finally {
+          setLoadingTranscriptId(null);
+        }
+      }
+    },
+    [expandedId, transcriptCache]
+  );
 
-  // ── Computed stats ──
-  const totalSessions = sessions.length;
+  // ── Computed Summary Stats ──
+  const totalConversations = sessions.length;
 
-  // Find score metric dynamically (any metric with "score" in its ID)
   const scoreMetric = metrics.find((m) => m.id.includes("score"));
   const avgScore = (() => {
     if (!scoreMetric) return "--";
-    let total = 0,
-      count = 0;
+    let total = 0;
+    let count = 0;
     sessions.forEach((s) => {
       const n = parseInt(s.finalValues[scoreMetric.id], 10);
       if (!isNaN(n)) {
@@ -349,273 +329,996 @@ export default function DashboardPage() {
     return count > 0 ? Math.round(total / count) : "--";
   })();
 
-  // Find conversion metric dynamically (any metric with "conversion" or "outcome" in its ID)
-  const conversionMetric = metrics.find((m) => m.id.includes("conversion") || m.id.includes("outcome"));
-  const highIntentLeads = conversionMetric
-    ? sessions.filter((s) => {
-        const val = s.finalValues[conversionMetric.id];
-        return val === "lead_captured" || val === "booked_demo";
-      }).length
-    : 0;
+  const conversionMetric = metrics.find(
+    (m) => m.id.includes("conversion") || m.id.includes("outcome")
+  );
+
+  const leadsAndBookingsCount = sessions.filter((s) => {
+    const outcome = s.finalValues[conversionMetric?.id || "conversion_outcome"];
+    return isLeadOrBooking(outcome);
+  }).length;
+
+  // ── Filtered Sessions ──
+  const filteredSessions = sessions.filter((s) => {
+    if (filter === "all") return true;
+    const outcome = s.finalValues[conversionMetric?.id || "conversion_outcome"];
+    const isLead = isLeadOrBooking(outcome);
+    if (filter === "leads") return isLead;
+    if (filter === "chat") return !isLead;
+    return true;
+  });
 
   return (
-    <div style={{ maxWidth: 1400, margin: "0 auto", padding: "2rem" }}>
-      {/* ── Header ── */}
-      <header
+    <div style={{ width: "100%", maxWidth: 1400, margin: "0 auto", padding: "2rem 1.5rem", boxSizing: "border-box" }}>
+      <style>{`
+        @media (max-width: 767px) {
+          .summary-cards-grid {
+            grid-template-columns: repeat(3, 1fr) !important;
+            gap: 0.5rem !important;
+          }
+          .summary-card {
+            padding: 0.75rem 0.5rem !important;
+            text-align: center !important;
+          }
+          .summary-card-value {
+            font-size: 1.35rem !important;
+            margin-bottom: 0.2rem !important;
+          }
+          .summary-card-label {
+            font-size: 0.72rem !important;
+            line-height: 1.2 !important;
+          }
+          .summary-card-subtext {
+            display: none !important;
+          }
+          .conversation-table thead {
+            display: none !important;
+          }
+          .conversation-row {
+            display: flex !important;
+            flex-direction: column !important;
+            position: relative !important;
+            padding: 1rem !important;
+            gap: 0.35rem !important;
+          }
+          .conversation-cell-msg {
+            padding: 0 !important;
+            width: 100% !important;
+            padding-right: 5rem !important;
+          }
+          .conversation-cell-result {
+            padding: 0 !important;
+            width: 100% !important;
+          }
+          .conversation-cell-score {
+            position: absolute !important;
+            top: 1rem !important;
+            right: 1rem !important;
+            padding: 0 !important;
+            width: auto !important;
+            text-align: right !important;
+          }
+          .drawer-grid {
+            grid-template-columns: 1fr !important;
+            gap: 1rem !important;
+            padding: 1rem !important;
+          }
+        }
+      `}</style>
+
+      {/* ── Top Header ── */}
+      <div
         style={{
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "flex-end",
-          marginBottom: "2.5rem",
-          paddingBottom: "1.5rem",
-          borderBottom: "1px solid var(--border)",
+          alignItems: "center",
+          marginBottom: "1.75rem",
         }}
       >
-        <div>
-          <h1 style={{ margin: "0 0 0.25rem 0", fontSize: "1.5rem", fontWeight: 800, color: "var(--text-primary)" }}>
-            Intent Flow Engine
-          </h1>
-          <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.88rem" }}>
-            Real-time Conversation Analytics
-          </p>
-        </div>
-
-        <div style={{ display: "flex", gap: "1.5rem", alignItems: "stretch" }}>
-          <button
-            onClick={() => load(true)}
-            disabled={loading}
-            title="Refresh analytics"
-            style={{
-              alignSelf: "stretch",
-              padding: "0 1rem",
-              background: "transparent",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              color: "var(--text-secondary)",
-              fontSize: "0.85rem",
-              fontWeight: 500,
-              cursor: loading ? "not-allowed" : "pointer",
-              opacity: loading ? 0.5 : 1,
-              fontFamily: "inherit",
-              transition: "all 0.2s",
-            }}
-            onMouseEnter={(e) => {
-              if (!loading) {
-                e.currentTarget.style.borderColor = "var(--accent)";
-                e.currentTarget.style.color = "var(--accent)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "var(--border)";
-              e.currentTarget.style.color = "var(--text-secondary)";
-            }}
-          >
-            {loading ? "Refreshing…" : "↻ Refresh"}
-          </button>
-          {[
-            { label: "Total Sessions", value: totalSessions },
-            { label: "High-Intent Leads", value: conversionMetric ? highIntentLeads : "N/A", hint: !conversionMetric ? "No conversion metric configured" : "" },
-            { label: "Avg Lead Score", value: avgScore, hint: !scoreMetric ? "No score metric configured" : "" },
-          ].map((card) => (
-            <div
-              key={card.label}
-              style={{
-                backgroundColor: "var(--bg-card)",
-                border: "1px solid var(--border)",
-                padding: "1rem 1.5rem",
-                borderRadius: 8,
-                minWidth: 140,
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>
-                {card.label}
-              </span>
-              <span style={{ fontSize: "1.8rem", fontWeight: 600, color: "var(--accent)" }}>
-                {card.value}
-              </span>
-              {card.hint && (
-                <span style={{ fontSize: "0.7rem", color: "var(--warning)", marginTop: "0.25rem" }}>
-                  {card.hint}
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      </header>
-
-      {/* Expired / Inactive Notice Banner */}
-      {subStatus && !subStatus.is_active && (
-        <div
+        <h1
           style={{
-            marginBottom: "1.75rem",
-            padding: "1.1rem 1.35rem",
-            borderRadius: 10,
-            border: "1px solid rgba(239, 68, 68, 0.4)",
-            background: "linear-gradient(90deg, rgba(239, 68, 68, 0.14) 0%, rgba(239, 68, 68, 0.04) 100%)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: "1rem",
-            boxShadow: "0 4px 20px rgba(239, 68, 68, 0.08)",
+            margin: 0,
+            fontSize: "1.75rem",
+            fontWeight: 700,
+            color: "var(--text-primary)",
+            letterSpacing: "-0.02em",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
+          Conversations
+        </h1>
+
+        <button
+          onClick={() => loadData(true)}
+          disabled={loading}
+          title="Refresh analytics"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.4rem",
+            padding: "0.5rem 1rem",
+            background: "transparent",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            color: "var(--text-secondary)",
+            fontSize: "0.85rem",
+            fontWeight: 500,
+            cursor: loading ? "not-allowed" : "pointer",
+            opacity: loading ? 0.6 : 1,
+            transition: "all 0.2s ease",
+          }}
+          onMouseEnter={(e) => {
+            if (!loading) {
+              e.currentTarget.style.borderColor = "var(--accent)";
+              e.currentTarget.style.color = "var(--accent)";
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = "var(--border)";
+            e.currentTarget.style.color = "var(--text-secondary)";
+          }}
+        >
+          <span>↻</span>
+          <span>{loading ? "Refreshing…" : "Refresh"}</span>
+        </button>
+      </div>
+
+      {/* ── Three Summary Metric Cards ── */}
+      <div
+        className="summary-cards-grid"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          gap: "1.25rem",
+          marginBottom: "2rem",
+        }}
+      >
+        {/* Card 1: Conversations */}
+        <div
+          className="summary-card"
+          style={{
+            backgroundColor: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            borderRadius: 12,
+            padding: "1.25rem 1.5rem",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          <div
+            className="summary-card-label"
+            style={{
+              fontSize: "0.85rem",
+              fontWeight: 500,
+              color: "var(--text-secondary)",
+              marginBottom: "0.4rem",
+            }}
+          >
+            Conversations
+          </div>
+          <div
+            className="summary-card-value"
+            style={{
+              fontSize: "2.1rem",
+              fontWeight: 700,
+              color: "var(--text-primary)",
+              lineHeight: 1.1,
+              marginBottom: "0.4rem",
+            }}
+          >
+            {totalConversations}
+          </div>
+          <div
+            className="summary-card-subtext"
+            style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}
+          >
+            Visitors who chatted with your assistant
+          </div>
+        </div>
+
+        {/* Card 2: Leads & Bookings */}
+        <div
+          className="summary-card"
+          style={{
+            backgroundColor: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            borderRadius: 12,
+            padding: "1.25rem 1.5rem",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          <div
+            className="summary-card-label"
+            style={{
+              fontSize: "0.85rem",
+              fontWeight: 500,
+              color: "var(--text-secondary)",
+              marginBottom: "0.4rem",
+            }}
+          >
+            Leads & bookings
+          </div>
+          <div
+            className="summary-card-value"
+            style={{
+              fontSize: "2.1rem",
+              fontWeight: 700,
+              color: "var(--text-primary)",
+              lineHeight: 1.1,
+              marginBottom: "0.4rem",
+            }}
+          >
+            {leadsAndBookingsCount}
+          </div>
+          <div
+            className="summary-card-subtext"
+            style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}
+          >
+            Left contact details or booked a demo
+          </div>
+        </div>
+
+        {/* Card 3: Average Lead Score */}
+        <div
+          className="summary-card"
+          style={{
+            backgroundColor: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            borderRadius: 12,
+            padding: "1.25rem 1.5rem",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          <div
+            className="summary-card-label"
+            style={{
+              fontSize: "0.85rem",
+              fontWeight: 500,
+              color: "var(--text-secondary)",
+              marginBottom: "0.4rem",
+            }}
+          >
+            Average lead score
+          </div>
+          <div
+            className="summary-card-value"
+            style={{
+              fontSize: "2.1rem",
+              fontWeight: 700,
+              color: "var(--text-primary)",
+              lineHeight: 1.1,
+              marginBottom: "0.4rem",
+            }}
+          >
+            {avgScore !== "--" ? `${avgScore} / 100` : "--"}
+          </div>
+          <div
+            className="summary-card-subtext"
+            style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}
+          >
+            How likely visitors are to buy
+          </div>
+        </div>
+      </div>
+
+      {/* ── Sub-bar: Filters & Truncation Notice ── */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "1rem",
+          marginBottom: "1rem",
+        }}
+      >
+        {/* Filter Pills */}
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            padding: "0.25rem",
+          }}
+        >
+          {(
+            [
+              { key: "all", label: `All (${sessions.length})` },
+              {
+                key: "leads",
+                label: `Leads & bookings (${leadsAndBookingsCount})`,
+              },
+              {
+                key: "chat",
+                label: `Just chatted (${sessions.length - leadsAndBookingsCount})`,
+              },
+            ] as const
+          ).map((t) => {
+            const isActive = filter === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setFilter(t.key)}
+                style={{
+                  padding: "0.35rem 0.75rem",
+                  fontSize: "0.82rem",
+                  fontWeight: isActive ? 600 : 500,
+                  borderRadius: 6,
+                  border: "none",
+                  cursor: "pointer",
+                  color: isActive ? "var(--accent)" : "var(--text-secondary)",
+                  background: isActive ? "var(--accent-dim)" : "transparent",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Subtle 500-limit notice */}
+        <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+          {truncated
+            ? `Showing your most recent ${truncated.shown} messages. Older chats aren’t counted above.`
+            : `Showing your most recent ${sessions.length} conversations.`}
+        </div>
+      </div>
+
+      {/* ── Conversation List Container ── */}
+      <div
+        style={{
+          backgroundColor: "var(--bg-card)",
+          border: "1px solid var(--border)",
+          borderRadius: 12,
+          overflow: "hidden",
+          boxShadow: "var(--shadow-sm)",
+        }}
+      >
+        {loading ? (
+          <div
+            style={{
+              padding: "5rem 1rem",
+              textAlign: "center",
+              color: "var(--text-secondary)",
+            }}
+          >
+            Loading conversations…
+          </div>
+        ) : sessions.length === 0 ? (
+          /* Empty State Before First Chat */
+          <div
+            style={{
+              padding: "4.5rem 2rem",
+              textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
             <div
               style={{
-                width: 40,
-                height: 40,
+                width: 52,
+                height: 52,
                 borderRadius: "50%",
-                background: "rgba(239, 68, 68, 0.2)",
+                backgroundColor: "var(--accent-dim)",
+                color: "var(--accent)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: "1.2rem",
-                flexShrink: 0,
+                fontSize: "1.5rem",
+                marginBottom: "1.25rem",
               }}
             >
-              ⚠️
+              💬
             </div>
-            <div>
-              <div style={{ color: "var(--text-primary)", fontWeight: 700, fontSize: "1rem" }}>
-                {subStatus.subscription_status === "trial"
-                  ? "3-Day Free Trial Expired — Analytics Paused"
-                  : "Subscription Inactive — Analytics Paused"}
-              </div>
-              <div style={{ color: "var(--text-primary)", fontSize: "0.85rem", marginTop: "0.2rem" }}>
-                Website widget embedding and real-time chat capturing are paused. Upgrade to a paid plan to reactivate your AI assistant and resume live visitor analytics.
-              </div>
+            <h3
+              style={{
+                margin: "0 0 0.5rem 0",
+                fontSize: "1.25rem",
+                fontWeight: 700,
+                color: "var(--text-primary)",
+              }}
+            >
+              No conversations yet
+            </h3>
+            <p
+              style={{
+                maxWidth: 440,
+                margin: "0 0 1.75rem 0",
+                fontSize: "0.9rem",
+                color: "var(--text-muted)",
+                lineHeight: 1.5,
+              }}
+            >
+              When visitors chat with your assistant on your website, you’ll see
+              what they asked and who left their details here.
+            </p>
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+              <Link
+                href="/workspace/testing"
+                style={{
+                  padding: "0.6rem 1.15rem",
+                  backgroundColor: "var(--accent)",
+                  color: "#ffffff",
+                  borderRadius: 8,
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  transition: "opacity 0.2s",
+                }}
+              >
+                Test your assistant
+              </Link>
+              <Link
+                href="/workspace/deploy"
+                style={{
+                  padding: "0.6rem 1.15rem",
+                  backgroundColor: "transparent",
+                  border: "1px solid var(--border)",
+                  color: "var(--text-primary)",
+                  borderRadius: 8,
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  transition: "background-color 0.2s",
+                }}
+              >
+                Add it to your website
+              </Link>
             </div>
           </div>
-          <Link
-            href="/workspace/billing"
+        ) : filteredSessions.length === 0 ? (
+          /* Filtered empty state */
+          <div
             style={{
-              padding: "0.6rem 1.1rem",
-              background: "#ef4444",
-              color: "var(--text-primary)",
-              borderRadius: 6,
-              fontSize: "0.88rem",
-              fontWeight: 700,
-              textDecoration: "none",
-              boxShadow: "0 2px 10px rgba(239, 68, 68, 0.4)",
+              padding: "4rem 1rem",
+              textAlign: "center",
+              color: "var(--text-muted)",
+              fontSize: "0.9rem",
             }}
           >
-            Upgrade Plan Now →
-          </Link>
-        </div>
-      )}
-
-      {/* Truncation warning when the backend has more rows than we fetched. */}
-      {truncated && (
-        <div
-          style={{
-            marginBottom: "1rem",
-            padding: "0.75rem 1rem",
-            background: "rgba(255, 174, 66, 0.08)",
-            border: "1px solid rgba(255, 174, 66, 0.3)",
-            borderRadius: 8,
-            color: "var(--warning)",
-            fontSize: "0.85rem",
-          }}
-        >
-          Showing the most recent {truncated.shown.toLocaleString()} of{" "}
-          {truncated.total.toLocaleString()} analytics rows. Older sessions are not
-          included in stats below.
-        </div>
-      )}
-
-      {/* ── Table Container ── */}
-      <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
-        {loading ? (
-          <div style={{ padding: "5rem", textAlign: "center", color: "var(--text-secondary)" }}>
-            Loading analytics...
-          </div>
-        ) : sessions.length === 0 ? (
-          <div style={{ padding: "5rem", textAlign: "center", color: "var(--text-muted)" }}>
-            No interactions tracked yet. Start chatting!
+            No conversations matching this filter.
           </div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+          /* Three-Column Table */
+          <table
+            className="conversation-table"
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              textAlign: "left",
+            }}
+          >
             <thead>
-              <tr>
-                <th style={{ backgroundColor: "var(--bg-surface)", color: "var(--text-secondary)", fontWeight: 500, fontSize: "0.85rem", padding: "1rem", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid var(--border)" }}>Time</th>
-                <th style={{ backgroundColor: "var(--bg-surface)", color: "var(--text-secondary)", fontWeight: 500, fontSize: "0.85rem", padding: "1rem", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid var(--border)" }}>Session</th>
-                <th style={{ backgroundColor: "var(--bg-surface)", color: "var(--text-secondary)", fontWeight: 500, fontSize: "0.85rem", padding: "1rem", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid var(--border)" }}>Message</th>
-                {metrics.map((m) => (
-                  <th key={m.id} style={{ backgroundColor: "var(--bg-surface)", color: "var(--text-secondary)", fontWeight: 500, fontSize: "0.85rem", padding: "1rem", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid var(--border)" }}>
-                    {m.name}
-                  </th>
-                ))}
+              <tr style={{ backgroundColor: "var(--bg-surface)" }}>
+                <th
+                  style={{
+                    padding: "0.85rem 1.25rem",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    color: "var(--text-muted)",
+                    borderBottom: "1px solid var(--border)",
+                  }}
+                >
+                  What they asked
+                </th>
+                <th
+                  style={{
+                    padding: "0.85rem 1.25rem",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    color: "var(--text-muted)",
+                    borderBottom: "1px solid var(--border)",
+                    width: 180,
+                  }}
+                >
+                  Result
+                </th>
+                <th
+                  style={{
+                    padding: "0.85rem 1.25rem",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    color: "var(--text-muted)",
+                    borderBottom: "1px solid var(--border)",
+                    width: 140,
+                    textAlign: "right",
+                  }}
+                >
+                  Lead score
+                </th>
               </tr>
             </thead>
             <tbody>
-              {sessions.map((session) => {
+              {filteredSessions.map((session) => {
                 const isExpanded = expandedId === session.id;
-                const timeStr = session.latestTime.toLocaleString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                                  });
-                
+                const rawOutcome =
+                  session.finalValues[
+                    conversionMetric?.id || "conversion_outcome"
+                  ];
+                const resultLabel = getPlainResultLabel(rawOutcome);
+                const scoreTier = getLeadScoreTier(
+                  session.finalValues[scoreMetric?.id || "lead_score"]
+                );
+
+                const transcript = transcriptCache[session.id];
+                const isLoadingTranscript =
+                  loadingTranscriptId === session.id;
+
                 return (
                   <Fragment key={session.id}>
+                    {/* Conversation Row */}
                     <tr
-                      onClick={() => setExpandedId(isExpanded ? null : session.id)}
+                      className="conversation-row"
+                      onClick={() => toggleExpand(session.id)}
                       style={{
                         cursor: "pointer",
-                        background: isExpanded ? "var(--bg-hover)" : "transparent",
-                        transition: "background-color 0.2s",
+                        backgroundColor: isExpanded
+                          ? "var(--bg-hover)"
+                          : "transparent",
+                        borderBottom: "1px solid var(--border)",
+                        transition: "background-color 0.15s ease",
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--bg-hover)"}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isExpanded ? "var(--bg-hover)" : "transparent"}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor =
+                          "var(--bg-hover)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = isExpanded
+                          ? "var(--bg-hover)"
+                          : "transparent";
+                      }}
                     >
-                      <td style={{ padding: "1rem", borderBottom: "1px solid var(--border)", color: "var(--text-secondary)", fontSize: "0.85rem", whiteSpace: "nowrap" }}>
-                        {timeStr}
-                        <span style={{ fontSize: "0.7rem", marginLeft: 4 }}>{isExpanded ? "▲" : "▼"}</span>
+                      {/* Column 1: What they asked + time + count */}
+                      <td
+                        className="conversation-cell-msg"
+                        style={{ padding: "1rem 1.25rem" }}
+                      >
+                        <div
+                          style={{
+                            fontWeight: 600,
+                            color: "var(--text-primary)",
+                            fontSize: "0.92rem",
+                            marginBottom: "0.25rem",
+                            lineHeight: 1.35,
+                          }}
+                        >
+                          {session.latestMessage}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "0.78rem",
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          {formatRelativeTime(session.latestTime)} ·{" "}
+                          {session.messageCount}{" "}
+                          {session.messageCount === 1 ? "message" : "messages"}
+                        </div>
                       </td>
-                      <td style={{ padding: "1rem", borderBottom: "1px solid var(--border)", fontFamily: "monospace", color: "var(--text-secondary)", fontSize: "0.85rem" }}>
-                        {session.id.substring(0, 10)}
+
+                      {/* Column 2: Result */}
+                      <td
+                        className="conversation-cell-result"
+                        style={{ padding: "1rem 1.25rem" }}
+                      >
+                        <span
+                          style={{
+                            display: "inline-block",
+                            fontSize: "0.85rem",
+                            fontWeight: 500,
+                            color: isLeadOrBooking(rawOutcome)
+                              ? "var(--text-primary)"
+                              : "var(--text-muted)",
+                          }}
+                        >
+                          {resultLabel}
+                        </span>
                       </td>
-                      <td style={{ padding: "1rem", borderBottom: "1px solid var(--border)", maxWidth: 300, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "var(--text-primary)", fontSize: "0.95rem" }}>
-                        {session.firstMessage}
+
+                      {/* Column 3: Lead Score + chevron */}
+                      <td
+                        className="conversation-cell-score"
+                        style={{
+                          padding: "1rem 1.25rem",
+                          textAlign: "right",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "0.75rem",
+                          }}
+                        >
+                          <span style={scoreTier.style}>{scoreTier.label}</span>
+                          <span
+                            style={{
+                              fontSize: "0.75rem",
+                              color: "var(--text-muted)",
+                            }}
+                          >
+                            {isExpanded ? "▲" : "▼"}
+                          </span>
+                        </div>
                       </td>
-                      {metrics.map((m) => {
-                        const val = session.finalValues[m.id] || "unknown";
-                        const badgeStyle = getBadgeStyle(m.id, val);
-                        return (
-                          <td key={m.id} style={{ padding: "1rem", borderBottom: "1px solid var(--border)" }}>
-                            <span style={badgeStyle}>
-                              {val.replace(/_/g, " ")}
-                            </span>
-                          </td>
-                        );
-                      })}
                     </tr>
 
-                    {/* Drawer */}
+                    {/* Expanded Detail View (Two-Column Drawer) */}
                     {isExpanded && (
-                      <tr key={`${session.id}-drawer`}>
-                        <td colSpan={3 + metrics.length} style={{ padding: 0, borderBottom: "1px solid var(--border)" }}>
-                          <div style={{ backgroundColor: "var(--bg-surface)", borderTop: "1px dashed var(--border)", padding: "1rem" }}>
-                            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                              <tbody>
-                                {session.messages.map((m, idx) => (
-                                  <tr key={`${session.id}-${idx}`}>
-                                    <td style={{ padding: "0.5rem 0", color: "var(--text-secondary)", fontSize: "0.85rem", whiteSpace: "nowrap", width: 140 }}>
-                                      {parseUtcDate(m.timestamp).toLocaleString("en-US", {
-                                        month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit",
-                                      })}
-                                    </td>
-                                    <td style={{ padding: "0.5rem 0", color: "var(--text-primary)", fontSize: "0.9rem" }}>
-                                      {m.user_message || <em style={{ color: "var(--text-muted)" }}>No message</em>}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                      <tr key={`${session.id}-details`}>
+                        <td
+                          colSpan={3}
+                          style={{
+                            padding: 0,
+                            borderBottom: "1px solid var(--border)",
+                            backgroundColor: "var(--bg-surface)",
+                          }}
+                        >
+                          <div
+                            className="drawer-grid"
+                            style={{
+                              padding: "1.5rem",
+                              display: "grid",
+                              gridTemplateColumns:
+                                "repeat(auto-fit, minmax(320px, 1fr))",
+                              gap: "1.5rem",
+                            }}
+                          >
+                            {/* Left Panel: Chat Transcript */}
+                            <div
+                              style={{
+                                backgroundColor: "var(--bg-card)",
+                                border: "1px solid var(--border)",
+                                borderRadius: 10,
+                                padding: "1.25rem",
+                                display: "flex",
+                                flexDirection: "column",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  marginBottom: "1rem",
+                                  paddingBottom: "0.6rem",
+                                  borderBottom: "1px solid var(--border)",
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    fontSize: "0.85rem",
+                                    fontWeight: 700,
+                                    color: "var(--text-primary)",
+                                  }}
+                                >
+                                  What the visitor wrote
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: "0.75rem",
+                                    color: "var(--text-muted)",
+                                  }}
+                                >
+                                  {session.messageCount}{" "}
+                                  {session.messageCount === 1
+                                    ? "message"
+                                    : "messages"}
+                                </span>
+                              </div>
+
+                              {isLoadingTranscript ? (
+                                <div
+                                  style={{
+                                    padding: "2.5rem 1rem",
+                                    textAlign: "center",
+                                    color: "var(--text-muted)",
+                                    fontSize: "0.85rem",
+                                  }}
+                                >
+                                  Loading conversation transcript…
+                                </div>
+                              ) : transcript &&
+                                transcript.messages &&
+                                transcript.messages.length > 0 ? (
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: "0.75rem",
+                                    maxHeight: 380,
+                                    overflowY: "auto",
+                                    paddingRight: "0.35rem",
+                                  }}
+                                >
+                                  {transcript.messages.map((m) => {
+                                    const isVisitor = m.role === "visitor";
+                                    return (
+                                      <div
+                                        key={m.id}
+                                        style={{
+                                          display: "flex",
+                                          flexDirection: "column",
+                                          alignItems: isVisitor
+                                            ? "flex-start"
+                                            : "flex-end",
+                                        }}
+                                      >
+                                        <div
+                                          style={{
+                                            maxWidth: "85%",
+                                            borderRadius: 8,
+                                            padding: "0.65rem 0.85rem",
+                                            fontSize: "0.88rem",
+                                            lineHeight: 1.45,
+                                            backgroundColor: isVisitor
+                                              ? "var(--bg-hover)"
+                                              : "var(--accent-dim)",
+                                            color: "var(--text-primary)",
+                                            border: `1px solid ${
+                                              isVisitor
+                                                ? "var(--border)"
+                                                : "var(--accent-glow)"
+                                            }`,
+                                          }}
+                                        >
+                                          {m.content}
+                                        </div>
+                                        <div
+                                          style={{
+                                            fontSize: "0.72rem",
+                                            color: "var(--text-muted)",
+                                            marginTop: "0.2rem",
+                                            padding: "0 0.25rem",
+                                          }}
+                                        >
+                                          {isVisitor ? "Visitor · " : "Assistant · "}
+                                          {formatTimeOnly(m.timestamp)}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+
+                                  {/* Note if historical transcript has no assistant responses */}
+                                  {transcript.messages.every(
+                                    (m) => m.role === "visitor"
+                                  ) && (
+                                    <div
+                                      style={{
+                                        fontSize: "0.75rem",
+                                        color: "var(--text-muted)",
+                                        fontStyle: "italic",
+                                        textAlign: "center",
+                                        padding: "0.5rem 0",
+                                      }}
+                                    >
+                                      Assistant response was not recorded for
+                                      this earlier chat.
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div
+                                  style={{
+                                    padding: "2rem 1rem",
+                                    textAlign: "center",
+                                    color: "var(--text-muted)",
+                                    fontSize: "0.85rem",
+                                  }}
+                                >
+                                  No transcript available.
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Right Panel: About This Visitor */}
+                            <div
+                              style={{
+                                backgroundColor: "var(--bg-card)",
+                                border: "1px solid var(--border)",
+                                borderRadius: 10,
+                                padding: "1.25rem",
+                                display: "flex",
+                                flexDirection: "column",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontSize: "0.85rem",
+                                  fontWeight: 700,
+                                  color: "var(--text-primary)",
+                                  marginBottom: "1rem",
+                                  paddingBottom: "0.6rem",
+                                  borderBottom: "1px solid var(--border)",
+                                }}
+                              >
+                                About this visitor
+                              </div>
+
+                              <div
+                                style={{
+                                  display: "grid",
+                                  gridTemplateColumns: "1fr 1fr",
+                                  gap: "1rem",
+                                }}
+                              >
+                                {/* Interest level */}
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: "0.75rem",
+                                      color: "var(--text-muted)",
+                                      marginBottom: "0.2rem",
+                                    }}
+                                  >
+                                    Interest level
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: "0.88rem",
+                                      fontWeight: 600,
+                                      color: "var(--text-primary)",
+                                    }}
+                                  >
+                                    {formatInterestLevel(
+                                      session.finalValues["lead_stage"]
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Looking for / Use case */}
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: "0.75rem",
+                                      color: "var(--text-muted)",
+                                      marginBottom: "0.2rem",
+                                    }}
+                                  >
+                                    Looking for
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: "0.88rem",
+                                      fontWeight: 600,
+                                      color: "var(--text-primary)",
+                                    }}
+                                  >
+                                    {session.finalValues["use_case"] &&
+                                    session.finalValues["use_case"] !== "unknown"
+                                      ? session.finalValues["use_case"].replace(
+                                          /_/g,
+                                          " "
+                                        )
+                                      : "Not available"}
+                                  </div>
+                                </div>
+
+                                {/* Budget */}
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: "0.75rem",
+                                      color: "var(--text-muted)",
+                                      marginBottom: "0.2rem",
+                                    }}
+                                  >
+                                    Budget
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: "0.88rem",
+                                      fontWeight: 600,
+                                      color: "var(--text-primary)",
+                                    }}
+                                  >
+                                    {session.finalValues["customer_budget"] &&
+                                    session.finalValues["customer_budget"] !==
+                                      "unknown" &&
+                                    session.finalValues["customer_budget"] !== "0"
+                                      ? session.finalValues["customer_budget"]
+                                      : "Not available"}
+                                  </div>
+                                </div>
+
+                                {/* SEO score */}
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: "0.75rem",
+                                      color: "var(--text-muted)",
+                                      marginBottom: "0.2rem",
+                                    }}
+                                  >
+                                    SEO score
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: "0.88rem",
+                                      fontWeight: 600,
+                                      color: "var(--text-primary)",
+                                    }}
+                                  >
+                                    {session.finalValues["seo_score"] &&
+                                    session.finalValues["seo_score"] !== "unknown"
+                                      ? session.finalValues["seo_score"]
+                                      : "Not available"}
+                                  </div>
+                                </div>
+
+                                {/* Chat ID */}
+                                <div style={{ gridColumn: "span 2" }}>
+                                  <div
+                                    style={{
+                                      fontSize: "0.75rem",
+                                      color: "var(--text-muted)",
+                                      marginBottom: "0.2rem",
+                                    }}
+                                  >
+                                    Chat ID
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: "0.82rem",
+                                      fontFamily: "monospace",
+                                      color: "var(--text-secondary)",
+                                    }}
+                                  >
+                                    {session.id}
+                                  </div>
+                                </div>
+
+                                {/* Additional custom metrics */}
+                                {metrics
+                                  .filter(
+                                    (m) =>
+                                      ![
+                                        "conversion_outcome",
+                                        "lead_stage",
+                                        "use_case",
+                                        "lead_score",
+                                        "customer_budget",
+                                        "seo_score",
+                                      ].includes(m.id)
+                                  )
+                                  .map((m) => (
+                                    <div key={m.id}>
+                                      <div
+                                        style={{
+                                          fontSize: "0.75rem",
+                                          color: "var(--text-muted)",
+                                          marginBottom: "0.2rem",
+                                        }}
+                                      >
+                                        {m.name}
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontSize: "0.88rem",
+                                          fontWeight: 600,
+                                          color: "var(--text-primary)",
+                                        }}
+                                      >
+                                        {session.finalValues[m.id] &&
+                                        session.finalValues[m.id] !== "unknown"
+                                          ? session.finalValues[m.id]
+                                          : "Not available"}
+                                      </div>
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
                           </div>
                         </td>
                       </tr>

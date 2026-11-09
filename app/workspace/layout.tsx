@@ -74,6 +74,8 @@ export default function WorkspaceLayout({
   const router = useRouter();
   const { logout } = useAuth();
   const [user, setUser] = useState<UserInfo | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   const isDark = useSyncExternalStore(
     subscribeTheme,
     getThemeSnapshot,
@@ -84,6 +86,10 @@ export default function WorkspaceLayout({
     const nextTheme = isDark ? "light" : "dark";
     applyTheme(nextTheme);
   };
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     const saved = localStorage.getItem("theme");
@@ -139,8 +145,52 @@ export default function WorkspaceLayout({
         color: "var(--text-primary)",
       }}
     >
+      <style>{`
+        @media (max-width: 767px) {
+          .workspace-sidebar {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            bottom: 0 !important;
+            width: 270px !important;
+            z-index: 100 !important;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5) !important;
+            transform: translateX(-100%);
+            transition: transform 0.25s ease-in-out !important;
+          }
+          .workspace-sidebar.open {
+            transform: translateX(0) !important;
+          }
+          .mobile-header-bar {
+            display: flex !important;
+          }
+        }
+        @media (min-width: 768px) {
+          .workspace-sidebar {
+            transform: none !important;
+          }
+          .mobile-header-bar {
+            display: none !important;
+          }
+        }
+      `}</style>
+
+      {/* Mobile Drawer Backdrop */}
+      {mobileMenuOpen && (
+        <div
+          onClick={() => setMobileMenuOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            zIndex: 90,
+          }}
+        />
+      )}
+
       {/* ── Sidebar ── */}
       <aside
+        className={`workspace-sidebar ${mobileMenuOpen ? "open" : ""}`}
         style={{
           width: 250,
           height: "100%",
@@ -216,6 +266,7 @@ export default function WorkspaceLayout({
                 <li key={item.href}>
                   <Link
                     href={item.href}
+                    onClick={() => setMobileMenuOpen(false)}
                     style={{
                       display: "block",
                       padding: "0.6rem 0.85rem",
@@ -271,6 +322,7 @@ export default function WorkspaceLayout({
                     <li key={item.href}>
                       <Link
                         href={item.href}
+                        onClick={() => setMobileMenuOpen(false)}
                         style={{
                           display: "block",
                           padding: "0.6rem 0.85rem",
@@ -313,7 +365,7 @@ export default function WorkspaceLayout({
             style={{
               display: "flex",
               alignItems: "center",
-              justifyContent:"space-between",
+              justifyContent: "space-between",
               gap: "0.6rem",
               padding: "0.5rem",
               borderRadius: 8,
@@ -487,12 +539,60 @@ export default function WorkspaceLayout({
       {/* ── Main Content ── */}
       <main
         style={{
-          flexGrow: 1,
+          flex: "1 1 0%",
+          minWidth: 0,
+          width: "100%",
           height: "100%",
           overflowY: "auto",
           backgroundColor: "var(--bg)",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
+        {/* Mobile Header with Menu Button */}
+        <div
+          className="mobile-header-bar"
+          style={{
+            display: "none",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0.75rem 1rem",
+            borderBottom: "1px solid var(--border)",
+            backgroundColor: "var(--bg-sidebar)",
+            position: "sticky",
+            top: 0,
+            zIndex: 40,
+          }}
+        >
+          <Image
+            src="/logo-only.png"
+            alt="RYX AI"
+            width={85}
+            height={25}
+            priority
+            style={{ height: "auto" }}
+          />
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle Navigation Menu"
+            style={{
+              background: "transparent",
+              border: "1px solid var(--border)",
+              borderRadius: 6,
+              padding: "0.35rem 0.6rem",
+              color: "var(--text-primary)",
+              cursor: "pointer",
+              fontSize: "1.1rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            ☰
+          </button>
+        </div>
+
         {user?.tenant &&
           user.tenant.is_subscription_active === false &&
           !isSuperAdmin && (
@@ -541,7 +641,15 @@ export default function WorkspaceLayout({
               </Link>
             </div>
           )}
-        {children}
+        <div
+          style={{
+            flex: 1,
+            width: "100%",
+            display: "block",
+          }}
+        >
+          {children}
+        </div>
       </main>
     </div>
   );

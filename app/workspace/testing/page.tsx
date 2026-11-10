@@ -22,7 +22,7 @@ interface SubscriptionStatus {
   message: string;
 }
 
-// Design tokens mapped to CSS variables for dynamic dark/light mode support
+// Design tokens mapped to CSS variables
 const C = {
   bg: "var(--bg)",
   bgSurface: "var(--bg-surface)",
@@ -36,36 +36,33 @@ const C = {
   textMuted: "var(--text-muted)",
   error: "var(--error)",
   success: "var(--success)",
+  warning: "#f59e0b",
 };
 
 const ROLES = [
   {
     key: "hybrid",
-    icon: "💬",
-    label: "Hybrid",
-    desc: "Sales + Support. Balances helpfulness with conversion goals.",
+    label: "Sales + Support",
+    desc: "Answers questions and gently guides people to buy or book.",
   },
   {
     key: "sales",
-    icon: "📊",
     label: "Sales",
     desc: "Aggressive qualification and booking. Every message pushes the funnel.",
   },
   {
     key: "support",
-    icon: "🛟",
     label: "Support",
     desc: "Resolves questions without aggressive selling. Soft CTAs only.",
   },
   {
     key: "booking",
-    icon: "📅",
-    label: "Demo Booking",
+    label: "Demo booking",
     desc: "Focuses only on collecting Name, Email & Time for a demo.",
   },
 ];
 
-// Empty input → booking disabled. Otherwise must be a parseable http(s) URL.
+// Empty input -> booking disabled. Otherwise must be a parseable http(s) URL.
 function validateCalendarLink(
   raw: string,
 ): { ok: true; url: string } | { ok: false; reason: string } {
@@ -104,8 +101,6 @@ export default function TestingPage() {
   const [role, setRole] = useState("hybrid");
   const [themeColor, setThemeColor] = useState("#8A64E9");
   const [calendarLink, setCalendarLink] = useState("");
-  const [calTheme, setCalTheme] = useState("light");
-  const [calHideDetails, setCalHideDetails] = useState(false);
   const [calCredentials, setCalCredentials] = useState<CalCredential[]>([]);
   const [calCredLoading, setCalCredLoading] = useState(true);
   const [calCredName, setCalCredName] = useState("");
@@ -120,8 +115,20 @@ export default function TestingPage() {
     "disconnect" | "remove" | null
   >(null);
   const [calDialogCredId, setCalDialogCredId] = useState<number | null>(null);
+
+  // System Prompt State
   const [promptText, setPromptText] = useState("");
   const [generatingPrompt, setGeneratingPrompt] = useState(false);
+  const [savingPrompt, setSavingPrompt] = useState(false);
+  const [promptDirty, setPromptDirty] = useState(false);
+
+  // Collapsible Sections
+  const [showBookingOptions, setShowBookingOptions] = useState(false);
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+
+  // Mobile Drawer State
+  const [mobileChatOpen, setMobileChatOpen] = useState(false);
+
   const [subStatus, setSubStatus] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -129,8 +136,8 @@ export default function TestingPage() {
   const [dirty, setDirty] = useState(false);
   const [calError, setCalError] = useState("");
   const [tenantSlug, setTenantSlug] = useState("");
-  // Bumped after every successful save so the live test widget reloads with
-  // the new server-side config — otherwise the user is testing stale state.
+
+  // Bumped after every successful save so the live test widget reloads with fresh config
   const [widgetKey, setWidgetKey] = useState(0);
   const [widgetState, setWidgetState] = useState<"loading" | "ready" | "error">(
     "loading",
@@ -192,11 +199,6 @@ export default function TestingPage() {
           if (data.calendar_link) {
             try {
               const url = new URL(data.calendar_link);
-
-              setCalTheme(url.searchParams.get("theme") || "light");
-              setCalHideDetails(
-                url.searchParams.get("hideEventTypeDetails") === "true",
-              );
               url.searchParams.delete("theme");
               url.searchParams.delete("hideEventTypeDetails");
               url.searchParams.delete("embed");
@@ -224,12 +226,8 @@ export default function TestingPage() {
 
     const existing = document.getElementById("ryx-embed-script");
     if (existing) existing.remove();
+    document.getElementById("ryx-chat-container")?.remove();
 
-    // Watch <head> only while embed.js is loading. Anything it injects gets
-    // recorded so we can clean up just *those* nodes on unmount — vs the old
-    // approach of wiping every newly-added style/link, which would also
-    // delete unrelated styles (Next.js HMR, other components mounting in
-    // between, etc.).
     const injected: Element[] = [];
     const observer = new MutationObserver((mutations) => {
       for (const m of mutations) {
@@ -254,12 +252,10 @@ export default function TestingPage() {
       script.setAttribute("data-tenant", tenantSlug);
     }
     script.setAttribute("data-preview", "true");
+    script.setAttribute("data-container", "#dock-panel");
 
     script.onload = () => {
       setWidgetState("ready");
-      // Stop observing once the script has loaded — embed.js does its style
-      // injection during load, so anything added after load is from elsewhere
-      // (Next.js HMR, other components) and isn't ours to remove.
       observer.disconnect();
     };
     script.onerror = () => {
@@ -276,18 +272,19 @@ export default function TestingPage() {
     };
   }, [widgetKey, loading, tenantSlug]);
 
-  // Warn before navigating away with unsaved edits. Browsers ignore the
-  // string we return — they just show their own generic confirm dialog.
+  // Warn before navigating away with unsaved edits
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirty && !promptDirty) return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = "";
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [dirty]);
+  }, [dirty, promptDirty]);
 
+  // Normal Configuration Save: Sends ONLY bot_role, theme_color, and calendar_link.
+  // Never includes system_prompt_text to protect tenant custom instructions.
   async function save() {
     const validated = validateCalendarLink(calendarLink);
     if (!validated.ok) {
@@ -303,11 +300,8 @@ export default function TestingPage() {
       let finalLink = validated.url;
       if (finalLink) {
         const urlObj = new URL(finalLink);
-        urlObj.searchParams.set("theme", calTheme);
-        urlObj.searchParams.set(
-          "hideEventTypeDetails",
-          calHideDetails ? "true" : "false",
-        );
+        urlObj.searchParams.set("theme", "auto");
+        urlObj.searchParams.set("hideEventTypeDetails", "false");
         urlObj.searchParams.set("embed", "true");
         finalLink = urlObj.toString();
       }
@@ -315,13 +309,10 @@ export default function TestingPage() {
         bot_role: role,
         calendar_link: finalLink,
         theme_color: themeColor,
-        system_prompt_text: promptText,
       });
       setToast("Configuration saved!");
       setTimeout(() => setToast(""), 3000);
       setDirty(false);
-      // Force the embed widget to reload so the user can test the new config
-      // immediately, instead of staring at a stale instance.
       setWidgetState("loading");
       setWidgetKey((k) => k + 1);
     } catch {
@@ -329,6 +320,26 @@ export default function TestingPage() {
       setTimeout(() => setToast(""), 3000);
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Explicit System Prompt Save: Isolated save for prompt only
+  async function saveSystemPrompt() {
+    setSavingPrompt(true);
+    try {
+      await api.post("/api/config/bot", {
+        system_prompt_text: promptText,
+      });
+      setToast("System prompt saved successfully!");
+      setTimeout(() => setToast(""), 3000);
+      setPromptDirty(false);
+      setWidgetState("loading");
+      setWidgetKey((k) => k + 1);
+    } catch {
+      setToast("Failed to save system prompt.");
+      setTimeout(() => setToast(""), 3000);
+    } finally {
+      setSavingPrompt(false);
     }
   }
 
@@ -342,9 +353,9 @@ export default function TestingPage() {
 
       if (res && typeof res.system_prompt === "string") {
         setPromptText(res.system_prompt);
-        setDirty(true);
+        setPromptDirty(true);
         setToast(
-          "System prompt generated successfully. Review the generated prompt before saving.",
+          "System prompt generated! Click 'Save System Prompt' to apply.",
         );
         setTimeout(() => setToast(""), 4500);
       } else {
@@ -355,7 +366,12 @@ export default function TestingPage() {
       let msg = "Failed to generate system prompt.";
       if (err instanceof Error) {
         msg = err.message;
-      } else if (err && typeof err === "object" && "detail" in err && typeof (err as { detail: unknown }).detail === "string") {
+      } else if (
+        err &&
+        typeof err === "object" &&
+        "detail" in err &&
+        typeof (err as { detail: unknown }).detail === "string"
+      ) {
         msg = (err as { detail: string }).detail;
       }
       setToast(msg);
@@ -366,13 +382,13 @@ export default function TestingPage() {
   }
 
   async function addCalCredential() {
-    const name = calCredName.trim();
     const calApiKey = calCredApiKey.trim();
     const eventTypeId = calCredEventTypeId.trim();
+    const name = calCredName.trim() || "Primary Booking";
 
-    if (!name || !calApiKey || !eventTypeId) {
+    if (!calApiKey || !eventTypeId) {
       showCalCredentialMessage(
-        "Account name, API key, and event type ID are required.",
+        "API key and event type ID are required.",
         true,
       );
       return;
@@ -395,7 +411,7 @@ export default function TestingPage() {
       setCalCredName("");
       setCalCredApiKey("");
       setCalCredEventTypeId("");
-      showCalCredentialMessage("Cal.com credential verified and added.");
+      showCalCredentialMessage("Cal.com connected successfully.");
       await loadCalCredentials();
       setWidgetKey((k) => k + 1);
     } catch (err) {
@@ -471,10 +487,22 @@ export default function TestingPage() {
     }
   }
 
+  const selectedRole = ROLES.find((r) => r.key === role) || ROLES[0];
+  const activeCred =
+    calCredentials.find((c) => c.is_active) ||
+    (calCredentials.length > 0 ? calCredentials[0] : null);
+
   if (loading) {
     return (
-      <div style={{ padding: "5rem", textAlign: "center", color: C.textMuted }}>
-        Loading configuration…
+      <div
+        style={{
+          padding: "5rem",
+          textAlign: "center",
+          color: C.textMuted,
+          fontSize: "0.95rem",
+        }}
+      >
+        Loading assistant settings…
       </div>
     );
   }
@@ -486,75 +514,18 @@ export default function TestingPage() {
         maxWidth: 1400,
         boxSizing: "border-box",
         margin: "0 auto",
-        padding: "2rem",
+        padding: "1.75rem 1.5rem 5rem 1.5rem",
         backgroundColor: C.bg,
+        minHeight: "100vh",
       }}
     >
-      {/* Header */}
-      <div style={{ marginBottom: "2rem" }}>
-        <h1
-          style={{
-            fontSize: "1.5rem",
-            fontWeight: 800,
-            color: "var(--text-primary)",
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-          }}
-        >
-          ⚙️ Agent Configuration
-        </h1>
-        <p style={{ color: C.textMuted, fontSize: "0.88rem", marginTop: 4 }}>
-          Customize the AI&apos;s role, booking links, and behaviours. Save to
-          reload the test widget with the new config.
-        </p>
-        {/* Test widget status — surfaces silent embed.js failures (backend
-            unreachable, CORS, etc.) that would otherwise leave the page
-            looking healthy with no chat bubble in sight. */}
-        <div
-          style={{
-            marginTop: 12,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            fontSize: "0.75rem",
-            color:
-              widgetState === "ready"
-                ? C.success
-                : widgetState === "error"
-                  ? C.error
-                  : C.textMuted,
-          }}
-          aria-live="polite"
-        >
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background:
-                widgetState === "ready"
-                  ? C.success
-                  : widgetState === "error"
-                    ? C.error
-                    : C.textMuted,
-            }}
-          />
-          {widgetState === "ready"
-            ? "Test widget loaded — try it from the chat bubble"
-            : widgetState === "error"
-              ? "Test widget failed to load — check the backend"
-              : "Loading test widget…"}
-        </div>
-      </div>
-
       {/* Expired / Inactive Notice Banner */}
       {subStatus && !subStatus.is_active && (
         <div
           style={{
             marginBottom: "1.5rem",
             padding: "1.1rem 1.35rem",
-            borderRadius: 10,
+            borderRadius: 12,
             border: "1px solid rgba(239, 68, 68, 0.4)",
             background:
               "linear-gradient(90deg, rgba(239, 68, 68, 0.14) 0%, rgba(239, 68, 68, 0.04) 100%)",
@@ -571,14 +542,14 @@ export default function TestingPage() {
           >
             <div
               style={{
-                width: 40,
-                height: 40,
+                width: 38,
+                height: 38,
                 borderRadius: "50%",
                 background: "rgba(239, 68, 68, 0.2)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: "1.2rem",
+                fontSize: "1.1rem",
                 flexShrink: 0,
               }}
             >
@@ -589,7 +560,7 @@ export default function TestingPage() {
                 style={{
                   color: "var(--text-primary)",
                   fontWeight: 700,
-                  fontSize: "1rem",
+                  fontSize: "0.95rem",
                 }}
               >
                 {subStatus.subscription_status === "trial"
@@ -598,8 +569,8 @@ export default function TestingPage() {
               </div>
               <div
                 style={{
-                  color: "var(--text-primary)",
-                  fontSize: "0.85rem",
+                  color: "var(--text-secondary)",
+                  fontSize: "0.82rem",
                   marginTop: "0.2rem",
                 }}
               >
@@ -612,11 +583,11 @@ export default function TestingPage() {
           <Link
             href="/workspace/billing"
             style={{
-              padding: "0.6rem 1.1rem",
+              padding: "0.55rem 1.1rem",
               background: "#ef4444",
-              color: "var(--text-primary)",
-              borderRadius: 6,
-              fontSize: "0.88rem",
+              color: "#ffffff",
+              borderRadius: 8,
+              fontSize: "0.82rem",
               fontWeight: 700,
               textDecoration: "none",
               boxShadow: "0 2px 10px rgba(239, 68, 68, 0.4)",
@@ -627,931 +598,1134 @@ export default function TestingPage() {
         </div>
       )}
 
-      {/* Agent Role Profile */}
-      <section
+      {/* Main 2-Column Responsive Layout */}
+      <div
+        className="agent-setup-grid"
         style={{
-          backgroundColor: C.bgCard,
-          border: `1px solid ${C.border}`,
-          borderRadius: 14,
-          padding: "1.5rem",
-          marginBottom: "1.25rem",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
+          gap: "2rem",
+          alignItems: "start",
         }}
       >
-        <h2
-          style={{
-            fontSize: "0.7rem",
-            fontWeight: 700,
-            letterSpacing: "1.5px",
-            textTransform: "uppercase",
-            color: C.textMuted,
-            marginBottom: "1rem",
-          }}
-        >
-          Agent Role Profile
-        </h2>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: "0.75rem",
-          }}
-        >
-          {ROLES.map((r) => {
-            const active = role === r.key;
-            return (
-              <button
-                key={r.key}
-                onClick={() => {
-                  setRole(r.key);
-                  setDirty(true);
-                }}
-                style={{
-                  position: "relative",
-                  cursor: "pointer",
-                  borderRadius: 12,
-                  padding: "1rem",
-                  textAlign: "left",
-                  backgroundColor: active ? C.accentDim : C.bgSurface,
-                  border: active
-                    ? `1.5px solid rgba(107,76,255,0.5)`
-                    : `1.5px solid ${C.border}`,
-                  transition: "all 0.2s",
-                  fontFamily: "inherit",
-                  color: C.textPrimary,
-                }}
-              >
-                {active && (
-                  <span
-                    style={{
-                      position: "absolute",
-                      top: 10,
-                      right: 12,
-                      fontSize: "0.85rem",
-                      color: C.accent,
-                    }}
-                  >
-                    ✓
-                  </span>
-                )}
-                <div style={{ fontSize: "1.5rem", marginBottom: 8 }}>
-                  {r.icon}
-                </div>
-                <p
-                  style={{
-                    fontSize: "0.85rem",
-                    fontWeight: 700,
-                    color: C.textPrimary,
-                    marginBottom: 4,
-                  }}
-                >
-                  {r.label}
-                </p>
-                <p
-                  style={{
-                    fontSize: "0.72rem",
-                    lineHeight: 1.4,
-                    color: C.textSecondary,
-                  }}
-                >
-                  {r.desc}
-                </p>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* Chatbot Theme Color */}
-      <section
-        style={{
-          backgroundColor: C.bgCard,
-          border: `1px solid ${C.border}`,
-          borderRadius: 14,
-          padding: "1.5rem",
-          marginBottom: "1.25rem",
-        }}
-      >
-        <h2
-          style={{
-            fontSize: "0.7rem",
-            fontWeight: 700,
-            letterSpacing: "1.5px",
-            textTransform: "uppercase",
-            color: C.textMuted,
-            marginBottom: "1rem",
-          }}
-        >
-          Chatbot Theme
-        </h2>
-        <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-          <div
-            style={{
-              position: "relative",
-              width: 50,
-              height: 40,
-              borderRadius: 8,
-              overflow: "hidden",
-              border: `1px solid ${C.border}`,
-              cursor: "pointer",
-            }}
-          >
-            <input
-              type="color"
-              value={themeColor}
-              onChange={(e) => {
-                setThemeColor(e.target.value);
-                setDirty(true);
-              }}
-              style={{
-                position: "absolute",
-                top: "-5px",
-                left: "-5px",
-                width: "60px",
-                height: "50px",
-                border: "none",
-                background: "none",
-                cursor: "pointer",
-              }}
-            />
-          </div>
-          <input
-            type="text"
-            value={themeColor}
-            onChange={(e) => {
-              setThemeColor(e.target.value);
-              setDirty(true);
-            }}
-            placeholder="#8A64E9"
-            style={{
-              flex: 1,
-              backgroundColor: C.bgSurface,
-              border: `1px solid ${C.border}`,
-              borderRadius: 8,
-              padding: "0.65rem 0.85rem",
-              fontSize: "0.85rem",
-              color: C.textPrimary,
-              outline: "none",
-              fontFamily: "inherit",
-              boxSizing: "border-box",
-            }}
-          />
-        </div>
-        <p
-          style={{
-            color: C.textMuted,
-            fontSize: "0.75rem",
-            marginTop: 8,
-            lineHeight: 1.4,
-          }}
-        >
-          Select the primary color for your chatbot widget. It will be used for
-          buttons, links, and avatar accents.
-        </p>
-      </section>
-
-      {/* Demo Booking Calendar */}
-      <section
-        style={{
-          backgroundColor: C.bgCard,
-          border: `1px solid ${C.border}`,
-          borderRadius: 14,
-          padding: "1.5rem",
-          marginBottom: "1.25rem",
-        }}
-      >
-        <h2
-          style={{
-            fontSize: "0.7rem",
-            fontWeight: 700,
-            letterSpacing: "1.5px",
-            textTransform: "uppercase",
-            color: C.textMuted,
-            marginBottom: "1rem",
-          }}
-        >
-          Demo Booking Calendar
-        </h2>
-        <label
-          style={{
-            display: "block",
-            fontSize: "0.85rem",
-            fontWeight: 600,
-            color: C.textPrimary,
-            marginBottom: 8,
-          }}
-        >
-          📅 Booking Link
-        </label>
-        <input
-          type="text"
-          value={calendarLink}
-          onChange={(e) => {
-            setCalendarLink(e.target.value);
-            setDirty(true);
-            if (calError) setCalError("");
-          }}
-          placeholder="https://cal.com/ryx-ai-2yw4pu/demo"
-          style={{
-            width: "100%",
-            backgroundColor: C.bgSurface,
-            border: `1px solid ${calError ? C.error : C.border}`,
-            borderRadius: 8,
-            padding: "0.65rem 0.85rem",
-            fontSize: "0.85rem",
-            color: C.textPrimary,
-            outline: "none",
-            fontFamily: "inherit",
-            boxSizing: "border-box",
-          }}
-        />
-        {calError ? (
-          <p
-            style={{
-              color: C.error,
-              fontSize: "0.75rem",
-              marginTop: 8,
-              marginBottom: "1rem",
-            }}
-          >
-            {calError}
-          </p>
-        ) : (
-          <p
-            style={{
-              color: C.textMuted,
-              fontSize: "0.75rem",
-              marginTop: 8,
-              marginBottom: "1rem",
-            }}
-          >
-            This is the public URL of your{" "}
-            <a
-              href="https://app.cal.com/event-types"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                color: C.accent,
-                textDecoration: "underline",
-                textUnderlineOffset: 2,
-              }}
-            >
-              Cal.com event ↗
-            </a>{" "}
-            (No API keys required).
-          </p>
-        )}
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "1rem",
-          }}
-        >
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "0.8rem",
-                fontWeight: 600,
-                color: C.textPrimary,
-                marginBottom: 6,
-              }}
-            >
-              Embed Theme
-            </label>
-            <select
-              value={calTheme}
-              onChange={(e) => {
-                setCalTheme(e.target.value);
-                setDirty(true);
-              }}
-              style={{
-                width: "100%",
-                backgroundColor: C.bgSurface,
-                border: `1px solid ${C.border}`,
-                borderRadius: 8,
-                padding: "0.6rem",
-                fontSize: "0.8rem",
-                color: C.textPrimary,
-                outline: "none",
-                fontFamily: "inherit",
-              }}
-            >
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-              <option value="auto">Auto (Matches User OS)</option>
-            </select>
-          </div>
-
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "0.8rem",
-                fontWeight: 600,
-                color: C.textPrimary,
-                marginBottom: 6,
-              }}
-            >
-              Hide Event Details
-            </label>
-            <div
-              role="checkbox"
-              aria-checked={calHideDetails}
-              tabIndex={0}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                backgroundColor: C.bgSurface,
-                border: `1px solid ${C.border}`,
-                borderRadius: 8,
-                padding: "0.6rem",
-                cursor: "pointer",
-                outline: "none",
-              }}
-              onClick={() => {
-                setCalHideDetails(!calHideDetails);
-                setDirty(true);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === " " || e.key === "Enter") {
-                  e.preventDefault();
-                  setCalHideDetails((v) => !v);
-                  setDirty(true);
-                }
-              }}
-            >
-              <div
-                style={{
-                  width: 16,
-                  height: 16,
-                  borderRadius: 4,
-                  border: calHideDetails
-                    ? "none"
-                    : `1.5px solid ${C.textMuted}`,
-                  backgroundColor: calHideDetails ? C.accent : "transparent",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginRight: 10,
-                }}
-              >
-                {calHideDetails && (
-                  <span
-                    style={{ color: "var(--text-primary)", fontSize: "0.7rem" }}
-                  >
-                    ✓
-                  </span>
-                )}
-              </div>
-              <span style={{ fontSize: "0.8rem", color: C.textPrimary }}>
-                Hide left panel details
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div
-          style={{
-            borderTop: `1px solid ${C.border}`,
-            marginTop: "1.5rem",
-            paddingTop: "1.5rem",
-          }}
-        >
+        {/* Left Column: Configuration Forms */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+          {/* Header Row */}
           <div
             style={{
               display: "flex",
+              alignItems: "center",
               justifyContent: "space-between",
               gap: "1rem",
-              alignItems: "flex-start",
               flexWrap: "wrap",
-              marginBottom: "1rem",
             }}
           >
-            <div>
-              <h3
+            <h1
+              style={{
+                fontSize: "1.6rem",
+                fontWeight: 700,
+                color: C.textPrimary,
+                margin: 0,
+                letterSpacing: "-0.02em",
+              }}
+            >
+              Set up your assistant
+            </h1>
+
+            {/* Desktop Top Save Controls */}
+            <div
+              className="desktop-save-controls"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "1rem",
+              }}
+            >
+              {dirty && (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: "0.8rem",
+                    fontWeight: 600,
+                    color: C.warning,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: "50%",
+                      backgroundColor: C.warning,
+                    }}
+                  />
+                  Unsaved changes
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={save}
+                disabled={saving}
                 style={{
-                  fontSize: "0.82rem",
-                  fontWeight: 800,
-                  color: C.textPrimary,
-                  marginBottom: 4,
+                  backgroundColor: C.accent,
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "0.55rem 1.25rem",
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  cursor: saving ? "default" : "pointer",
+                  opacity: saving ? 0.6 : 1,
+                  transition: "all 0.15s ease",
+                  fontFamily: "inherit",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
                 }}
               >
-                Cal.com API Credentials
-              </h3>
+                {saving ? "Saving…" : "Save changes"}
+              </button>
+            </div>
+          </div>
+
+          {/* Card 1: Role Selection & Chat Colour */}
+          <section
+            style={{
+              backgroundColor: C.bgCard,
+              border: `1px solid ${C.border}`,
+              borderRadius: 14,
+              padding: "1.5rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1.5rem",
+            }}
+          >
+            {/* Assistant Role */}
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "0.88rem",
+                  fontWeight: 600,
+                  color: C.textPrimary,
+                  marginBottom: "0.85rem",
+                }}
+              >
+                What should your assistant do?
+              </label>
+
+              {/* 4 Compact Role Tabs */}
+              <div
+                className="role-tabs-grid"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(4, 1fr)",
+                  gap: "0.5rem",
+                }}
+              >
+                {ROLES.map((r) => {
+                  const active = role === r.key;
+                  return (
+                    <button
+                      key={r.key}
+                      type="button"
+                      onClick={() => {
+                        setRole(r.key);
+                        setDirty(true);
+                      }}
+                      style={{
+                        cursor: "pointer",
+                        borderRadius: 8,
+                        padding: "0.65rem 0.5rem",
+                        textAlign: "center",
+                        backgroundColor: active ? C.accentDim : C.bgSurface,
+                        border: active
+                          ? `1.5px solid ${C.accent}`
+                          : `1px solid ${C.border}`,
+                        color: active ? C.accent : C.textPrimary,
+                        fontSize: "0.82rem",
+                        fontWeight: active ? 700 : 500,
+                        transition: "all 0.15s ease",
+                        fontFamily: "inherit",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {r.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Dynamic Role Description */}
               <p
                 style={{
-                  color: C.textMuted,
-                  fontSize: "0.75rem",
+                  fontSize: "0.8rem",
+                  color: C.textSecondary,
+                  marginTop: "0.75rem",
+                  marginBottom: 0,
                   lineHeight: 1.45,
                 }}
               >
-                Used for backend availability checks and booking creation.
-                Tenant scoping comes from the logged-in admin session.
+                {selectedRole.desc}
               </p>
             </div>
-            {calCredentials.length > 0 && (
-              <button
-                onClick={disconnectCal}
-                disabled={calCredActionId === -1}
+
+            {/* Divider */}
+            <div style={{ height: 1, backgroundColor: C.border }} />
+
+            {/* Chat Colour Picker */}
+            <div>
+              <label
                 style={{
-                  backgroundColor: "transparent",
-                  color: C.error,
-                  border: `1px solid ${C.error}`,
-                  borderRadius: 8,
-                  padding: "0.55rem 0.8rem",
-                  fontSize: "0.75rem",
-                  fontWeight: 700,
-                  cursor: calCredActionId === -1 ? "default" : "pointer",
-                  opacity: calCredActionId === -1 ? 0.55 : 1,
-                  fontFamily: "inherit",
-                  whiteSpace: "nowrap",
+                  display: "block",
+                  fontSize: "0.88rem",
+                  fontWeight: 600,
+                  color: C.textPrimary,
+                  marginBottom: "0.35rem",
                 }}
               >
-                {calCredActionId === -1 ? "Disconnecting..." : "Disconnect"}
-              </button>
-            )}
-          </div>
-
-          {(calCredMessage || calCredError) && (
-            <div
-              style={{
-                border: `1px solid ${calCredError ? C.error : C.success}`,
-                backgroundColor: calCredError
-                  ? "rgba(239, 68, 68, 0.12)"
-                  : "rgba(16, 185, 129, 0.12)",
-                color: calCredError ? C.error : C.success,
-                borderRadius: 8,
-                padding: "0.65rem 0.8rem",
-                fontSize: "0.78rem",
-                marginBottom: "1rem",
-              }}
-            >
-              {calCredError || calCredMessage}
+                Chat colour
+              </label>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.85rem",
+                  marginTop: "0.5rem",
+                }}
+              >
+                {/* Clickable Colour Swatch */}
+                <label
+                  style={{
+                    position: "relative",
+                    width: 44,
+                    height: 38,
+                    borderRadius: 8,
+                    backgroundColor: themeColor,
+                    border: `1px solid ${C.border}`,
+                    cursor: "pointer",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    overflow: "hidden",
+                    flexShrink: 0,
+                  }}
+                  title="Click to pick colour"
+                >
+                  <input
+                    type="color"
+                    value={themeColor}
+                    onChange={(e) => {
+                      setThemeColor(e.target.value);
+                      setDirty(true);
+                    }}
+                    style={{
+                      opacity: 0,
+                      width: "100%",
+                      height: "100%",
+                      cursor: "pointer",
+                      position: "absolute",
+                      inset: 0,
+                    }}
+                  />
+                </label>
+                <div>
+                  <span
+                    style={{
+                      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                      fontSize: "0.85rem",
+                      fontWeight: 600,
+                      color: C.textPrimary,
+                    }}
+                  >
+                    {themeColor.toUpperCase()}
+                  </span>
+                  <p
+                    style={{
+                      fontSize: "0.75rem",
+                      color: C.textMuted,
+                      margin: "2px 0 0 0",
+                    }}
+                  >
+                    Click the box to pick or type your brand colour
+                  </p>
+                </div>
+              </div>
             </div>
-          )}
+          </section>
 
-          <div
+          {/* Card 2: Booking Link & More Options */}
+          <section
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-              gap: "0.75rem",
-              marginBottom: "0.75rem",
+              backgroundColor: C.bgCard,
+              border: `1px solid ${C.border}`,
+              borderRadius: 14,
+              padding: "1.5rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1.25rem",
             }}
           >
             <div>
               <label
                 style={{
                   display: "block",
-                  fontSize: "0.75rem",
-                  fontWeight: 700,
+                  fontSize: "0.88rem",
+                  fontWeight: 600,
                   color: C.textPrimary,
-                  marginBottom: 6,
+                  marginBottom: "0.35rem",
                 }}
               >
-                Account Name
+                Booking link <span style={{ color: C.textMuted, fontWeight: 400 }}>(optional)</span>
               </label>
               <input
                 type="text"
-                value={calCredName}
-                onChange={(e) => setCalCredName(e.target.value)}
-                placeholder="Primary Booking"
+                value={calendarLink}
+                onChange={(e) => {
+                  setCalendarLink(e.target.value);
+                  setDirty(true);
+                  if (calError) setCalError("");
+                }}
+                placeholder="https://cal.com/your-business/demo"
                 style={{
                   width: "100%",
                   backgroundColor: C.bgSurface,
-                  border: `1px solid ${C.border}`,
+                  border: `1px solid ${calError ? C.error : C.border}`,
                   borderRadius: 8,
                   padding: "0.65rem 0.85rem",
-                  fontSize: "0.8rem",
+                  fontSize: "0.85rem",
                   color: C.textPrimary,
                   outline: "none",
                   fontFamily: "inherit",
                   boxSizing: "border-box",
                 }}
               />
+              {calError ? (
+                <p
+                  style={{
+                    color: C.error,
+                    fontSize: "0.75rem",
+                    marginTop: 6,
+                    marginBottom: 0,
+                  }}
+                >
+                  {calError}
+                </p>
+              ) : (
+                <p
+                  style={{
+                    color: C.textMuted,
+                    fontSize: "0.75rem",
+                    marginTop: 6,
+                    marginBottom: 0,
+                  }}
+                >
+                  Your Cal.com booking page. The assistant shares it when someone wants to book.
+                </p>
+              )}
             </div>
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "0.75rem",
-                  fontWeight: 700,
-                  color: C.textPrimary,
-                  marginBottom: 6,
-                }}
-              >
-                Cal.com API Key
-              </label>
-              <input
-                type="password"
-                value={calCredApiKey}
-                onChange={(e) => setCalCredApiKey(e.target.value)}
-                placeholder="cal_live_xxxxxxxxxxxxx"
-                style={{
-                  width: "100%",
-                  backgroundColor: C.bgSurface,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 8,
-                  padding: "0.65rem 0.85rem",
-                  fontSize: "0.8rem",
-                  color: C.textPrimary,
-                  outline: "none",
-                  fontFamily: "inherit",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "0.75rem",
-                  fontWeight: 700,
-                  color: C.textPrimary,
-                  marginBottom: 6,
-                }}
-              >
-                Event Type ID
-              </label>
-              <input
-                type="text"
-                value={calCredEventTypeId}
-                onChange={(e) => setCalCredEventTypeId(e.target.value)}
-                placeholder="1234567"
-                style={{
-                  width: "100%",
-                  backgroundColor: C.bgSurface,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 8,
-                  padding: "0.65rem 0.85rem",
-                  fontSize: "0.8rem",
-                  color: C.textPrimary,
-                  outline: "none",
-                  fontFamily: "inherit",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-          </div>
 
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button
-              onClick={addCalCredential}
-              disabled={calCredSubmitting}
-              style={{
-                backgroundColor: C.accent,
-                color: "var(--bg)",
-                border: "none",
-                borderRadius: 8,
-                padding: "0.6rem 1rem",
-                fontSize: "0.78rem",
-                fontWeight: 700,
-                cursor: calCredSubmitting ? "default" : "pointer",
-                opacity: calCredSubmitting ? 0.55 : 1,
-                fontFamily: "inherit",
-              }}
-            >
-              {calCredSubmitting ? "Verifying..." : "Verify & Add Credential"}
-            </button>
-          </div>
-
-          <div style={{ marginTop: "1.25rem" }}>
-            <h4
-              style={{
-                fontSize: "0.75rem",
-                fontWeight: 800,
-                color: C.textMuted,
-                letterSpacing: "1px",
-                textTransform: "uppercase",
-                marginBottom: "0.75rem",
-              }}
-            >
-              Connected Credentials
-            </h4>
-            {calCredLoading ? (
-              <p style={{ color: C.textMuted, fontSize: "0.78rem" }}>
-                Loading Cal.com credentials...
-              </p>
-            ) : calCredentials.length === 0 ? (
-              <div
+            {/* Collapsible: More booking options */}
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowBookingOptions((prev) => !prev)}
                 style={{
-                  border: `1px dashed ${C.border}`,
-                  borderRadius: 8,
-                  padding: "0.9rem",
-                  color: C.textMuted,
-                  fontSize: "0.78rem",
-                  backgroundColor: C.bgSurface,
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  color: C.accent,
+                  fontSize: "0.82rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  fontFamily: "inherit",
                 }}
               >
-                No Cal.com API credentials connected for this tenant.
-              </div>
-            ) : (
-              <div style={{ display: "grid", gap: "0.65rem" }}>
-                {calCredentials.map((cred) => (
-                  <div
-                    key={cred.id}
+                {showBookingOptions ? "Hide booking options ▴" : "More booking options ▾"}
+              </button>
+
+              {showBookingOptions && (
+                <div
+                  style={{
+                    marginTop: "1rem",
+                    padding: "1.1rem",
+                    borderRadius: 10,
+                    backgroundColor: C.bgSurface,
+                    border: `1px solid ${C.border}`,
+                  }}
+                >
+                  <h3
                     style={{
-                      display: "grid",
-                      gridTemplateColumns:
-                        "repeat(auto-fit, minmax(140px, 1fr))",
-                      gap: "0.75rem",
-                      alignItems: "center",
-                      backgroundColor: C.bgSurface,
-                      border: `1px solid ${cred.is_active ? C.accent : C.border}`,
-                      borderRadius: 8,
-                      padding: "0.8rem",
+                      fontSize: "0.85rem",
+                      fontWeight: 700,
+                      color: C.textPrimary,
+                      margin: "0 0 4px 0",
                     }}
                   >
-                    <div>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          marginBottom: 4,
-                        }}
-                      >
-                        <span
-                          style={{
-                            color: C.textPrimary,
-                            fontSize: "0.82rem",
-                            fontWeight: 800,
-                          }}
-                        >
-                          {cred.name}
-                        </span>
-                        <span
-                          style={{
-                            borderRadius: 999,
-                            padding: "0.18rem 0.5rem",
-                            backgroundColor: cred.is_active
-                              ? "rgba(16, 185, 129, 0.14)"
-                              : "rgba(136, 144, 184, 0.12)",
-                            color: cred.is_active ? C.success : C.textMuted,
-                            fontSize: "0.68rem",
-                            fontWeight: 800,
-                          }}
-                        >
-                          {cred.is_active ? "Active" : "Inactive"}
-                        </span>
-                      </div>
-                      <p style={{ color: C.textMuted, fontSize: "0.7rem" }}>
-                        Added{" "}
-                        {cred.created_at
-                          ? new Date(cred.created_at).toLocaleDateString()
-                          : "recently"}
-                      </p>
+                    Book automatically
+                  </h3>
+                  <p
+                    style={{
+                      color: C.textMuted,
+                      fontSize: "0.75rem",
+                      lineHeight: 1.45,
+                      margin: "0 0 1rem 0",
+                    }}
+                  >
+                    Let the assistant check your free times and make the booking itself. Needs a Cal.com API key.
+                  </p>
+
+                  {/* Feedback Message */}
+                  {(calCredMessage || calCredError) && (
+                    <div
+                      style={{
+                        border: `1px solid ${calCredError ? C.error : C.success}`,
+                        backgroundColor: calCredError
+                          ? "rgba(239, 68, 68, 0.12)"
+                          : "rgba(16, 185, 129, 0.12)",
+                        color: calCredError ? C.error : C.success,
+                        borderRadius: 8,
+                        padding: "0.55rem 0.75rem",
+                        fontSize: "0.78rem",
+                        marginBottom: "0.85rem",
+                      }}
+                    >
+                      {calCredError || calCredMessage}
                     </div>
-                    <div>
-                      <p style={{ color: C.textMuted, fontSize: "0.68rem" }}>
-                        API Key
-                      </p>
-                      <p style={{ color: C.textPrimary, fontSize: "0.78rem" }}>
-                        {cred.api_key}
-                      </p>
+                  )}
+
+                  {/* Connected Status Card */}
+                  {calCredLoading ? (
+                    <div style={{ color: C.textMuted, fontSize: "0.78rem", padding: "0.5rem 0" }}>
+                      Loading Cal.com credentials…
                     </div>
-                    <div>
-                      <p style={{ color: C.textMuted, fontSize: "0.68rem" }}>
-                        Event Type
-                      </p>
-                      <p style={{ color: C.textPrimary, fontSize: "0.78rem" }}>
-                        {cred.event_type_id}
-                      </p>
-                    </div>
+                  ) : activeCred ? (
                     <div
                       style={{
                         display: "flex",
-                        gap: "0.5rem",
+                        alignItems: "center",
+                        justifyContent: "space-between",
                         flexWrap: "wrap",
+                        gap: "0.75rem",
+                        padding: "0.85rem 1rem",
+                        borderRadius: 8,
+                        backgroundColor: C.bgCard,
+                        border: `1px solid ${C.border}`,
                       }}
                     >
-                      {!cred.is_active && (
-                        <button
-                          onClick={() => activateCalCredential(cred.id)}
-                          disabled={calCredActionId === cred.id}
+                      <div>
+                        <div
                           style={{
-                            backgroundColor: "transparent",
-                            color: C.success,
-                            border: `1px solid ${C.success}`,
-                            borderRadius: 8,
-                            padding: "0.45rem 0.7rem",
-                            fontSize: "0.72rem",
-                            fontWeight: 800,
-                            cursor:
-                              calCredActionId === cred.id
-                                ? "default"
-                                : "pointer",
-                            opacity: calCredActionId === cred.id ? 0.55 : 1,
-                            fontFamily: "inherit",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            marginBottom: 4,
                           }}
                         >
-                          Activate
-                        </button>
-                      )}
+                          <span
+                            style={{
+                              color: C.textPrimary,
+                              fontSize: "0.85rem",
+                              fontWeight: 700,
+                            }}
+                          >
+                            {activeCred.name || "Primary Booking"}
+                          </span>
+                          <span
+                            style={{
+                              borderRadius: 999,
+                              padding: "0.15rem 0.5rem",
+                              backgroundColor: "rgba(16, 185, 129, 0.14)",
+                              color: C.success,
+                              fontSize: "0.7rem",
+                              fontWeight: 700,
+                            }}
+                          >
+                            Connected
+                          </span>
+                        </div>
+                        <p
+                          style={{
+                            color: C.textMuted,
+                            fontSize: "0.72rem",
+                            margin: 0,
+                          }}
+                        >
+                          Key ending {activeCred.api_key.slice(-4)} · Event {activeCred.event_type_id}
+                        </p>
+                      </div>
+
                       <button
-                        onClick={() => removeCalCredential(cred.id)}
-                        disabled={calCredActionId === cred.id}
+                        type="button"
+                        onClick={disconnectCal}
+                        disabled={calCredActionId === -1}
                         style={{
                           backgroundColor: "transparent",
                           color: C.error,
                           border: `1px solid ${C.error}`,
-                          borderRadius: 8,
-                          padding: "0.45rem 0.7rem",
-                          fontSize: "0.72rem",
-                          fontWeight: 800,
-                          cursor:
-                            calCredActionId === cred.id ? "default" : "pointer",
-                          opacity: calCredActionId === cred.id ? 0.55 : 1,
+                          borderRadius: 6,
+                          padding: "0.45rem 0.85rem",
+                          fontSize: "0.78rem",
+                          fontWeight: 600,
+                          cursor: calCredActionId === -1 ? "default" : "pointer",
+                          opacity: calCredActionId === -1 ? 0.55 : 1,
                           fontFamily: "inherit",
                         }}
                       >
-                        Remove
+                        {calCredActionId === -1 ? "Disconnecting…" : "Disconnect"}
                       </button>
                     </div>
+                  ) : (
+                    /* Connect Form (When not connected) */
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr",
+                          gap: "0.65rem",
+                        }}
+                      >
+                        <div>
+                          <label
+                            style={{
+                              display: "block",
+                              fontSize: "0.75rem",
+                              fontWeight: 600,
+                              color: C.textPrimary,
+                              marginBottom: 4,
+                            }}
+                          >
+                            Cal.com API key
+                          </label>
+                          <input
+                            type="password"
+                            value={calCredApiKey}
+                            onChange={(e) => setCalCredApiKey(e.target.value)}
+                            placeholder="cal_live_…"
+                            style={{
+                              width: "100%",
+                              backgroundColor: C.bgCard,
+                              border: `1px solid ${C.border}`,
+                              borderRadius: 6,
+                              padding: "0.55rem 0.75rem",
+                              fontSize: "0.8rem",
+                              color: C.textPrimary,
+                              outline: "none",
+                              fontFamily: "inherit",
+                              boxSizing: "border-box",
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label
+                            style={{
+                              display: "block",
+                              fontSize: "0.75rem",
+                              fontWeight: 600,
+                              color: C.textPrimary,
+                              marginBottom: 4,
+                            }}
+                          >
+                            Event type ID
+                          </label>
+                          <input
+                            type="text"
+                            value={calCredEventTypeId}
+                            onChange={(e) => setCalCredEventTypeId(e.target.value)}
+                            placeholder="1234567"
+                            style={{
+                              width: "100%",
+                              backgroundColor: C.bgCard,
+                              border: `1px solid ${C.border}`,
+                              borderRadius: 6,
+                              padding: "0.55rem 0.75rem",
+                              fontSize: "0.8rem",
+                              color: C.textPrimary,
+                              outline: "none",
+                              fontFamily: "inherit",
+                              boxSizing: "border-box",
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+                        <button
+                          type="button"
+                          onClick={addCalCredential}
+                          disabled={calCredSubmitting}
+                          style={{
+                            backgroundColor: C.accent,
+                            color: "#ffffff",
+                            border: "none",
+                            borderRadius: 6,
+                            padding: "0.55rem 1.1rem",
+                            fontSize: "0.8rem",
+                            fontWeight: 600,
+                            cursor: calCredSubmitting ? "default" : "pointer",
+                            opacity: calCredSubmitting ? 0.6 : 1,
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          {calCredSubmitting ? "Connecting…" : "Connect"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Existing Credential List (Multi-credential management) */}
+                  {calCredentials.length > 1 && (
+                    <div style={{ marginTop: "1rem", borderTop: `1px solid ${C.border}`, paddingTop: "0.85rem" }}>
+                      <span
+                        style={{
+                          fontSize: "0.72rem",
+                          fontWeight: 700,
+                          color: C.textMuted,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                        }}
+                      >
+                        All Connected Credentials
+                      </span>
+                      <div style={{ display: "grid", gap: "0.5rem", marginTop: "0.5rem" }}>
+                        {calCredentials.map((cred) => (
+                          <div
+                            key={cred.id}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              padding: "0.5rem 0.75rem",
+                              borderRadius: 6,
+                              backgroundColor: C.bgCard,
+                              border: `1px solid ${cred.is_active ? C.accent : C.border}`,
+                              fontSize: "0.75rem",
+                            }}
+                          >
+                            <div>
+                              <span style={{ fontWeight: 600, color: C.textPrimary }}>
+                                {cred.name}
+                              </span>
+                              <span style={{ color: C.textMuted, marginLeft: 8 }}>
+                                ID: {cred.event_type_id}
+                              </span>
+                            </div>
+                            <div style={{ display: "flex", gap: "0.5rem" }}>
+                              {!cred.is_active && (
+                                <button
+                                  type="button"
+                                  onClick={() => activateCalCredential(cred.id)}
+                                  style={{
+                                    background: "none",
+                                    border: "none",
+                                    color: C.success,
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                    fontSize: "0.72rem",
+                                  }}
+                                >
+                                  Activate
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => removeCalCredential(cred.id)}
+                                style={{
+                                  background: "none",
+                                  border: "none",
+                                  color: C.error,
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                  fontSize: "0.72rem",
+                                }}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Collapsible: Advanced Settings (System Prompt) */}
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowAdvancedSettings((prev) => !prev)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  color: C.textSecondary,
+                  fontSize: "0.82rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  fontFamily: "inherit",
+                }}
+              >
+                {showAdvancedSettings ? "Hide advanced settings ▴" : "Advanced Settings ▾"}
+              </button>
+
+              {showAdvancedSettings && (
+                <div
+                  style={{
+                    marginTop: "1rem",
+                    padding: "1.1rem",
+                    borderRadius: 10,
+                    backgroundColor: C.bgSurface,
+                    border: `1px solid ${C.border}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      flexWrap: "wrap",
+                      gap: "0.75rem",
+                      marginBottom: "0.85rem",
+                    }}
+                  >
+                    <div>
+                      <h3
+                        style={{
+                          fontSize: "0.85rem",
+                          fontWeight: 700,
+                          color: C.textPrimary,
+                          margin: "0 0 2px 0",
+                        }}
+                      >
+                        Core System Prompt
+                      </h3>
+                      <p
+                        style={{
+                          color: C.textMuted,
+                          fontSize: "0.75rem",
+                          margin: 0,
+                        }}
+                      >
+                        AI instructions assembled for your agent. You can inspect, generate, or customize them here.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={generateSystemPrompt}
+                      disabled={generatingPrompt || saving || savingPrompt}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.4rem",
+                        backgroundColor: "rgba(138, 100, 233, 0.12)",
+                        color: C.accent,
+                        border: `1px solid ${C.accent}`,
+                        borderRadius: 6,
+                        padding: "0.45rem 0.85rem",
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        cursor:
+                          generatingPrompt || saving || savingPrompt
+                            ? "not-allowed"
+                            : "pointer",
+                        opacity: generatingPrompt || saving || savingPrompt ? 0.6 : 1,
+                        fontFamily: "inherit",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      {generatingPrompt ? "Generating…" : "✨ Generate System Prompt"}
+                    </button>
                   </div>
-                ))}
+
+                  <textarea
+                    value={promptText}
+                    onChange={(e) => {
+                      setPromptText(e.target.value);
+                      setPromptDirty(true);
+                    }}
+                    rows={12}
+                    style={{
+                      width: "100%",
+                      backgroundColor: C.bgCard,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 8,
+                      padding: "0.85rem",
+                      fontSize: "0.78rem",
+                      lineHeight: 1.6,
+                      color: C.textPrimary,
+                      resize: "vertical",
+                      outline: "none",
+                      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                      boxSizing: "border-box",
+                    }}
+                  />
+
+                  {/* Isolated System Prompt Save Action */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      flexWrap: "wrap",
+                      gap: "0.75rem",
+                      marginTop: "0.85rem",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "0.72rem",
+                        color: C.textMuted,
+                      }}
+                    >
+                      Prompt changes require explicit saving and reload assistant directives.
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={saveSystemPrompt}
+                      disabled={savingPrompt || generatingPrompt}
+                      style={{
+                        backgroundColor: promptDirty ? C.accent : "transparent",
+                        color: promptDirty ? "#ffffff" : C.textSecondary,
+                        border: `1px solid ${promptDirty ? C.accent : C.border}`,
+                        borderRadius: 6,
+                        padding: "0.45rem 1rem",
+                        fontSize: "0.78rem",
+                        fontWeight: 600,
+                        cursor: savingPrompt ? "default" : "pointer",
+                        opacity: savingPrompt ? 0.6 : 1,
+                        fontFamily: "inherit",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      {savingPrompt ? "Saving Prompt…" : "Save System Prompt"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+
+        {/* Right Column: Docked Test Chat Preview (Desktop) */}
+        <div
+          className="desktop-test-chat-col"
+          style={{
+            position: "sticky",
+            top: "1.5rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.85rem",
+          }}
+        >
+          {/* Test Chat Card Header */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "0 4px",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "0.95rem",
+                fontWeight: 700,
+                color: C.textPrimary,
+              }}
+            >
+              Test chat
+            </span>
+
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: "0.75rem",
+                fontWeight: 500,
+                color:
+                  widgetState === "ready"
+                    ? C.success
+                    : widgetState === "error"
+                      ? C.error
+                      : C.warning,
+              }}
+            >
+              <span
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: "50%",
+                  backgroundColor:
+                    widgetState === "ready"
+                      ? C.success
+                      : widgetState === "error"
+                        ? C.error
+                        : C.warning,
+                }}
+              />
+              {widgetState === "ready"
+                ? "Ready · updates when you save"
+                : widgetState === "error"
+                  ? "Widget load failed"
+                  : "Loading test assistant…"}
+            </div>
+          </div>
+
+          {/* Dock Target Container */}
+          <div
+            id="dock-panel"
+            style={{
+              width: "100%",
+              height: "calc(100vh - 120px)",
+              minHeight: 560,
+              maxHeight: 760,
+              borderRadius: 16,
+              border: `1px solid ${C.border}`,
+              backgroundColor: "#FFFFFF",
+              position: "relative",
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+            }}
+          >
+            {widgetState === "loading" && (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: C.textMuted,
+                  fontSize: "0.85rem",
+                  zIndex: 0,
+                }}
+              >
+                Loading test chat…
+              </div>
+            )}
+            {widgetState === "error" && (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: C.error,
+                  fontSize: "0.85rem",
+                  padding: "1rem",
+                  textAlign: "center",
+                  zIndex: 0,
+                }}
+              >
+                <span>Failed to load test assistant.</span>
+                <span
+                  style={{
+                    fontSize: "0.75rem",
+                    color: C.textMuted,
+                    marginTop: 4,
+                  }}
+                >
+                  Verify backend server connectivity.
+                </span>
               </div>
             )}
           </div>
         </div>
-      </section>
+      </div>
 
-      {/* Core System Prompt */}
-      <section
+      {/* Mobile Fixed Bottom Action Bar */}
+      <div
+        className="mobile-bottom-bar"
         style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          padding: "0.75rem 1rem",
           backgroundColor: C.bgCard,
-          border: `1px solid ${C.border}`,
-          borderRadius: 14,
-          padding: "1.5rem",
-          marginBottom: "1.5rem",
+          borderTop: `1px solid ${C.border}`,
+          display: "none",
+          alignItems: "center",
+          gap: "0.75rem",
+          zIndex: 40,
+          boxShadow: "0 -2px 10px rgba(0,0,0,0.06)",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            marginBottom: "1rem",
-            flexWrap: "wrap",
-            gap: "0.75rem",
-          }}
-        >
-          <div>
-            <h2
-              style={{
-                fontSize: "0.7rem",
-                fontWeight: 700,
-                letterSpacing: "1.5px",
-                textTransform: "uppercase",
-                color: C.textMuted,
-                marginBottom: 4,
-              }}
-            >
-              Core System Prompt
-            </h2>
-            <p
-              style={{
-                color: C.textSecondary,
-                fontSize: "0.78rem",
-                margin: 0,
-              }}
-            >
-              AI Instructions (Raw JSON array flattened to text)
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={generateSystemPrompt}
-            disabled={generatingPrompt || saving}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              backgroundColor: "rgba(138, 100, 233, 0.12)",
-              color: C.accent,
-              border: `1px solid ${C.accent}`,
-              borderRadius: 8,
-              padding: "0.5rem 1.1rem",
-              fontSize: "0.8rem",
-              fontWeight: 700,
-              cursor: generatingPrompt || saving ? "not-allowed" : "pointer",
-              opacity: generatingPrompt || saving ? 0.6 : 1,
-              transition: "all 0.2s ease",
-              fontFamily: "inherit",
-            }}
-          >
-            {generatingPrompt ? (
-              <>
-                <svg
-                  style={{
-                    width: "0.9rem",
-                    height: "0.9rem",
-                    animation: "spin 1s linear infinite",
-                  }}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                >
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeOpacity="0.25"
-                  />
-                  <path
-                    d="M12 2a10 10 0 0 1 10 10"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <span>Generating...</span>
-              </>
-            ) : (
-              <>
-                <span style={{ fontSize: "0.9rem" }}>✨</span>
-                <span>Generate System Prompt</span>
-              </>
-            )}
-          </button>
-        </div>
-        <textarea
-          value={promptText}
-          onChange={(e) => {
-            setPromptText(e.target.value);
-            setDirty(true);
-          }}
-          rows={18}
-          style={{
-            width: "100%",
-            backgroundColor: C.bg,
-            border: `1px solid ${C.border}`,
-            borderRadius: 10,
-            padding: "1rem",
-            fontSize: "0.8rem",
-            lineHeight: 1.65,
-            color: C.textPrimary,
-            resize: "vertical",
-            outline: "none",
-            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-            boxSizing: "border-box",
-          }}
-        />
-      </section>
-
-      {/* Save button */}
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
         <button
-          onClick={save}
-          disabled={saving}
+          type="button"
+          onClick={() => setMobileChatOpen(true)}
           style={{
-            backgroundColor: C.accent,
-            color: "var(--bg)",
-            border: "none",
+            flex: 1,
+            backgroundColor: C.bgSurface,
+            color: C.textPrimary,
+            border: `1px solid ${C.border}`,
             borderRadius: 8,
-            padding: "0.65rem 1.8rem",
+            padding: "0.65rem",
             fontSize: "0.85rem",
             fontWeight: 600,
             cursor: "pointer",
             fontFamily: "inherit",
-            opacity: saving ? 0.5 : 1,
-            transition: "opacity 0.2s",
           }}
         >
-          {saving ? "Saving…" : "Save Configuration"}
+          Test chat
+        </button>
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving}
+          style={{
+            flex: 1,
+            backgroundColor: C.accent,
+            color: "#ffffff",
+            border: "none",
+            borderRadius: 8,
+            padding: "0.65rem",
+            fontSize: "0.85rem",
+            fontWeight: 600,
+            cursor: saving ? "default" : "pointer",
+            opacity: saving ? 0.6 : 1,
+            fontFamily: "inherit",
+          }}
+        >
+          {saving ? "Saving…" : "Save changes"}
         </button>
       </div>
 
-      {/* Toast */}
+      {/* Mobile Fullscreen Test Chat Modal */}
+      {mobileChatOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: C.bg,
+            zIndex: 60,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {/* Mobile Modal Header */}
+          <div
+            style={{
+              padding: "0.85rem 1.1rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              borderBottom: `1px solid ${C.border}`,
+              backgroundColor: C.bgCard,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span
+                style={{
+                  fontWeight: 700,
+                  fontSize: "0.95rem",
+                  color: C.textPrimary,
+                }}
+              >
+                Test chat
+              </span>
+              <span
+                style={{
+                  fontSize: "0.72rem",
+                  color: widgetState === "ready" ? C.success : C.warning,
+                }}
+              >
+                ● {widgetState === "ready" ? "Ready" : "Loading…"}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setMobileChatOpen(false)}
+              aria-label="Close test chat"
+              style={{
+                background: "none",
+                border: "none",
+                fontSize: "1.25rem",
+                color: C.textMuted,
+                cursor: "pointer",
+                padding: "4px 8px",
+              }}
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Modal Content */}
+          <div
+            style={{
+              flex: 1,
+              position: "relative",
+              overflow: "hidden",
+            }}
+          >
+            {/* The mobile view lets user preview chat */}
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <div
+                id="mobile-dock-panel"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Toast */}
       {toast && (
         <div
           style={{
             position: "fixed",
-            bottom: 20,
-            right: 20,
-            zIndex: 50,
+            bottom: 24,
+            right: 24,
+            zIndex: 70,
             backgroundColor:
               toast.toLowerCase().includes("fail") ||
               toast.toLowerCase().includes("error") ||
-              toast.toLowerCase().includes("fix") ||
-              toast.toLowerCase().includes("no knowledge") ||
-              toast.toLowerCase().includes("unconfigured")
+              toast.toLowerCase().includes("fix")
                 ? C.error
                 : C.success,
-            color: "var(--text-primary)",
+            color: "#ffffff",
             borderRadius: 8,
-            padding: "0.7rem 1.5rem",
+            padding: "0.65rem 1.25rem",
             fontSize: "0.85rem",
             fontWeight: 600,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
           }}
         >
           {toast}
         </div>
       )}
 
-      {/* Cal.com confirmation dialogs */}
+      {/* Cal.com Confirmation Dialogs */}
       <ConfirmDialog
         open={calDialogOpen && calDialogType === "remove"}
         eyebrow="Remove Credential"
@@ -1581,6 +1755,33 @@ export default function TestingPage() {
         }}
         onConfirm={confirmDisconnectCal}
       />
+
+      {/* Responsive Media Query Styles */}
+      <style jsx>{`
+        #dock-panel,
+        #mobile-dock-panel {
+          border-radius: 16px;
+          overflow: hidden;
+          background-color: #ffffff;
+        }
+        @media (max-width: 900px) {
+          .desktop-save-controls {
+            display: none !important;
+          }
+          .desktop-test-chat-col {
+            display: none !important;
+          }
+          .mobile-bottom-bar {
+            display: flex !important;
+          }
+          .agent-setup-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .role-tabs-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

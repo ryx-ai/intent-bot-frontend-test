@@ -217,6 +217,10 @@ export default function DashboardPage() {
   const [transcriptCache, setTranscriptCache] = useState<Record<string, SessionTranscript>>({});
   const [loadingTranscriptId, setLoadingTranscriptId] = useState<string | null>(null);
 
+  // Export state
+  const [exportingFormat, setExportingFormat] = useState<"csv" | "json" | null>(null);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+
   const loadData = useCallback(async (isManualRefresh = false) => {
     if (isManualRefresh) setLoading(true);
     try {
@@ -258,8 +262,29 @@ export default function DashboardPage() {
         const first = sorted[0];
         const last = sorted[sorted.length - 1];
         const finalValues: Record<string, string> = {};
+
+        // Resolve conversion outcome: If ANY message in the session achieved a conversion,
+        // preserve that converted state (do not let a subsequent follow-up reset it to just chat)
+        const qualifyingRow = sorted.find((r) => isLeadOrBooking(r.conversion_outcome));
+
         metricsList.forEach((m) => {
-          finalValues[m.id] = (last && (last[m.id] as string)) || "unknown";
+          if (m.id.includes("conversion") || m.id.includes("outcome")) {
+            finalValues[m.id] = qualifyingRow
+              ? (qualifyingRow[m.id] as string)
+              : (last && (last[m.id] as string)) || "just_chat";
+          } else if (m.id.includes("score")) {
+            const numLast = parseInt((last?.[m.id] as string) || "0", 10);
+            const numQual = qualifyingRow
+              ? parseInt((qualifyingRow[m.id] as string) || "0", 10)
+              : 0;
+            const bestScore = Math.max(
+              isNaN(numLast) ? 0 : numLast,
+              isNaN(numQual) ? 0 : numQual
+            );
+            finalValues[m.id] = String(bestScore);
+          } else {
+            finalValues[m.id] = (last && (last[m.id] as string)) || "unknown";
+          }
         });
 
         return {
@@ -311,8 +336,69 @@ export default function DashboardPage() {
     [expandedId, transcriptCache]
   );
 
+  // ── Global Export Handlers ──
+  const handleGlobalExport = useCallback(async (format: "csv" | "json") => {
+    try {
+      setExportingFormat(format);
+      const blob = await api.getBlob(`/api/analytics/export?format=${format}`);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const dateStr = new Date().toISOString().slice(0, 10);
+      a.download = `chat-transcripts-${dateStr}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Export failed", err);
+      alert(err instanceof Error ? err.message : "Failed to export conversations");
+    } finally {
+      setExportingFormat(null);
+      setExportMenuOpen(false);
+    }
+  }, []);
+
+  const handleDownloadSingleTranscript = useCallback((sessionId: string) => {
+    const transcript = transcriptCache[sessionId];
+    if (!transcript) return;
+
+    const lines: string[] = [];
+    lines.push("=====================================================");
+    lines.push("RYX AI Conversation Transcript");
+    lines.push(`Session ID: ${transcript.session_id}`);
+    lines.push(`Date: ${formatRelativeTime(parseUtcDate(transcript.latest_timestamp))}`);
+    lines.push(`Result: ${getPlainResultLabel(transcript.details?.conversion_outcome)}`);
+    lines.push(`Lead Score: ${transcript.details?.lead_score || "0"} / 100`);
+    lines.push(`Interest Level: ${formatInterestLevel(transcript.details?.lead_stage)}`);
+    lines.push(`Use Case: ${transcript.details?.use_case || "Not available"}`);
+    lines.push(`Customer Budget: ${transcript.details?.customer_budget || "Not available"}`);
+    lines.push("=====================================================\n");
+
+    transcript.messages.forEach((m) => {
+      const timeStr = formatTimeOnly(m.timestamp);
+      const roleLabel = m.role === "visitor" ? "Visitor" : "Assistant";
+      lines.push(`[${timeStr}] ${roleLabel}:`);
+      lines.push(`${m.content}\n`);
+    });
+
+    const textContent = lines.join("\n");
+    const blob = new Blob([textContent], { type: "text/plain;charset=utf-8" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `transcript-${sessionId.slice(0, 12)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  }, [transcriptCache]);
+
   // ── Computed Summary Stats ──
   const totalConversations = sessions.length;
+  const totalMessages = sessions.reduce((sum, s) => sum + s.messageCount, 0);
+  const avgMessagesPerChat =
+    totalConversations > 0 ? (totalMessages / totalConversations).toFixed(1) : "0";
 
   const scoreMetric = metrics.find((m) => m.id.includes("score"));
   const avgScore = (() => {
@@ -338,6 +424,33 @@ export default function DashboardPage() {
     return isLeadOrBooking(outcome);
   }).length;
 
+  const conversionRate =
+    totalConversations > 0
+      ? ((leadsAndBookingsCount / totalConversations) * 100).toFixed(1)
+      : "0.0";
+
+  let hotLeadsCount = 0;
+  let warmLeadsCount = 0;
+  let coldLeadsCount = 0;
+  sessions.forEach((s) => {
+    const scoreVal = parseInt(
+      s.finalValues[scoreMetric?.id || "lead_score"] || "",
+      10
+    );
+    if (isNaN(scoreVal)) {
+      coldLeadsCount++;
+    } else if (scoreVal >= 75) {
+      hotLeadsCount++;
+    } else if (scoreVal >= 40) {
+      warmLeadsCount++;
+    } else {
+      coldLeadsCount++;
+    }
+  });
+
+  const avgScoreTier =
+    avgScore !== "--" ? getLeadScoreTier(String(avgScore)) : null;
+
   // ── Filtered Sessions ──
   const filteredSessions = sessions.filter((s) => {
     if (filter === "all") return true;
@@ -351,6 +464,39 @@ export default function DashboardPage() {
   return (
     <div style={{ width: "100%", maxWidth: 1400, margin: "0 auto", padding: "2rem 1.5rem", boxSizing: "border-box" }}>
       <style>{`
+        .summary-card {
+          background-color: var(--bg-card);
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          padding: 1.25rem 1.5rem;
+          box-shadow: var(--shadow-sm);
+          transition: transform 0.18s ease, border-color 0.18s ease;
+        }
+        .summary-card.clickable {
+          cursor: pointer;
+        }
+        .summary-card-conv {
+          border-top: 3px solid #6366f1 !important;
+        }
+        .summary-card-conv:hover,
+        .summary-card-conv.active-filter {
+          border-color: rgba(99, 102, 241, 0.6);
+          border-top-color: #6366f1 !important;
+          transform: translateY(-1px);
+        }
+        .summary-card-leads {
+          border-top: 3px solid #10b981 !important;
+        }
+        .summary-card-leads:hover,
+        .summary-card-leads.active-filter {
+          border-color: rgba(16, 185, 129, 0.6);
+          border-top-color: #10b981 !important;
+          transform: translateY(-1px);
+        }
+        .summary-card-score {
+          border-top: 3px solid #f59e0b !important;
+        }
+
         @media (max-width: 767px) {
           .summary-cards-grid {
             grid-template-columns: repeat(3, 1fr) !important;
@@ -368,7 +514,10 @@ export default function DashboardPage() {
             font-size: 0.72rem !important;
             line-height: 1.2 !important;
           }
-          .summary-card-subtext {
+          .summary-card-subtext,
+          .summary-card-secondary,
+          .summary-card-track,
+          .summary-card-badge {
             display: none !important;
           }
           .conversation-table thead {
@@ -427,39 +576,210 @@ export default function DashboardPage() {
           Conversations
         </h1>
 
-        <button
-          onClick={() => loadData(true)}
-          disabled={loading}
-          title="Refresh analytics"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.4rem",
-            padding: "0.5rem 1rem",
-            background: "transparent",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
-            color: "var(--text-secondary)",
-            fontSize: "0.85rem",
-            fontWeight: 500,
-            cursor: loading ? "not-allowed" : "pointer",
-            opacity: loading ? 0.6 : 1,
-            transition: "all 0.2s ease",
-          }}
-          onMouseEnter={(e) => {
-            if (!loading) {
-              e.currentTarget.style.borderColor = "var(--accent)";
-              e.currentTarget.style.color = "var(--accent)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = "var(--border)";
-            e.currentTarget.style.color = "var(--text-secondary)";
-          }}
-        >
-          <span>↻</span>
-          <span>{loading ? "Refreshing…" : "Refresh"}</span>
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+          {/* Export Dropdown */}
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => setExportMenuOpen((prev) => !prev)}
+              disabled={sessions.length === 0 || exportingFormat !== null}
+              title="Export chat history and transcripts"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.45rem",
+                padding: "0.5rem 0.95rem",
+                background: "transparent",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                color: "var(--text-secondary)",
+                fontSize: "0.85rem",
+                fontWeight: 500,
+                cursor:
+                  sessions.length === 0 || exportingFormat !== null
+                    ? "not-allowed"
+                    : "pointer",
+                opacity:
+                  sessions.length === 0 || exportingFormat !== null ? 0.6 : 1,
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                if (sessions.length > 0 && exportingFormat === null) {
+                  e.currentTarget.style.borderColor = "var(--accent)";
+                  e.currentTarget.style.color = "var(--text-primary)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "var(--border)";
+                e.currentTarget.style.color = "var(--text-secondary)";
+              }}
+            >
+              <span>⬇</span>
+              <span>
+                {exportingFormat
+                  ? `Exporting ${exportingFormat.toUpperCase()}…`
+                  : "Export"}
+              </span>
+              <span style={{ fontSize: "0.65rem", opacity: 0.7 }}>▼</span>
+            </button>
+
+            {exportMenuOpen && (
+              <>
+                <div
+                  onClick={() => setExportMenuOpen(false)}
+                  style={{
+                    position: "fixed",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    zIndex: 40,
+                  }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 6px)",
+                    right: 0,
+                    backgroundColor: "var(--bg-card)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+                    padding: "0.35rem",
+                    minWidth: 200,
+                    zIndex: 50,
+                  }}
+                >
+                  <button
+                    onClick={() => handleGlobalExport("csv")}
+                    disabled={exportingFormat !== null}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "flex-start",
+                      padding: "0.5rem 0.75rem",
+                      background: "transparent",
+                      border: "none",
+                      borderRadius: 6,
+                      color: "var(--text-primary)",
+                      fontSize: "0.83rem",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      transition: "background 0.15s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "var(--bg-hover)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "transparent";
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.35rem",
+                      }}
+                    >
+                      <span>📄</span> Export as CSV
+                    </div>
+                    <span
+                      style={{
+                        fontSize: "0.72rem",
+                        color: "var(--text-muted)",
+                        marginTop: "0.15rem",
+                      }}
+                    >
+                      Spreadsheet with full transcripts
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => handleGlobalExport("json")}
+                    disabled={exportingFormat !== null}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "flex-start",
+                      padding: "0.5rem 0.75rem",
+                      background: "transparent",
+                      border: "none",
+                      borderRadius: 6,
+                      color: "var(--text-primary)",
+                      fontSize: "0.83rem",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      transition: "background 0.15s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "var(--bg-hover)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "transparent";
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.35rem",
+                      }}
+                    >
+                      <span>⚙️</span> Export as JSON
+                    </div>
+                    <span
+                      style={{
+                        fontSize: "0.72rem",
+                        color: "var(--text-muted)",
+                        marginTop: "0.15rem",
+                      }}
+                    >
+                      Structured format for CRM & APIs
+                    </span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Refresh Button */}
+          <button
+            onClick={() => loadData(true)}
+            disabled={loading}
+            title="Refresh analytics"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.4rem",
+              padding: "0.5rem 1rem",
+              background: "transparent",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              color: "var(--text-secondary)",
+              fontSize: "0.85rem",
+              fontWeight: 500,
+              cursor: loading ? "not-allowed" : "pointer",
+              opacity: loading ? 0.6 : 1,
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              if (!loading) {
+                e.currentTarget.style.borderColor = "var(--accent)";
+                e.currentTarget.style.color = "var(--accent)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "var(--border)";
+              e.currentTarget.style.color = "var(--text-secondary)";
+            }}
+          >
+            <span>↻</span>
+            <span>{loading ? "Refreshing…" : "Refresh"}</span>
+          </button>
+        </div>
       </div>
 
       {/* ── Three Summary Metric Cards ── */}
@@ -474,25 +794,39 @@ export default function DashboardPage() {
       >
         {/* Card 1: Conversations */}
         <div
-          className="summary-card"
-          style={{
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: 12,
-            padding: "1.25rem 1.5rem",
-            boxShadow: "var(--shadow-sm)",
-          }}
+          className={`summary-card summary-card-conv clickable ${
+            filter === "all" ? "active-filter" : ""
+          }`}
+          onClick={() => setFilter("all")}
+          title="Click to show all conversations"
         >
           <div
-            className="summary-card-label"
             style={{
-              fontSize: "0.85rem",
-              fontWeight: 500,
-              color: "var(--text-secondary)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
               marginBottom: "0.4rem",
             }}
           >
-            Conversations
+            <div
+              className="summary-card-label"
+              style={{
+                fontSize: "0.85rem",
+                fontWeight: 500,
+                color: "var(--text-secondary)",
+              }}
+            >
+              Conversations
+            </div>
+            <span
+              className="summary-card-badge"
+              style={{
+                fontSize: "0.85rem",
+                opacity: 0.85,
+              }}
+            >
+              💬
+            </span>
           </div>
           <div
             className="summary-card-value"
@@ -508,33 +842,77 @@ export default function DashboardPage() {
           </div>
           <div
             className="summary-card-subtext"
-            style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}
+            style={{
+              fontSize: "0.78rem",
+              color: "var(--text-muted)",
+              lineHeight: 1.35,
+            }}
           >
-            Visitors who chatted with your assistant
+            <div>Visitors who chatted with your assistant</div>
+            <div
+              className="summary-card-secondary"
+              style={{
+                fontSize: "0.72rem",
+                color: "var(--text-secondary)",
+                marginTop: "0.3rem",
+                opacity: 0.9,
+              }}
+            >
+              {totalMessages} total msgs · {avgMessagesPerChat} avg / chat
+            </div>
           </div>
         </div>
 
         {/* Card 2: Leads & Bookings */}
         <div
-          className="summary-card"
-          style={{
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: 12,
-            padding: "1.25rem 1.5rem",
-            boxShadow: "var(--shadow-sm)",
-          }}
+          className={`summary-card summary-card-leads clickable ${
+            filter === "leads" ? "active-filter" : ""
+          }`}
+          onClick={() => setFilter("leads")}
+          title="Click to filter by leads & bookings"
         >
           <div
-            className="summary-card-label"
             style={{
-              fontSize: "0.85rem",
-              fontWeight: 500,
-              color: "var(--text-secondary)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
               marginBottom: "0.4rem",
             }}
           >
-            Leads & bookings
+            <div
+              className="summary-card-label"
+              style={{
+                fontSize: "0.85rem",
+                fontWeight: 500,
+                color: "var(--text-secondary)",
+              }}
+            >
+              Leads & bookings
+            </div>
+            <span
+              className="summary-card-badge"
+              style={{
+                fontSize: "0.72rem",
+                fontWeight: 600,
+                padding: "0.15rem 0.5rem",
+                borderRadius: 12,
+                background:
+                  leadsAndBookingsCount > 0
+                    ? "rgba(16, 185, 129, 0.15)"
+                    : "var(--bg-hover)",
+                color:
+                  leadsAndBookingsCount > 0
+                    ? "var(--success)"
+                    : "var(--text-muted)",
+                border: `1px solid ${
+                  leadsAndBookingsCount > 0
+                    ? "rgba(16, 185, 129, 0.3)"
+                    : "var(--border)"
+                }`,
+              }}
+            >
+              {conversionRate}% rate
+            </span>
           </div>
           <div
             className="summary-card-value"
@@ -550,33 +928,59 @@ export default function DashboardPage() {
           </div>
           <div
             className="summary-card-subtext"
-            style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}
+            style={{
+              fontSize: "0.78rem",
+              color: "var(--text-muted)",
+              lineHeight: 1.35,
+            }}
           >
-            Left contact details or booked a demo
+            <div>Left contact details or booked a demo</div>
+            <div
+              className="summary-card-secondary"
+              style={{
+                fontSize: "0.72rem",
+                color: "var(--text-secondary)",
+                marginTop: "0.3rem",
+                opacity: 0.9,
+              }}
+            >
+              {leadsAndBookingsCount} of {totalConversations} sessions qualified
+            </div>
           </div>
         </div>
 
         {/* Card 3: Average Lead Score */}
-        <div
-          className="summary-card"
-          style={{
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: 12,
-            padding: "1.25rem 1.5rem",
-            boxShadow: "var(--shadow-sm)",
-          }}
-        >
+        <div className="summary-card summary-card-score">
           <div
-            className="summary-card-label"
             style={{
-              fontSize: "0.85rem",
-              fontWeight: 500,
-              color: "var(--text-secondary)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
               marginBottom: "0.4rem",
             }}
           >
-            Average lead score
+            <div
+              className="summary-card-label"
+              style={{
+                fontSize: "0.85rem",
+                fontWeight: 500,
+                color: "var(--text-secondary)",
+              }}
+            >
+              Average lead score
+            </div>
+            {avgScoreTier && avgScore !== "--" && (
+              <span
+                className="summary-card-badge"
+                style={{
+                  ...avgScoreTier.style,
+                  fontSize: "0.7rem",
+                  padding: "0.15rem 0.5rem",
+                }}
+              >
+                {avgScoreTier.tier.toUpperCase()}
+              </span>
+            )}
           </div>
           <div
             className="summary-card-value"
@@ -592,9 +996,65 @@ export default function DashboardPage() {
           </div>
           <div
             className="summary-card-subtext"
-            style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}
+            style={{
+              fontSize: "0.78rem",
+              color: "var(--text-muted)",
+              lineHeight: 1.35,
+            }}
           >
-            How likely visitors are to buy
+            {/* 3-segment distribution track */}
+            {totalConversations > 0 && (
+              <div
+                className="summary-card-track"
+                style={{
+                  display: "flex",
+                  height: 4,
+                  width: "100%",
+                  borderRadius: 2,
+                  overflow: "hidden",
+                  backgroundColor: "var(--bg-surface)",
+                  margin: "0.35rem 0",
+                  gap: 1,
+                }}
+                title={`${hotLeadsCount} Hot · ${warmLeadsCount} Warm · ${coldLeadsCount} Cold`}
+              >
+                {hotLeadsCount > 0 && (
+                  <div
+                    style={{
+                      width: `${(hotLeadsCount / totalConversations) * 100}%`,
+                      backgroundColor: "var(--success)",
+                    }}
+                  />
+                )}
+                {warmLeadsCount > 0 && (
+                  <div
+                    style={{
+                      width: `${(warmLeadsCount / totalConversations) * 100}%`,
+                      backgroundColor: "var(--warning)",
+                    }}
+                  />
+                )}
+                {coldLeadsCount > 0 && (
+                  <div
+                    style={{
+                      width: `${(coldLeadsCount / totalConversations) * 100}%`,
+                      backgroundColor: "var(--accent)",
+                    }}
+                  />
+                )}
+              </div>
+            )}
+            <div
+              className="summary-card-secondary"
+              style={{
+                fontSize: "0.72rem",
+                color: "var(--text-secondary)",
+                marginTop: "0.2rem",
+                opacity: 0.9,
+              }}
+            >
+              {hotLeadsCount} Hot · {warmLeadsCount} Warm · {coldLeadsCount} Cold
+            </div>
           </div>
         </div>
       </div>
@@ -1005,17 +1465,63 @@ export default function DashboardPage() {
                                 >
                                   What the visitor wrote
                                 </span>
-                                <span
+                                <div
                                   style={{
-                                    fontSize: "0.75rem",
-                                    color: "var(--text-muted)",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "0.65rem",
                                   }}
                                 >
-                                  {session.messageCount}{" "}
-                                  {session.messageCount === 1
-                                    ? "message"
-                                    : "messages"}
-                                </span>
+                                  <span
+                                    style={{
+                                      fontSize: "0.75rem",
+                                      color: "var(--text-muted)",
+                                    }}
+                                  >
+                                    {session.messageCount}{" "}
+                                    {session.messageCount === 1
+                                      ? "message"
+                                      : "messages"}
+                                  </span>
+                                  {transcript && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDownloadSingleTranscript(session.id);
+                                      }}
+                                      title="Download conversation transcript as text file"
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "0.3rem",
+                                        padding: "0.2rem 0.55rem",
+                                        fontSize: "0.72rem",
+                                        fontWeight: 600,
+                                        background: "var(--bg-hover)",
+                                        border: "1px solid var(--border)",
+                                        borderRadius: 6,
+                                        color: "var(--text-secondary)",
+                                        cursor: "pointer",
+                                        transition: "all 0.15s ease",
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        e.currentTarget.style.color =
+                                          "var(--text-primary)";
+                                        e.currentTarget.style.borderColor =
+                                          "var(--accent)";
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        e.currentTarget.style.color =
+                                          "var(--text-secondary)";
+                                        e.currentTarget.style.borderColor =
+                                          "var(--border)";
+                                      }}
+                                    >
+                                      <span>⬇</span>
+                                      <span>Export .txt</span>
+                                    </button>
+                                  )}
+                                </div>
                               </div>
 
                               {isLoadingTranscript ? (

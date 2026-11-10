@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 interface TrafficData {
   total_sessions: number;
   total_messages: number;
@@ -32,6 +34,7 @@ export interface TrafficMatrixTabProps {
   traffic?: TrafficData;
   retention?: RetentionData;
   usage?: ChatbotUsageData;
+  loading?: boolean;
 }
 
 function roundPct(count: number, total: number): number {
@@ -39,185 +42,281 @@ function roundPct(count: number, total: number): number {
   return Math.round((count / total) * 100);
 }
 
-export function TrafficMatrixTab({ traffic, retention, usage }: TrafficMatrixTabProps) {
+export function TrafficMatrixTab({ traffic, retention, usage, loading = false }: TrafficMatrixTabProps) {
+  if (loading) {
+    return (
+      <div style={{ padding: "4rem 2rem", textAlign: "center", color: "var(--text-muted)" }}>
+        <div
+          style={{
+            fontSize: "1.75rem",
+            marginBottom: "0.75rem",
+            animation: "spin 1.5s linear infinite",
+            display: "inline-block",
+          }}
+        >
+          🔄
+        </div>
+        <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "var(--text-primary)" }}>
+          Loading chat activity metrics…
+        </div>
+      </div>
+    );
+  }
+
+  const totalConversations = usage?.total_conversations || traffic?.total_sessions || 0;
+  const justChatCount = usage?.conversion_funnel?.just_chat || 0;
+  const leadCapturedCount = usage?.conversion_funnel?.lead_captured || 0;
+  const bookedDemoCount = usage?.conversion_funnel?.booked_demo || 0;
+
+  const justChatPct = roundPct(justChatCount, totalConversations);
+  const leadCapturedPct = roundPct(leadCapturedCount, totalConversations);
+  const bookedDemoPct = roundPct(bookedDemoCount, totalConversations);
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
-      {/* ── 3 Top KPI Cards ── */}
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+      {/* ── Top 3 Stat Cards ── */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
           gap: "1.25rem",
         }}
       >
+        {/* Card 1: Chats on your website */}
         <div
           style={{
             backgroundColor: "var(--bg-card)",
             border: "1px solid var(--border)",
             borderRadius: 12,
-            padding: "1.25rem 1.5rem",
+            padding: "1.5rem 1.75rem",
+            boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.05))",
           }}
         >
-          <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 600 }}>
-            Total Website Sessions
-          </span>
-          <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem", margin: "0.5rem 0" }}>
-            <span style={{ fontSize: "2rem", fontWeight: 800, color: "var(--text-primary)" }}>
-              {traffic?.total_sessions || 0}
-            </span>
+          <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 600, marginBottom: "0.5rem" }}>
+            Chats on your website
           </div>
-          <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
-            {traffic?.total_messages || 0} total messages ({traffic?.avg_messages_per_session || 0} msgs/session)
-          </span>
+          <div style={{ fontSize: "2.5rem", fontWeight: 800, color: "var(--text-primary)", lineHeight: 1.1, marginBottom: "0.5rem" }}>
+            {traffic?.total_sessions || 0}
+          </div>
+          <div style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
+            {traffic?.total_messages || 0} messages · about {traffic?.avg_messages_per_session ? Math.round(traffic.avg_messages_per_session) : 0} per chat
+          </div>
         </div>
 
+        {/* Card 2: Kept chatting */}
         <div
           style={{
             backgroundColor: "var(--bg-card)",
             border: "1px solid var(--border)",
             borderRadius: 12,
-            padding: "1.25rem 1.5rem",
+            padding: "1.5rem 1.75rem",
+            boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.05))",
           }}
         >
-          <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 600 }}>
-            Retention &amp; Engagement Score
-          </span>
-          <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem", margin: "0.5rem 0" }}>
-            <span style={{ fontSize: "2rem", fontWeight: 800, color: "#10B981" }}>
-              {retention?.retention_score || 0}%
-            </span>
+          <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 600, marginBottom: "0.5rem" }}>
+            Kept chatting
           </div>
-          <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
-            {retention?.engaged_ratio_percent || 0}% engaged sessions · {retention?.bounce_rate_percent || 0}% bounce rate
-          </span>
+          <div style={{ fontSize: "2.5rem", fontWeight: 800, color: "#10B981", lineHeight: 1.1, marginBottom: "0.5rem" }}>
+            {retention?.engaged_ratio_percent || 0}%
+          </div>
+          <div style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
+            Sent 3 or more messages
+          </div>
         </div>
 
+        {/* Card 3: Became leads */}
         <div
           style={{
             backgroundColor: "var(--bg-card)",
             border: "1px solid var(--border)",
             borderRadius: 12,
-            padding: "1.25rem 1.5rem",
+            padding: "1.5rem 1.75rem",
+            boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.05))",
           }}
         >
-          <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 600 }}>
-            Chatbot Lead Conversion Rate
-          </span>
-          <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem", margin: "0.5rem 0" }}>
-            <span style={{ fontSize: "2rem", fontWeight: 800, color: "var(--accent, #8A64E9)" }}>
-              {usage?.lead_conversion_rate_percent || 0}%
-            </span>
+          <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 600, marginBottom: "0.5rem" }}>
+            Became leads
           </div>
-          <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
-            {usage?.total_leads_captured || 0} leads captured · Avg score: {usage?.avg_lead_score || 0}/100
-          </span>
-        </div>
-      </div>
-
-      {/* ── User Engagement Depth Card ── */}
-      <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, padding: "1.75rem" }}>
-        <h3 style={{ margin: "0 0 0.5rem 0", fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>
-          User Engagement Depth &amp; Retention Index
-        </h3>
-        <p style={{ margin: "0 0 1.5rem 0", fontSize: "0.85rem", color: "var(--text-muted)" }}>
-          Measures how deeply visitors interact with your website chatbot across multi-message sessions vs single-turn drop-offs.
-        </p>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.5rem", marginBottom: "2rem" }}>
-          <div style={{ backgroundColor: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "1.25rem" }}>
-            <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>
-              Engaged Session Rate (&gt;=3 Msgs)
-            </div>
-            <div style={{ fontSize: "2rem", fontWeight: 800, color: "#10B981", margin: "0.4rem 0" }}>
-              {retention?.engaged_ratio_percent || 0}%
-            </div>
-            <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-              {retention?.engaged_sessions || 0} out of {traffic?.total_sessions || 0} sessions
-            </div>
+          <div style={{ fontSize: "2.5rem", fontWeight: 800, color: "var(--accent, #8A64E9)", lineHeight: 1.1, marginBottom: "0.5rem" }}>
+            {usage?.lead_conversion_rate_percent || 0}%
           </div>
-
-          <div style={{ backgroundColor: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "1.25rem" }}>
-            <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>
-              Bounce Rate (Single-Msg Sessions)
-            </div>
-            <div style={{ fontSize: "2rem", fontWeight: 800, color: "#F59E0B", margin: "0.4rem 0" }}>
-              {retention?.bounce_rate_percent || 0}%
-            </div>
-            <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-              {retention?.single_msg_sessions || 0} single-turn drop-offs
-            </div>
-          </div>
-
-          <div style={{ backgroundColor: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "1.25rem" }}>
-            <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>
-              Overall Retention Score
-            </div>
-            <div style={{ fontSize: "2rem", fontWeight: 800, color: "var(--accent, #8A64E9)", margin: "0.4rem 0" }}>
-              {retention?.retention_score || 0}<span style={{ fontSize: "1rem", color: "var(--text-muted)" }}>/100</span>
-            </div>
-            <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-              Calculated from engagement depth ratio
-            </div>
-          </div>
-        </div>
-
-        {/* Visual Retention Bar */}
-        <div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)", marginBottom: "0.5rem" }}>
-            <span>Engagement Distribution</span>
-            <span>{retention?.engaged_ratio_percent || 0}% Engaged</span>
-          </div>
-          <div style={{ width: "100%", height: 12, backgroundColor: "#F59E0B", borderRadius: 6, overflow: "hidden", display: "flex" }}>
-            <div style={{ width: `${retention?.engaged_ratio_percent || 0}%`, height: "100%", backgroundColor: "#10B981" }} />
-          </div>
-          <div style={{ display: "flex", gap: "1.5rem", marginTop: "0.5rem", fontSize: "0.78rem", color: "var(--text-muted)", flexWrap: "wrap" }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10B981" }} />
-              Engaged Sessions (3+ msgs)
-            </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#F59E0B" }} />
-              Short / Bounce Sessions
-            </span>
+          <div style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
+            {usage?.total_leads_captured || 0} leads · average lead score {usage?.avg_lead_score || 0} / 100
           </div>
         </div>
       </div>
 
-      {/* ── Conversion Funnel Breakdown ── */}
-      <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, padding: "1.75rem" }}>
-        <h3 style={{ margin: "0 0 0.5rem 0", fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>
-          Chatbot Usage &amp; Conversion Funnel
-        </h3>
-        <p style={{ margin: "0 0 1.5rem 0", fontSize: "0.85rem", color: "var(--text-muted)" }}>
-          Track visitor conversion from casual browsing into captured leads and booked demo meetings.
-        </p>
+      {/* ── Lower 2 Cards: How long people chat & What chats led to ── */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
+          gap: "1.25rem",
+        }}
+      >
+        {/* Card: How long people chat */}
+        <div
+          style={{
+            backgroundColor: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            borderRadius: 14,
+            padding: "1.5rem 1.75rem",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+          }}
+        >
+          <div>
+            <h3 style={{ margin: "0 0 0.25rem 0", fontSize: "1.05rem", fontWeight: 700, color: "var(--text-primary)" }}>
+              How long people chat
+            </h3>
+            <p style={{ margin: "0 0 1.25rem 0", fontSize: "0.82rem", color: "var(--text-muted)" }}>
+              Do visitors keep talking, or leave after one message?
+            </p>
 
-        <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.88rem" }}>
-            <thead>
-              <tr style={{ backgroundColor: "var(--bg-surface)", borderBottom: "1px solid var(--border)" }}>
-                <th style={{ padding: "0.85rem 1rem", color: "var(--text-secondary)", fontWeight: 600 }}>Conversion Outcome Stage</th>
-                <th style={{ padding: "0.85rem 1rem", color: "var(--text-secondary)", fontWeight: 600 }}>Sessions</th>
-                <th style={{ padding: "0.85rem 1rem", color: "var(--text-secondary)", fontWeight: 600 }}>Percentage</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                { label: "Just Chat (Exploratory)", count: usage?.conversion_funnel.just_chat || 0, color: "var(--text-secondary)" },
-                { label: "Lead Captured (Contact Submitted)", count: usage?.conversion_funnel.lead_captured || 0, color: "#10B981" },
-                { label: "Booked Demo (Meeting Scheduled)", count: usage?.conversion_funnel.booked_demo || 0, color: "var(--accent, #8A64E9)" },
-              ].map((row) => {
-                const pct = usage?.total_conversations ? roundPct(row.count, usage.total_conversations) : 0;
-                return (
-                  <tr key={row.label} style={{ borderBottom: "1px solid var(--border)" }}>
-                    <td style={{ padding: "0.85rem 1rem", fontWeight: 600, color: row.color }}>{row.label}</td>
-                    <td style={{ padding: "0.85rem 1rem", color: "var(--text-primary)" }}>{row.count}</td>
-                    <td style={{ padding: "0.85rem 1rem", color: "var(--text-primary)" }}>{pct}%</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+            {/* Two-tone bar */}
+            <div
+              style={{
+                width: "100%",
+                height: 12,
+                borderRadius: 6,
+                backgroundColor: "#F59E0B",
+                overflow: "hidden",
+                display: "flex",
+                marginBottom: "0.85rem",
+              }}
+            >
+              <div
+                style={{
+                  width: `${retention?.engaged_ratio_percent || 0}%`,
+                  height: "100%",
+                  backgroundColor: "#10B981",
+                  transition: "width 0.5s ease",
+                }}
+              />
+            </div>
+
+            {/* Legend / Breakdown */}
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", fontSize: "0.85rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ width: 10, height: 10, borderRadius: "50%", backgroundColor: "#10B981", display: "inline-block" }} />
+                <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>
+                  Kept chatting
+                </span>
+                <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                  {retention?.engaged_sessions || 0} chats · {retention?.engaged_ratio_percent || 0}%
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ width: 10, height: 10, borderRadius: "50%", backgroundColor: "#F59E0B", display: "inline-block" }} />
+                <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>
+                  Left after one message
+                </span>
+                <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                  {retention?.single_msg_sessions || 0} chats · {retention?.bounce_rate_percent || 0}%
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div
+            style={{
+              marginTop: "1.5rem",
+              paddingTop: "1rem",
+              borderTop: "1px solid var(--border)",
+              fontSize: "0.82rem",
+              color: "var(--text-muted)",
+            }}
+          >
+            Engagement score: <strong style={{ color: "var(--text-primary)" }}>{retention?.retention_score || 0} / 100</strong>
+          </div>
+        </div>
+
+        {/* Card: What chats led to */}
+        <div
+          style={{
+            backgroundColor: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            borderRadius: 14,
+            padding: "1.5rem 1.75rem",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+          }}
+        >
+          <div>
+            <h3 style={{ margin: "0 0 0.25rem 0", fontSize: "1.05rem", fontWeight: 700, color: "var(--text-primary)" }}>
+              What chats led to
+            </h3>
+            <p style={{ margin: "0 0 1.25rem 0", fontSize: "0.82rem", color: "var(--text-muted)" }}>
+              Out of {totalConversations} chats
+            </p>
+
+            {/* Outcome Bars */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              {/* Just chatted */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", marginBottom: 4 }}>
+                  <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>Just chatted</span>
+                  <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
+                    {justChatCount} · {justChatPct}%
+                  </span>
+                </div>
+                <div style={{ width: "100%", height: 8, backgroundColor: "var(--bg-surface)", borderRadius: 4, overflow: "hidden", border: "1px solid var(--border)" }}>
+                  <div style={{ width: `${justChatPct}%`, height: "100%", backgroundColor: "var(--text-muted)", opacity: 0.6 }} />
+                </div>
+              </div>
+
+              {/* Left contact details */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", marginBottom: 4 }}>
+                  <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>Left contact details</span>
+                  <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
+                    {leadCapturedCount} · {leadCapturedPct}%
+                  </span>
+                </div>
+                <div style={{ width: "100%", height: 8, backgroundColor: "var(--bg-surface)", borderRadius: 4, overflow: "hidden", border: "1px solid var(--border)" }}>
+                  <div style={{ width: `${leadCapturedPct}%`, height: "100%", backgroundColor: "#10B981" }} />
+                </div>
+              </div>
+
+              {/* Booked a demo */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", marginBottom: 4 }}>
+                  <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>Booked a demo</span>
+                  <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
+                    {bookedDemoCount} · {bookedDemoPct}%
+                  </span>
+                </div>
+                <div style={{ width: "100%", height: 8, backgroundColor: "var(--bg-surface)", borderRadius: 4, overflow: "hidden", border: "1px solid var(--border)" }}>
+                  <div style={{ width: `${bookedDemoPct}%`, height: "100%", backgroundColor: "var(--accent, #8A64E9)" }} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            style={{
+              marginTop: "1.5rem",
+              paddingTop: "1rem",
+              borderTop: "1px solid var(--border)",
+            }}
+          >
+            <Link
+              href="/workspace/dashboard"
+              style={{
+                fontSize: "0.85rem",
+                fontWeight: 700,
+                color: "var(--accent, #8A64E9)",
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+              }}
+            >
+              See the conversations ↗
+            </Link>
+          </div>
         </div>
       </div>
     </div>

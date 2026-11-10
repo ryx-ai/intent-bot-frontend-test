@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface ConnectedWebsite {
+export interface ConnectedWebsite {
   id: number;
   domain: string;
   root_url: string;
@@ -15,7 +15,7 @@ interface ConnectedWebsite {
   indexing_status: string;
 }
 
-interface SiteAudit {
+export interface SiteAudit {
   id: number;
   website_id: number;
   status: "pending" | "running" | "completed" | "failed";
@@ -36,7 +36,7 @@ interface SiteAudit {
   pages?: AuditPage[];
 }
 
-interface AuditPage {
+export interface AuditPage {
   id: number;
   url: string;
   http_status: number | null;
@@ -53,8 +53,9 @@ interface AuditPage {
   crawled_at: string | null;
 }
 
-interface AuditItem {
+export interface AuditItem {
   id: string;
+  layer?: "technical" | "on_page" | "aeo" | "geo" | string;
   category: string;
   title: string;
   status: "passed" | "warning" | "error";
@@ -65,8 +66,9 @@ interface AuditItem {
   fix_recommendation: string;
 }
 
-interface AggregatedIssue {
+export interface AggregatedIssue {
   id: string;
+  layer: "technical" | "on_page" | "aeo" | "geo";
   category: string;
   title: string;
   status: "error" | "warning";
@@ -75,80 +77,42 @@ interface AggregatedIssue {
   fix_recommendation: string;
 }
 
+export type DiscoverabilityLayer = "all" | "technical" | "on_page" | "aeo" | "geo";
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function scoreColor(score: number | null) {
-  if (score === null) return "#6B7280";
-  if (score >= 80) return "#10B981";
-  if (score >= 50) return "#F59E0B";
-  return "#EF4444";
+export function scoreColor(score: number | null): string {
+  if (score === null || score === undefined) return "#6B7280";
+  if (score >= 80) return "#10B981"; // Good
+  if (score >= 50) return "#F59E0B"; // Fair
+  return "#EF4444"; // Poor
 }
 
-function scoreLabel(score: number | null) {
-  if (score === null) return "—";
+export function scoreLabel(score: number | null): string {
+  if (score === null || score === undefined) return "—";
   if (score >= 80) return "Good";
   if (score >= 50) return "Fair";
   return "Poor";
 }
 
-function scoreBg(score: number | null) {
-  if (score === null) return "rgba(107, 114, 128, 0.12)";
+export function scoreBg(score: number | null): string {
+  if (score === null || score === undefined) return "rgba(107, 114, 128, 0.12)";
   if (score >= 80) return "rgba(16, 185, 129, 0.12)";
   if (score >= 50) return "rgba(245, 158, 11, 0.12)";
   return "rgba(239, 68, 68, 0.12)";
 }
 
-function statusBadgeStyle(status: string): React.CSSProperties {
-  const base: React.CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-    padding: "3px 10px",
-    borderRadius: 20,
-    fontSize: "0.72rem",
-    fontWeight: 700,
-    letterSpacing: "0.04em",
-    textTransform: "uppercase",
-  };
-  if (status === "completed")
-    return { ...base, background: "rgba(16,185,129,0.15)", color: "#10B981" };
-  if (status === "running" || status === "pending")
-    return { ...base, background: "rgba(99,102,241,0.15)", color: "#818CF8" };
-  if (status === "failed")
-    return { ...base, background: "rgba(239,68,68,0.15)", color: "#EF4444" };
-  return { ...base, background: "rgba(107,114,128,0.15)", color: "#9CA3AF" };
-}
+export function resolveItemLayer(item: { layer?: string; category?: string; title?: string }): "technical" | "on_page" | "aeo" | "geo" {
+  if (item.layer === "technical" || item.layer === "aeo" || item.layer === "geo") {
+    return item.layer;
+  }
+  if (item.layer === "on_page" || item.layer === "onpage") {
+    return "on_page";
+  }
 
-function formatDate(iso: string | null) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString();
-}
+  const cat = (item.category || "").toLowerCase();
+  const t = (item.title || "").toLowerCase();
 
-// ── Discoverability Layer Taxonomy (SEO · AEO · GEO) ─────────────────────────
-
-export type DiscoverabilityLayer = "all" | "technical" | "onpage" | "aeo" | "geo";
-
-export interface LayerMeta {
-  key: DiscoverabilityLayer;
-  label: string;
-  shortLabel: string;
-  icon: string;
-  description: string;
-}
-
-export const DISCOVERABILITY_LAYERS: LayerMeta[] = [
-  { key: "all", label: "All Layers", shortLabel: "All", icon: "🔬", description: "All discoverability checks" },
-  { key: "technical", label: "Technical SEO", shortLabel: "Technical", icon: "⚙️", description: "Crawlability, HTTPS, robots, canonicals & sitemaps" },
-  { key: "onpage", label: "On-Page & Content", shortLabel: "On-Page", icon: "📝", description: "Titles, meta descriptions, headings, media & structure" },
-  { key: "aeo", label: "Answer Engine (AEO)", shortLabel: "AEO", icon: "💡", description: "Schema.org, question headings, answer-first paragraphs" },
-  { key: "geo", label: "Generative AI (GEO)", shortLabel: "GEO", icon: "🤖", description: "AI bot access, llms.txt, chunkability, E-E-A-T signals" },
-];
-
-function getAuditLayer(category: string, title?: string): "technical" | "onpage" | "aeo" | "geo" {
-  const cat = (category || "").toLowerCase();
-  const t = (title || "").toLowerCase();
-
-  // GEO detection
   if (
     cat.includes("geo") ||
     cat.includes("generative") ||
@@ -164,7 +128,6 @@ function getAuditLayer(category: string, title?: string): "technical" | "onpage"
     return "geo";
   }
 
-  // AEO detection
   if (
     cat.includes("aeo") ||
     cat.includes("answer engine") ||
@@ -180,7 +143,6 @@ function getAuditLayer(category: string, title?: string): "technical" | "onpage"
     return "aeo";
   }
 
-  // Technical SEO detection
   if (
     cat.includes("technical") ||
     cat.includes("crawl") ||
@@ -197,140 +159,87 @@ function getAuditLayer(category: string, title?: string): "technical" | "onpage"
     return "technical";
   }
 
-  // Default to On-Page
-  return "onpage";
+  return "on_page";
 }
 
-function layerBadgeStyle(layer: "technical" | "onpage" | "aeo" | "geo"): { bg: string; color: string; border: string; label: string } {
+export function getLayerDisplayName(layer: "technical" | "on_page" | "aeo" | "geo"): string {
   switch (layer) {
-    case "geo":
-      return { bg: "rgba(16, 185, 129, 0.12)", color: "#10B981", border: "rgba(16, 185, 129, 0.3)", label: "🤖 GEO" };
-    case "aeo":
-      return { bg: "rgba(245, 158, 11, 0.12)", color: "#F59E0B", border: "rgba(245, 158, 11, 0.3)", label: "💡 AEO" };
     case "technical":
-      return { bg: "rgba(59, 130, 246, 0.12)", color: "#3B82F6", border: "rgba(59, 130, 246, 0.3)", label: "⚙️ Technical" };
-    case "onpage":
-    default:
-      return { bg: "rgba(139, 92, 246, 0.12)", color: "#8B5CF6", border: "rgba(139, 92, 246, 0.3)", label: "📝 On-Page" };
+      return "Search basics";
+    case "on_page":
+      return "Page content";
+    case "aeo":
+      return "Answer boxes";
+    case "geo":
+      return "AI search";
   }
 }
 
-function ScoreGauge({
-  score,
-  size = 88,
-  strokeWidth,
-  label,
-}: {
-  score: number | null;
-  size?: number;
-  strokeWidth?: number;
-  label?: string;
-}) {
-  const actualStroke = strokeWidth ?? (size < 60 ? 5 : 7);
-  const r = (size - actualStroke) / 2;
-  const circumference = 2 * Math.PI * r;
-  const pct = score === null ? 0 : Math.max(0, Math.min(100, score));
-  const filled = (pct / 100) * circumference;
-  const color = scoreColor(score);
+function formatDate(iso: string | null): string {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString("en-US", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  } catch {
+    return "—";
+  }
+}
 
-  return (
-    <div
-      style={{
-        position: "relative",
-        width: size,
-        height: size,
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <svg
-        width={size}
-        height={size}
-        style={{ transform: "rotate(-90deg)", display: "block" }}
-      >
-        {/* Background track circle - clearly visible in both light & dark mode */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke="var(--border)"
-          strokeWidth={actualStroke}
-          style={{ opacity: 0.9 }}
-        />
-        {/* Active colored progress arc */}
-        {score !== null && score > 0 && (
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={r}
-            fill="none"
-            stroke={color}
-            strokeWidth={actualStroke}
-            strokeDasharray={`${filled} ${circumference - filled}`}
-            strokeLinecap="round"
-            style={{ transition: "stroke-dasharray 0.7s cubic-bezier(0.4, 0, 0.2, 1)" }}
-          />
-        )}
-      </svg>
-
-      {/* Mathematically centered score value */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          pointerEvents: "none",
-        }}
-      >
-        <span
-          style={{
-            fontSize: size >= 75 ? "1.35rem" : "0.92rem",
-            fontWeight: 800,
-            color,
-            lineHeight: 1,
-            letterSpacing: "-0.02em",
-          }}
-        >
-          {score !== null ? Math.round(score) : "—"}
-        </span>
-        {label && (
-          <span
-            style={{
-              fontSize: "0.62rem",
-              color: "var(--text-muted)",
-              fontWeight: 600,
-              marginTop: 2,
-            }}
-          >
-            {label}
-          </span>
-        )}
-      </div>
-    </div>
-  );
+function formatUrlDisplay(rawUrl: string, rootUrl?: string): string {
+  try {
+    const parsed = new URL(rawUrl);
+    const path = parsed.pathname + parsed.search;
+    if (!path || path === "/" || path === "") {
+      return "/ (home page)";
+    }
+    return path;
+  } catch {
+    if (!rawUrl || rawUrl === "/" || rawUrl.endsWith("/")) {
+      return "/ (home page)";
+    }
+    return rawUrl.replace(/^https?:\/\/[^/]+/, "") || "/ (home page)";
+  }
 }
 
 // ── Tab Component ─────────────────────────────────────────────────────────────
 
-export function FullSiteAuditTab() {
+export interface FullSiteAuditTabProps {
+  onWebsiteLoaded?: (primarySite: ConnectedWebsite | null) => void;
+}
+
+export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}) {
   const [websites, setWebsites] = useState<ConnectedWebsite[]>([]);
   const [selectedWebsiteId, setSelectedWebsiteId] = useState<number | null>(null);
   const [auditHistory, setAuditHistory] = useState<SiteAudit[]>([]);
   const [currentAudit, setCurrentAudit] = useState<SiteAudit | null>(null);
-  const [selectedPage, setSelectedPage] = useState<AuditPage | null>(null);
-  const [viewMode, setViewMode] = useState<"pages" | "issues">("pages");
-  const [pageFilter, setPageFilter] = useState<"all" | "error" | "warning" | "passed">("all");
-  const [issueFilter, setIssueFilter] = useState<"all" | "error" | "warning">("all");
-  const [layerFilter, setLayerFilter] = useState<DiscoverabilityLayer>("all");
-  const [expandedIssue, setExpandedIssue] = useState<string | null>(null);
+
+  // View state: "what-to-fix" (default) or "by-page"
+  const [viewMode, setViewMode] = useState<"what-to-fix" | "by-page">("what-to-fix");
+
+  // What to fix filters
+  const [severityFilter, setSeverityFilter] = useState<"all" | "error" | "warning">("all");
+  const [typeFilter, setTypeFilter] = useState<DiscoverabilityLayer>("all");
+  const [expandedIssueIds, setExpandedIssueIds] = useState<Set<string>>(new Set());
+
+  // By page filters
+  const [pageFilter, setPageFilter] = useState<"all" | "has-must-fix" | "should-fix-only" | "all-good">("all");
+  const [expandedPageIds, setExpandedPageIds] = useState<Set<number>>(new Set());
+  const [expandedPassedPageIds, setExpandedPassedPageIds] = useState<Set<number>>(new Set());
+
+  // Options popover & Download dropdown state
+  const [showOptionsModal, setShowOptionsModal] = useState(false);
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const downloadMenuRef = useRef<HTMLDivElement>(null);
+
   const [loading, setLoading] = useState(true);
   const [launching, setLaunching] = useState(false);
-  const [maxPages, setMaxPages] = useState(25);
+  const [maxPages, setMaxPages] = useState<number>(25);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -343,14 +252,21 @@ export function FullSiteAuditTab() {
       const res = await api.get<{ websites: ConnectedWebsite[] }>("/api/knowledge/websites");
       const authorized = (res.websites || []).filter((w) => w.is_authorized);
       setWebsites(authorized);
-      if (authorized.length > 0 && !selectedWebsiteId) {
+      if (authorized.length > 0) {
         const primary = authorized.find((w) => w.is_primary) || authorized[0];
-        setSelectedWebsiteId(primary.id);
+        if (!selectedWebsiteId) {
+          setSelectedWebsiteId(primary.id);
+        }
+        if (onWebsiteLoaded) {
+          onWebsiteLoaded(primary);
+        }
+      } else if (onWebsiteLoaded) {
+        onWebsiteLoaded(null);
       }
     } catch (err) {
       console.error("Failed to load websites", err);
     }
-  }, [selectedWebsiteId]);
+  }, [selectedWebsiteId, onWebsiteLoaded]);
 
   const loadAuditHistory = useCallback(async () => {
     try {
@@ -361,21 +277,18 @@ export function FullSiteAuditTab() {
     }
   }, []);
 
-  const loadLatestAudit = useCallback(
-    async (websiteId: number) => {
-      try {
-        const res = await api.get<SiteAudit & { audit?: SiteAudit }>(`/api/site-audit/latest/${websiteId}`);
-        if (res && res.id) {
-          setCurrentAudit(res);
-        } else {
-          setCurrentAudit(null);
-        }
-      } catch {
+  const loadLatestAudit = useCallback(async (websiteId: number) => {
+    try {
+      const res = await api.get<SiteAudit & { audit?: SiteAudit }>(`/api/site-audit/latest/${websiteId}`);
+      if (res && res.id) {
+        setCurrentAudit(res);
+      } else {
         setCurrentAudit(null);
       }
-    },
-    []
-  );
+    } catch {
+      setCurrentAudit(null);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -398,7 +311,22 @@ export function FullSiteAuditTab() {
     }
   }, [selectedWebsiteId, loadLatestAudit]);
 
-  // ── Poll while an audit is running ────────────────────────────────────────
+  // Close download menu on outside click
+  useEffect(() => {
+    function handleOutsideClick(e: MouseEvent) {
+      if (downloadMenuRef.current && !downloadMenuRef.current.contains(e.target as Node)) {
+        setShowDownloadMenu(false);
+      }
+    }
+    if (showDownloadMenu) {
+      document.addEventListener("mousedown", handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [showDownloadMenu]);
+
+  // ── Polling while an audit is running ────────────────────────────────────────
 
   const pollRunningAudit = useCallback(
     async (auditId: number) => {
@@ -437,7 +365,7 @@ export function FullSiteAuditTab() {
     if (!selectedWebsiteId) return;
     setLaunching(true);
     setErrorMsg(null);
-    setSelectedPage(null);
+    setShowOptionsModal(false);
     try {
       const res = await api.post<SiteAudit>("/api/site-audit/start", {
         website_id: selectedWebsiteId,
@@ -459,12 +387,13 @@ export function FullSiteAuditTab() {
     }
   };
 
-  // ── CSV Export (Actionable Fix Checklist + Page Scores) ─────────────────────
+  // ── CSV Exports ────────────────────────────────────────────────────────────
 
   const exportSummaryCSV = () => {
+    setShowDownloadMenu(false);
     if (!currentAudit || !currentAudit.pages) return;
     const rows = [
-      ["URL", "HTTP Status", "Overall Score", "Meta Score", "Structure Score", "Media Score", "Social Score", "Errors", "Warnings", "Passed", "Error Message"],
+      ["URL", "HTTP Status", "Overall Score", "Titles Score", "Structure Score", "Media Score", "Social Score", "Errors", "Warnings", "Passed", "Error Message"],
       ...currentAudit.pages.map((p) => [
         `"${p.url.replace(/"/g, '""')}"`,
         p.http_status ?? "",
@@ -490,28 +419,29 @@ export function FullSiteAuditTab() {
   };
 
   const exportActionableChecklistCSV = () => {
+    setShowDownloadMenu(false);
     if (!currentAudit || !currentAudit.pages) return;
     const headers = [
       "Page URL",
-      "Discoverability Layer",
+      "Type",
       "Category",
       "Check Title",
       "Severity",
-      "Evidence / Details",
-      "Actionable Fix Recommendation",
+      "Diagnostic Evidence",
+      "How to Fix",
     ];
     const rows: string[][] = [];
     for (const page of currentAudit.pages) {
       for (const item of page.audits || []) {
         if (item.status === "error" || item.status === "warning") {
-          const layer = getAuditLayer(item.category, item.title);
-          const layerLabel = DISCOVERABILITY_LAYERS.find((l) => l.key === layer)?.label || layer;
+          const layer = resolveItemLayer(item);
+          const typeName = getLayerDisplayName(layer);
           rows.push([
             `"${page.url.replace(/"/g, '""')}"`,
-            `"${layerLabel}"`,
+            `"${typeName}"`,
             `"${(item.category || "").replace(/"/g, '""')}"`,
             `"${(item.title || "").replace(/"/g, '""')}"`,
-            `"${item.status.toUpperCase()}"`,
+            `"${item.status === "error" ? "Must fix" : "Should fix"}"`,
             `"${(item.score_text || item.description || "").replace(/"/g, '""')}"`,
             `"${(item.fix_recommendation || "").replace(/"/g, '""')}"`,
           ]);
@@ -537,9 +467,11 @@ export function FullSiteAuditTab() {
       for (const item of page.audits || []) {
         if (item.status === "error" || item.status === "warning") {
           const key = `${item.id}-${item.status}`;
+          const layer = resolveItemLayer(item);
           if (!issueMap.has(key)) {
             issueMap.set(key, {
               id: item.id,
+              layer,
               category: item.category,
               title: item.title,
               status: item.status,
@@ -556,43 +488,82 @@ export function FullSiteAuditTab() {
       }
     }
     aggregatedIssues.push(...Array.from(issueMap.values()));
+    // Sort errors (Must fix) first, then by number of affected pages descending
     aggregatedIssues.sort((a, b) => {
       if (a.status !== b.status) return a.status === "error" ? -1 : 1;
       return b.affectedPages.length - a.affectedPages.length;
     });
   }
 
-  // ── Layer Counts & Issue Filtering ─────────────────────────────────────────
+  // Counts for filters
+  const mustFixCount = aggregatedIssues.filter((i) => i.status === "error").length;
+  const shouldFixCount = aggregatedIssues.filter((i) => i.status === "warning").length;
+  const totalIssuesCount = aggregatedIssues.length;
 
-  const layerCounts: Record<DiscoverabilityLayer, number> = {
-    all: aggregatedIssues.length,
-    technical: aggregatedIssues.filter((i) => getAuditLayer(i.category, i.title) === "technical").length,
-    onpage: aggregatedIssues.filter((i) => getAuditLayer(i.category, i.title) === "onpage").length,
-    aeo: aggregatedIssues.filter((i) => getAuditLayer(i.category, i.title) === "aeo").length,
-    geo: aggregatedIssues.filter((i) => getAuditLayer(i.category, i.title) === "geo").length,
+  const typeCounts = {
+    all: totalIssuesCount,
+    technical: aggregatedIssues.filter((i) => i.layer === "technical").length,
+    on_page: aggregatedIssues.filter((i) => i.layer === "on_page").length,
+    aeo: aggregatedIssues.filter((i) => i.layer === "aeo").length,
+    geo: aggregatedIssues.filter((i) => i.layer === "geo").length,
   };
 
   const filteredIssues = aggregatedIssues.filter((issue) => {
-    const matchesSeverity = issueFilter === "all" || issue.status === issueFilter;
-    const issueLayer = getAuditLayer(issue.category, issue.title);
-    const matchesLayer = layerFilter === "all" || issueLayer === layerFilter;
-    return matchesSeverity && matchesLayer;
+    const matchesSeverity = severityFilter === "all" || issue.status === severityFilter;
+    const matchesType = typeFilter === "all" || issue.layer === typeFilter;
+    return matchesSeverity && matchesType;
   });
 
-  // ── Filter pages ──────────────────────────────────────────────────────────
+  // ── By Page filtering ──────────────────────────────────────────────────────
 
-  const filteredPages = (currentAudit?.pages || []).filter((p) => {
+  const pages = currentAudit?.pages || [];
+  const mustFixPagesCount = pages.filter((p) => p.errors > 0 || p.error).length;
+  const shouldFixOnlyPagesCount = pages.filter((p) => p.errors === 0 && p.warnings > 0 && !p.error).length;
+  const allGoodPagesCount = pages.filter((p) => p.errors === 0 && p.warnings === 0 && !p.error).length;
+
+  const filteredPages = pages.filter((p) => {
     if (pageFilter === "all") return true;
-    if (pageFilter === "error") return p.errors > 0 || p.error;
-    if (pageFilter === "warning") return p.warnings > 0 && !p.errors;
-    if (pageFilter === "passed") return p.errors === 0 && p.warnings === 0;
+    if (pageFilter === "has-must-fix") return p.errors > 0 || p.error;
+    if (pageFilter === "should-fix-only") return p.errors === 0 && p.warnings > 0 && !p.error;
+    if (pageFilter === "all-good") return p.errors === 0 && p.warnings === 0 && !p.error;
     return true;
   });
 
-  const isRunning = currentAudit?.status === "running" || currentAudit?.status === "pending";
-  const selectedWebsite = websites.find((w) => w.id === selectedWebsiteId);
+  const isRunning = currentAudit?.status === "running" || currentAudit?.status === "pending" || launching;
+  const selectedWebsite = websites.find((w) => w.id === selectedWebsiteId) || websites[0];
+  const overallScore = currentAudit?.avg_overall_score ?? null;
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // Toggle issue expansion
+  const toggleIssueExpanded = (issueId: string) => {
+    setExpandedIssueIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(issueId)) next.delete(issueId);
+      else next.add(issueId);
+      return next;
+    });
+  };
+
+  // Toggle page expansion
+  const togglePageExpanded = (pageId: number) => {
+    setExpandedPageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(pageId)) next.delete(pageId);
+      else next.add(pageId);
+      return next;
+    });
+  };
+
+  // Toggle passed checks expansion for a page
+  const togglePassedChecksExpanded = (pageId: number) => {
+    setExpandedPassedPageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(pageId)) next.delete(pageId);
+      else next.add(pageId);
+      return next;
+    });
+  };
+
+  // ── Render Loading State ───────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -607,16 +578,285 @@ export function FullSiteAuditTab() {
         >
           🔄
         </div>
-        <div style={{ fontSize: "1rem", fontWeight: 600, color: "var(--text-primary)" }}>
-          Loading Full-Site Audit...
+        <div style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>
+          Checking website health…
         </div>
       </div>
     );
   }
 
+  // ── State A: No Authorized Website ─────────────────────────────────────────
+
+  if (websites.length === 0) {
+    return (
+      <div
+        style={{
+          backgroundColor: "var(--bg-card)",
+          border: "1px solid var(--border)",
+          borderRadius: 14,
+          padding: "3rem 2rem",
+          textAlign: "center",
+          maxWidth: 580,
+          margin: "2rem auto",
+        }}
+      >
+        <div
+          style={{
+            width: 52,
+            height: 52,
+            borderRadius: "50%",
+            backgroundColor: "rgba(245, 158, 11, 0.12)",
+            color: "#F59E0B",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "1.75rem",
+            margin: "0 auto 1.25rem auto",
+          }}
+        >
+          🌐
+        </div>
+        <h2 style={{ fontSize: "1.25rem", fontWeight: 800, color: "var(--text-primary)", margin: "0 0 0.5rem 0" }}>
+          Connect your website first
+        </h2>
+        <p style={{ fontSize: "0.9rem", color: "var(--text-muted)", lineHeight: 1.5, margin: "0 0 1.5rem 0" }}>
+          Add and confirm your website in Knowledge Lake. Then come back here to check how healthy it is.
+        </p>
+        <Link
+          href="/workspace/knowledge"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "0.7rem 1.4rem",
+            borderRadius: 8,
+            backgroundColor: "var(--accent, #8A64E9)",
+            color: "#fff",
+            fontWeight: 700,
+            fontSize: "0.9rem",
+            textDecoration: "none",
+          }}
+        >
+          Go to Knowledge Lake →
+        </Link>
+      </div>
+    );
+  }
+
+  // ── State B: Website Connected, Never Audited ──────────────────────────────
+
+  if (!currentAudit && !isRunning) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        {errorMsg && (
+          <div style={{ padding: "0.85rem 1rem", borderRadius: 8, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#EF4444", fontSize: "0.88rem" }}>
+            ⚠️ {errorMsg}
+          </div>
+        )}
+
+        <div
+          style={{
+            backgroundColor: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            borderRadius: 14,
+            padding: "3.5rem 2rem",
+            textAlign: "center",
+            maxWidth: 620,
+            margin: "2rem auto",
+          }}
+        >
+          <div
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: "50%",
+              backgroundColor: "rgba(16, 185, 129, 0.12)",
+              color: "#10B981",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "1.75rem",
+              margin: "0 auto 1.25rem auto",
+            }}
+          >
+            ⚡
+          </div>
+          <h2 style={{ fontSize: "1.35rem", fontWeight: 800, color: "var(--text-primary)", margin: "0 0 0.5rem 0" }}>
+            See how healthy your website is
+          </h2>
+          <p style={{ fontSize: "0.92rem", color: "var(--text-muted)", lineHeight: 1.6, margin: "0 0 1.75rem 0" }}>
+            We&apos;ll check up to {maxPages} pages of <strong>{selectedWebsite?.domain}</strong> and give you a simple list of what to fix so more people find you on Google and in AI search.
+          </p>
+          <button
+            onClick={handleStartAudit}
+            disabled={launching}
+            style={{
+              padding: "0.75rem 1.75rem",
+              borderRadius: 8,
+              border: "none",
+              backgroundColor: "var(--accent, #8A64E9)",
+              color: "#fff",
+              fontWeight: 700,
+              fontSize: "0.92rem",
+              cursor: launching ? "not-allowed" : "pointer",
+              boxShadow: "0 4px 14px rgba(138, 100, 233, 0.35)",
+            }}
+          >
+            {launching ? "Starting check…" : "Check my website"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── State C: While Check is Running ────────────────────────────────────────
+
+  if (isRunning) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        <div
+          style={{
+            backgroundColor: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            borderRadius: 14,
+            padding: "3.5rem 2rem",
+            textAlign: "center",
+            maxWidth: 600,
+            margin: "2rem auto",
+          }}
+        >
+          <div
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: "50%",
+              backgroundColor: "rgba(138, 100, 233, 0.15)",
+              color: "var(--accent, #8A64E9)",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "1.75rem",
+              marginBottom: "1.25rem",
+              animation: "spin 2s linear infinite",
+            }}
+          >
+            🔄
+          </div>
+          <h2 style={{ fontSize: "1.3rem", fontWeight: 800, color: "var(--text-primary)", margin: "0 0 0.5rem 0" }}>
+            Checking {selectedWebsite?.domain}…
+          </h2>
+          <p style={{ fontSize: "0.92rem", color: "var(--text-muted)", lineHeight: 1.6, margin: "0 auto 1.5rem auto", maxWidth: 460 }}>
+            We&apos;re looking at up to {maxPages} pages. This usually takes a few minutes. You can leave this page — results will show up here by themselves.
+          </p>
+
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 320,
+              height: 6,
+              borderRadius: 3,
+              backgroundColor: "var(--bg-surface)",
+              overflow: "hidden",
+              margin: "0 auto",
+              position: "relative",
+            }}
+          >
+            <div
+              style={{
+                width: "45%",
+                height: "100%",
+                backgroundColor: "var(--accent, #8A64E9)",
+                borderRadius: 3,
+                animation: "pulse 1.8s ease-in-out infinite",
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Dynamic advice sentence
+  const adviceSentence = (() => {
+    const label = scoreLabel(overallScore);
+    if (mustFixCount > 0) {
+      return `Your website is in ${label.toLowerCase()} shape. Fixing the ${mustFixCount} must-fix ${mustFixCount === 1 ? "problem" : "problems"} will help the most.`;
+    }
+    if (shouldFixCount > 0) {
+      return `Your website is in ${label.toLowerCase()} shape. Addressing the ${shouldFixCount} should-fix recommendations will help boost your score.`;
+    }
+    return `Your website is in great shape! All ${currentAudit?.total_passed || 0} checks passed.`;
+  })();
+
+  // ── Render Completed Audit Results ─────────────────────────────────────────
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
-      {/* ── Launch New Audit Card ── */}
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+      {/* ── Top Sub-bar: Last checked + Options + Check again ── */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "0.75rem",
+          paddingBottom: "0.25rem",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.85rem", color: "var(--text-muted)" }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#10B981", display: "inline-block" }} />
+          <span>
+            Last checked {formatDate(currentAudit?.completed_at || currentAudit?.created_at || null)} · {currentAudit?.pages_crawled || 0} pages
+          </span>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8, position: "relative" }}>
+          <button
+            onClick={() => setShowOptionsModal(true)}
+            style={{
+              padding: "0.5rem 0.95rem",
+              borderRadius: 8,
+              border: "1px solid var(--border)",
+              backgroundColor: "var(--bg-card)",
+              color: "var(--text-primary)",
+              fontSize: "0.85rem",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Options
+          </button>
+
+          <button
+            onClick={handleStartAudit}
+            disabled={isRunning}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "0.5rem 1.15rem",
+              borderRadius: 8,
+              border: "none",
+              backgroundColor: "var(--accent, #8A64E9)",
+              color: "#fff",
+              fontSize: "0.85rem",
+              fontWeight: 700,
+              cursor: isRunning ? "not-allowed" : "pointer",
+              boxShadow: "0 2px 8px rgba(138, 100, 233, 0.3)",
+            }}
+          >
+            <span>⟳</span> Check again
+          </button>
+        </div>
+      </div>
+
+      {errorMsg && (
+        <div style={{ padding: "0.85rem 1rem", borderRadius: 8, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#EF4444", fontSize: "0.88rem" }}>
+          ⚠️ {errorMsg}
+        </div>
+      )}
+
+      {/* ── Results Overview Card ── */}
       <div
         style={{
           backgroundColor: "var(--bg-card)",
@@ -625,958 +865,1018 @@ export function FullSiteAuditTab() {
           padding: "1.5rem 1.75rem",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "0.25rem" }}>
-          <span style={{ fontSize: "1.2rem" }}>🚀</span>
-          <h2 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>
-            Launch Multi-Page Site Audit
-          </h2>
-        </div>
-        <p style={{ margin: "0 0 1.25rem 0", color: "var(--text-muted)", fontSize: "0.85rem" }}>
-          Crawl your authorized website and analyze each page&apos;s technical SEO health, headings, and discoverability.
-        </p>
-
-        {websites.length === 0 ? (
-          <div
-            style={{
-              padding: "1rem 1.25rem",
-              borderRadius: 8,
-              background: "rgba(245,158,11,0.1)",
-              border: "1px solid rgba(245,158,11,0.25)",
-              color: "#F59E0B",
-              fontSize: "0.88rem",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              flexWrap: "wrap",
-              gap: 12,
-            }}
-          >
-            <span>No authorized website found. Connect and authorize your company domain in Knowledge Lake first.</span>
-            <Link
-              href="/workspace/knowledge"
-              style={{
-                color: "#F59E0B",
-                fontWeight: 700,
-                textDecoration: "underline",
-                fontSize: "0.85rem",
-              }}
-            >
-              Connect website in Knowledge Lake →
-            </Link>
-          </div>
-        ) : (
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
-            <div style={{ flex: 1, minWidth: 240 }}>
-              <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 4 }}>
-                Website
-              </label>
-              <select
-                value={selectedWebsiteId ?? ""}
-                onChange={(e) => setSelectedWebsiteId(Number(e.target.value))}
-                disabled={isRunning || launching}
-                style={{
-                  width: "100%",
-                  padding: "0.6rem 0.9rem",
-                  borderRadius: 8,
-                  border: "1px solid var(--border)",
-                  backgroundColor: "var(--bg-surface)",
-                  color: "var(--text-primary)",
-                  fontSize: "0.88rem",
-                  fontFamily: "inherit",
-                }}
-              >
-                {websites.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.domain} {w.is_primary ? "(Primary)" : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ width: 140 }}>
-              <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 4 }}>
-                Max Pages
-              </label>
-              <select
-                value={maxPages}
-                onChange={(e) => setMaxPages(Number(e.target.value))}
-                disabled={isRunning || launching}
-                style={{
-                  width: "100%",
-                  padding: "0.6rem 0.9rem",
-                  borderRadius: 8,
-                  border: "1px solid var(--border)",
-                  backgroundColor: "var(--bg-surface)",
-                  color: "var(--text-primary)",
-                  fontSize: "0.88rem",
-                  fontFamily: "inherit",
-                }}
-              >
-                <option value={10}>10 pages</option>
-                <option value={25}>25 pages</option>
-                <option value={50}>50 pages</option>
-              </select>
-            </div>
-
-            <div style={{ alignSelf: "flex-end" }}>
-              <button
-                onClick={handleStartAudit}
-                disabled={isRunning || launching || !selectedWebsiteId}
-                style={{
-                  padding: "0.65rem 1.4rem",
-                  borderRadius: 8,
-                  border: "none",
-                  background: isRunning ? "rgba(99,102,241,0.5)" : "linear-gradient(135deg, #6366F1, #8B5CF6)",
-                  color: "#fff",
-                  fontWeight: 700,
-                  fontSize: "0.88rem",
-                  cursor: isRunning || launching ? "not-allowed" : "pointer",
-                  fontFamily: "inherit",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  boxShadow: "0 4px 12px rgba(99,102,241,0.3)",
-                  transition: "opacity 0.2s",
-                }}
-              >
-                {isRunning || launching ? (
-                  <>
-                    <span style={{ animation: "spin 1s linear infinite", display: "inline-block" }}>🔄</span>
-                    Running Audit...
-                  </>
-                ) : (
-                  <>
-                    <span>🔬</span> Run Audit
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {errorMsg && (
-          <div
-            style={{
-              marginTop: "1rem",
-              padding: "0.65rem 0.9rem",
-              borderRadius: 6,
-              background: "rgba(239,68,68,0.1)",
-              border: "1px solid rgba(239,68,68,0.3)",
-              color: "#EF4444",
-              fontSize: "0.82rem",
-            }}
-          >
-            ⚠️ {errorMsg}
-          </div>
-        )}
-      </div>
-
-      {/* ── Active Audit Running Banner ── */}
-      {isRunning && (
+        {/* Results Header Line */}
         <div
           style={{
-            backgroundColor: "rgba(99,102,241,0.08)",
-            border: "1px solid rgba(99,102,241,0.3)",
-            borderRadius: 14,
-            padding: "1.75rem",
             display: "flex",
+            justifyContent: "space-between",
             alignItems: "center",
-            gap: "1.25rem",
+            marginBottom: "1.5rem",
+            position: "relative",
           }}
         >
-          <div
-            style={{
-              width: 50,
-              height: 50,
-              borderRadius: 12,
-              background: "rgba(99,102,241,0.2)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "1.5rem",
-              animation: "spin 2s linear infinite",
-            }}
-          >
-            🔄
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, fontSize: "1.05rem", color: "var(--text-primary)", marginBottom: 4 }}>
-              Crawl in progress for {selectedWebsite?.domain}…
+          <span style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)" }}>
+            Results
+          </span>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {/* Download Dropdown */}
+            <div style={{ position: "relative" }} ref={downloadMenuRef}>
+              <button
+                onClick={() => setShowDownloadMenu(!showDownloadMenu)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  padding: "0.4rem 0.8rem",
+                  borderRadius: 6,
+                  border: "1px solid var(--border)",
+                  backgroundColor: "var(--bg-surface)",
+                  color: "var(--text-primary)",
+                  fontSize: "0.82rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                <span>↓</span> Download
+              </button>
+
+              {showDownloadMenu && (
+                <div
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    top: "calc(100% + 4px)",
+                    backgroundColor: "var(--bg-card)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                    zIndex: 50,
+                    minWidth: 220,
+                    overflow: "hidden",
+                  }}
+                >
+                  <button
+                    onClick={exportActionableChecklistCSV}
+                    style={{
+                      width: "100%",
+                      padding: "0.65rem 1rem",
+                      textAlign: "left",
+                      border: "none",
+                      backgroundColor: "transparent",
+                      color: "var(--text-primary)",
+                      fontSize: "0.82rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <span>📋</span> Actionable Fix Checklist (CSV)
+                  </button>
+                  <button
+                    onClick={exportSummaryCSV}
+                    style={{
+                      width: "100%",
+                      padding: "0.65rem 1rem",
+                      textAlign: "left",
+                      border: "none",
+                      backgroundColor: "transparent",
+                      color: "var(--text-primary)",
+                      fontSize: "0.82rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      borderTop: "1px solid var(--border)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <span>📊</span> Page Scores Summary (CSV)
+                  </button>
+                </div>
+              )}
             </div>
-            <div style={{ color: "var(--text-muted)", fontSize: "0.85rem", lineHeight: 1.5 }}>
-              The crawler is fetching up to {maxPages} pages, extracting metadata, and calculating category scores in the background. Results will refresh automatically.
-            </div>
+
+            {/* Open Full Report Link */}
+            {currentAudit && (
+              <Link
+                href={`/workspace/seo/site-audit/${currentAudit.id}`}
+                style={{
+                  fontSize: "0.82rem",
+                  fontWeight: 600,
+                  color: "var(--accent, #8A64E9)",
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                Open full report ↗
+              </Link>
+            )}
           </div>
         </div>
-      )}
 
-      {/* ── Current/Latest Audit Results ── */}
-      {currentAudit && currentAudit.status === "completed" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-          {/* Summary Card */}
-          <div
-            style={{
-              backgroundColor: "var(--bg-card)",
-              border: "1px solid var(--border)",
-              borderRadius: 14,
-              padding: "1.75rem",
-            }}
-          >
+        {/* Score Overview: Circle + Advice + Chips + 4 Area Bars */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+            gap: "2rem",
+            alignItems: "center",
+          }}
+        >
+          {/* Left / Middle: Score Circle + Sentence + 3 Chips */}
+          <div style={{ display: "flex", alignItems: "center", gap: "1.5rem", flexWrap: "wrap" }}>
+            {/* Round Score Circle */}
             <div
               style={{
+                width: 84,
+                height: 84,
+                borderRadius: "50%",
+                backgroundColor: scoreBg(overallScore),
+                border: `3px solid ${scoreColor(overallScore)}`,
                 display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                marginBottom: "1.5rem",
-                flexWrap: "wrap",
-                gap: "1rem",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
               }}
             >
-              <div>
-                <h3 style={{ margin: "0 0 0.25rem 0", fontSize: "1.2rem", fontWeight: 800, color: "var(--text-primary)" }}>
-                  Site Audit Summary
-                </h3>
-                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                  Completed {formatDate(currentAudit.completed_at)} · {currentAudit.pages_crawled} pages crawled
-                </div>
+              <span style={{ fontSize: "1.85rem", fontWeight: 800, color: scoreColor(overallScore), lineHeight: 1 }}>
+                {overallScore !== null ? Math.round(overallScore) : "—"}
+              </span>
+              <span style={{ fontSize: "0.68rem", fontWeight: 700, color: scoreColor(overallScore), marginTop: 2 }}>
+                {scoreLabel(overallScore)}
+              </span>
+            </div>
+
+            {/* Advice Sentence & 3 Chips */}
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <div style={{ fontSize: "0.95rem", color: "var(--text-primary)", fontWeight: 500, lineHeight: 1.5, marginBottom: "0.85rem" }}>
+                {adviceSentence}
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <button
-                  onClick={exportActionableChecklistCSV}
-                  title="Download complete actionable fix checklist with exact evidence and fix recommendations"
+
+              {/* 3 Summary Chips */}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <span
                   style={{
-                    padding: "0.45rem 0.95rem",
-                    borderRadius: 6,
-                    border: "1px solid rgba(139, 92, 246, 0.4)",
-                    background: "rgba(139, 92, 246, 0.12)",
-                    color: "var(--accent, #8A64E9)",
-                    fontSize: "0.8rem",
+                    padding: "3px 10px",
+                    borderRadius: 9999,
+                    backgroundColor: "rgba(239, 68, 68, 0.12)",
+                    color: "#EF4444",
+                    fontSize: "0.78rem",
                     fontWeight: 700,
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
+                    border: "1px solid rgba(239, 68, 68, 0.25)",
                   }}
                 >
-                  📥 Export Fix Checklist (CSV)
-                </button>
-                <button
-                  onClick={exportSummaryCSV}
-                  title="Download page-by-page score matrix"
+                  {mustFixCount} must fix
+                </span>
+
+                <span
                   style={{
-                    padding: "0.45rem 0.9rem",
-                    borderRadius: 6,
-                    border: "1px solid var(--border)",
-                    background: "var(--bg-surface)",
-                    color: "var(--text-primary)",
-                    fontSize: "0.8rem",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
+                    padding: "3px 10px",
+                    borderRadius: 9999,
+                    backgroundColor: "rgba(245, 158, 11, 0.12)",
+                    color: "#F59E0B",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    border: "1px solid rgba(245, 158, 11, 0.25)",
                   }}
                 >
-                  📊 Page Scores (CSV)
-                </button>
-                <Link
-                  href={`/workspace/seo/site-audit/${currentAudit.id}`}
+                  {shouldFixCount} should fix
+                </span>
+
+                <span
                   style={{
-                    padding: "0.45rem 0.9rem",
-                    borderRadius: 6,
-                    border: "1px solid rgba(99,102,241,0.3)",
-                    background: "rgba(99,102,241,0.12)",
-                    color: "#818CF8",
-                    fontSize: "0.8rem",
-                    fontWeight: 600,
-                    textDecoration: "none",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4,
+                    padding: "3px 10px",
+                    borderRadius: 9999,
+                    backgroundColor: "rgba(16, 185, 129, 0.12)",
+                    color: "#10B981",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    border: "1px solid rgba(16, 185, 129, 0.25)",
                   }}
                 >
-                  Permalink ↗
-                </Link>
-                <span style={statusBadgeStyle(currentAudit.status)}>
-                  ✓ Completed
+                  {currentAudit?.total_passed || 0} checks passed
                 </span>
               </div>
             </div>
+          </div>
 
-            {/* Score Gauges Row */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-                gap: "1.25rem",
-                padding: "1.5rem 0",
-                borderTop: "1px solid var(--border)",
-                borderBottom: "1px solid var(--border)",
-              }}
-            >
+          {/* Right: 4 Area Progress Bars */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            {[
+              { label: "Titles & headings", score: currentAudit?.avg_meta_score ?? null },
+              { label: "Page structure", score: currentAudit?.avg_structure_score ?? null },
+              { label: "Images & files", score: currentAudit?.avg_media_score ?? null },
+              { label: "Social sharing", score: currentAudit?.avg_social_score ?? null },
+            ].map(({ label, score }) => {
+              const val = score !== null ? Math.round(score) : 0;
+              const color = scoreColor(score);
+              return (
+                <div key={label}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem", marginBottom: 3 }}>
+                    <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>{label}</span>
+                    <span style={{ color, fontWeight: 700 }}>
+                      {score !== null ? `${val} · ${scoreLabel(score)}` : "—"}
+                    </span>
+                  </div>
+                  <div style={{ width: "100%", height: 6, backgroundColor: "var(--bg-surface)", borderRadius: 3, overflow: "hidden", border: "1px solid var(--border)" }}>
+                    <div style={{ width: `${val}%`, height: "100%", backgroundColor: color, borderRadius: 3, transition: "width 0.6s ease" }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* ── View Switcher Pills: What to fix vs By page ── */}
+      <div style={{ display: "flex", gap: 8, borderBottom: "1px solid var(--border)", paddingBottom: "0.5rem" }}>
+        <button
+          onClick={() => setViewMode("what-to-fix")}
+          style={{
+            padding: "0.5rem 1rem",
+            borderRadius: 8,
+            border: "none",
+            backgroundColor: viewMode === "what-to-fix" ? "var(--bg-card)" : "transparent",
+            color: viewMode === "what-to-fix" ? "var(--text-primary)" : "var(--text-muted)",
+            fontSize: "0.9rem",
+            fontWeight: 700,
+            cursor: "pointer",
+            boxShadow: viewMode === "what-to-fix" ? "var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.06))" : "none",
+          }}
+        >
+          What to fix · {totalIssuesCount}
+        </button>
+
+        <button
+          onClick={() => setViewMode("by-page")}
+          style={{
+            padding: "0.5rem 1rem",
+            borderRadius: 8,
+            border: "none",
+            backgroundColor: viewMode === "by-page" ? "var(--bg-card)" : "transparent",
+            color: viewMode === "by-page" ? "var(--text-primary)" : "var(--text-muted)",
+            fontSize: "0.9rem",
+            fontWeight: 700,
+            cursor: "pointer",
+            boxShadow: viewMode === "by-page" ? "var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.06))" : "none",
+          }}
+        >
+          By page · {pages.length}
+        </button>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* ── VIEW 1: WHAT TO FIX (Default) ── */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+
+      {viewMode === "what-to-fix" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {/* Sub-filters row: Severity chips on left, Type dropdown on right */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "0.75rem",
+            }}
+          >
+            {/* Severity sub-pills */}
+            <div style={{ display: "flex", gap: 6 }}>
               {[
-                { label: "Overall", score: currentAudit.avg_overall_score },
-                { label: "Meta & Headings", score: currentAudit.avg_meta_score },
-                { label: "Structure", score: currentAudit.avg_structure_score },
-                { label: "Media & Assets", score: currentAudit.avg_media_score },
-                { label: "Social & OG", score: currentAudit.avg_social_score },
-              ].map(({ label, score }) => (
-                <div
-                  key={label}
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "0.25rem 0.5rem",
-                  }}
-                >
-                  <ScoreGauge score={score} size={88} strokeWidth={7} />
-                  <span
+                { key: "all" as const, label: `All · ${totalIssuesCount}` },
+                { key: "error" as const, label: `Must fix · ${mustFixCount}` },
+                { key: "warning" as const, label: `Should fix · ${shouldFixCount}` },
+              ].map(({ key, label }) => {
+                const isActive = severityFilter === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setSeverityFilter(key)}
                     style={{
-                      fontSize: "0.85rem",
-                      fontWeight: 700,
-                      color: "var(--text-primary)",
-                      textAlign: "center",
+                      padding: "0.35rem 0.85rem",
+                      borderRadius: 9999,
+                      border: isActive ? "1px solid rgba(138, 100, 233, 0.45)" : "1px solid var(--border)",
+                      backgroundColor: isActive ? "rgba(138, 100, 233, 0.14)" : "var(--bg-card)",
+                      color: isActive ? "var(--accent, #8A64E9)" : "var(--text-muted)",
+                      fontSize: "0.8rem",
+                      fontWeight: isActive ? 700 : 500,
+                      cursor: "pointer",
                     }}
                   >
                     {label}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "0.72rem",
-                      fontWeight: 700,
-                      padding: "2px 10px",
-                      borderRadius: 9999,
-                      backgroundColor: scoreBg(score),
-                      color: scoreColor(score),
-                      letterSpacing: "0.02em",
-                    }}
-                  >
-                    {scoreLabel(score)}
-                  </span>
-                </div>
-              ))}
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Error / Warning / Passed counters */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: "1rem",
-                marginTop: "1.5rem",
-              }}
-            >
-              <div
+            {/* Type dropdown */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: 600 }}>Type</span>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value as DiscoverabilityLayer)}
                 style={{
-                  background: "rgba(239,68,68,0.06)",
-                  border: "1px solid rgba(239,68,68,0.22)",
-                  borderRadius: 10,
-                  padding: "1.1rem 1rem",
-                  textAlign: "center",
+                  padding: "0.35rem 0.75rem",
+                  borderRadius: 8,
+                  border: "1px solid var(--border)",
+                  backgroundColor: "var(--bg-card)",
+                  color: "var(--text-primary)",
+                  fontSize: "0.8rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
                 }}
               >
-                <div style={{ fontSize: "1.85rem", fontWeight: 800, color: "#EF4444", lineHeight: 1.1, marginBottom: 4 }}>
-                  {currentAudit.total_errors}
-                </div>
-                <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                  Total Errors
-                </div>
-              </div>
-
-              <div
-                style={{
-                  background: "rgba(245,158,11,0.06)",
-                  border: "1px solid rgba(245,158,11,0.22)",
-                  borderRadius: 10,
-                  padding: "1.1rem 1rem",
-                  textAlign: "center",
-                }}
-              >
-                <div style={{ fontSize: "1.85rem", fontWeight: 800, color: "#F59E0B", lineHeight: 1.1, marginBottom: 4 }}>
-                  {currentAudit.total_warnings}
-                </div>
-                <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                  Total Warnings
-                </div>
-              </div>
-
-              <div
-                style={{
-                  background: "rgba(16,185,129,0.06)",
-                  border: "1px solid rgba(16,185,129,0.22)",
-                  borderRadius: 10,
-                  padding: "1.1rem 1rem",
-                  textAlign: "center",
-                }}
-              >
-                <div style={{ fontSize: "1.85rem", fontWeight: 800, color: "#10B981", lineHeight: 1.1, marginBottom: 4 }}>
-                  {currentAudit.total_passed}
-                </div>
-                <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                  Checks Passed
-                </div>
-              </div>
+                <option value="all">All types ({typeCounts.all})</option>
+                <option value="technical">Search basics ({typeCounts.technical})</option>
+                <option value="on_page">Page content ({typeCounts.on_page})</option>
+                <option value="aeo">Answer boxes ({typeCounts.aeo})</option>
+                <option value="geo">AI search ({typeCounts.geo})</option>
+              </select>
             </div>
           </div>
 
-          {/* ── Sub-Tabs: Pages Breakdown vs Aggregated Issues ── */}
-          <div style={{ display: "flex", gap: "0.5rem", borderBottom: "1px solid var(--border)", paddingBottom: "0.5rem" }}>
-            <button
-              onClick={() => setViewMode("pages")}
-              style={{
-                padding: "0.5rem 1rem",
-                borderRadius: 8,
-                border: "none",
-                background: viewMode === "pages" ? "rgba(99,102,241,0.15)" : "transparent",
-                color: viewMode === "pages" ? "#818CF8" : "var(--text-muted)",
-                fontSize: "0.88rem",
-                fontWeight: 700,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              📄 Pages Breakdown ({currentAudit.pages?.length || 0})
-            </button>
-            <button
-              onClick={() => setViewMode("issues")}
-              style={{
-                padding: "0.5rem 1rem",
-                borderRadius: 8,
-                border: "none",
-                background: viewMode === "issues" ? "rgba(99,102,241,0.15)" : "transparent",
-                color: viewMode === "issues" ? "#818CF8" : "var(--text-muted)",
-                fontSize: "0.88rem",
-                fontWeight: 700,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              📋 Aggregated Issues & Fix Checklist ({aggregatedIssues.length})
-            </button>
-          </div>
-
-          {/* ── View 1: Pages Breakdown Table ── */}
-          {viewMode === "pages" && (
+          {/* Issue Cards */}
+          {filteredIssues.length === 0 ? (
             <div
               style={{
                 backgroundColor: "var(--bg-card)",
                 border: "1px solid var(--border)",
-                borderRadius: 14,
-                padding: "1.5rem",
+                borderRadius: 12,
+                padding: "3rem 2rem",
+                textAlign: "center",
+                color: "var(--text-muted)",
+                fontSize: "0.9rem",
               }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "1rem",
-                  flexWrap: "wrap",
-                  gap: "0.75rem",
-                }}
-              >
-                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)" }}>
-                  Page Results ({filteredPages.length})
-                </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  {(["all", "error", "warning", "passed"] as const).map((f) => (
-                    <button
-                      key={f}
-                      onClick={() => setPageFilter(f)}
-                      style={{
-                        padding: "0.3rem 0.75rem",
-                        borderRadius: 6,
-                        border: "1px solid var(--border)",
-                        background: pageFilter === f ? "rgba(99,102,241,0.2)" : "transparent",
-                        color: pageFilter === f ? "#818CF8" : "var(--text-muted)",
-                        fontSize: "0.75rem",
-                        fontWeight: 600,
-                        cursor: "pointer",
-                        textTransform: "capitalize",
-                      }}
-                    >
-                      {f}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              No problems found matching this filter.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
+              {filteredIssues.map((issue) => {
+                const isExpanded = expandedIssueIds.has(issue.id);
+                const isError = issue.status === "error";
+                const isSiteWide = issue.affectedPages.length >= (pages.length || 1);
+                const locationText = isSiteWide
+                  ? `On the whole site · ${getLayerDisplayName(issue.layer)}`
+                  : `On ${issue.affectedPages.length} of ${pages.length} pages · ${getLayerDisplayName(issue.layer)}`;
 
-              {filteredPages.length === 0 ? (
-                <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)", fontSize: "0.85rem" }}>
-                  No pages match filter &quot;{pageFilter}&quot;.
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                  {filteredPages.map((page) => (
-                    <div
-                      key={page.id}
-                      onClick={() => setSelectedPage(selectedPage?.id === page.id ? null : page)}
-                      style={{
-                        backgroundColor: "var(--bg-surface)",
-                        border: "1px solid var(--border)",
-                        borderRadius: 10,
-                        padding: "1rem 1.25rem",
-                        cursor: "pointer",
-                        transition: "all 0.15s ease",
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 260 }}>
-                          <div
-                            style={{
-                              width: 36,
-                              height: 36,
-                              borderRadius: "50%",
-                              background: `${scoreColor(page.overall_score)}15`,
-                              border: `2px solid ${scoreColor(page.overall_score)}`,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              fontWeight: 800,
-                              fontSize: "0.85rem",
-                              color: scoreColor(page.overall_score),
-                              flexShrink: 0,
-                            }}
-                          >
-                            {page.overall_score !== null ? Math.round(page.overall_score) : "—"}
-                          </div>
-                          <div>
-                            <div style={{ fontWeight: 600, fontSize: "0.88rem", color: "var(--text-primary)" }}>
-                              {page.url.replace(/^https?:\/\//, "")}
-                            </div>
-                            <div style={{ display: "flex", gap: 8, fontSize: "0.75rem", color: "var(--text-muted)", marginTop: 2 }}>
-                              {page.errors > 0 && <span style={{ color: "#EF4444" }}>{page.errors} errors</span>}
-                              {page.warnings > 0 && <span style={{ color: "#F59E0B" }}>{page.warnings} warnings</span>}
-                              {page.errors === 0 && page.warnings === 0 && <span style={{ color: "#10B981" }}>All passed</span>}
-                            </div>
-                          </div>
-                        </div>
+                return (
+                  <div
+                    key={`${issue.id}-${issue.status}`}
+                    style={{
+                      backgroundColor: "var(--bg-card)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 12,
+                      padding: "1.25rem 1.5rem",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem" }}>
+                      <div>
+                        {/* Severity tag */}
+                        <span
+                          style={{
+                            display: "inline-block",
+                            padding: "2px 8px",
+                            borderRadius: 4,
+                            backgroundColor: isError ? "rgba(239, 68, 68, 0.12)" : "rgba(245, 158, 11, 0.12)",
+                            color: isError ? "#EF4444" : "#F59E0B",
+                            border: `1px solid ${isError ? "rgba(239, 68, 68, 0.25)" : "rgba(245, 158, 11, 0.25)"}`,
+                            fontSize: "0.72rem",
+                            fontWeight: 700,
+                            marginBottom: "0.4rem",
+                          }}
+                        >
+                          {isError ? "Must fix" : "Should fix"}
+                        </span>
 
-                        {/* Category badges */}
-                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                          <span style={{ fontSize: "0.72rem", padding: "2px 6px", borderRadius: 4, background: "rgba(255,255,255,0.05)", color: scoreColor(page.meta_score) }}>
-                            M
-                          </span>
-                          <span style={{ fontSize: "0.72rem", padding: "2px 6px", borderRadius: 4, background: "rgba(255,255,255,0.05)", color: scoreColor(page.structure_score) }}>
-                            S
-                          </span>
-                          <span style={{ fontSize: "0.72rem", padding: "2px 6px", borderRadius: 4, background: "rgba(255,255,255,0.05)", color: scoreColor(page.media_score) }}>
-                            A
-                          </span>
-                          <span style={{ fontSize: "0.72rem", padding: "2px 6px", borderRadius: 4, background: "rgba(255,255,255,0.05)", color: scoreColor(page.social_score) }}>
-                            G
-                          </span>
-                          <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginLeft: 6 }}>
-                            {selectedPage?.id === page.id ? "▲" : "▼"}
-                          </span>
+                        {/* Title */}
+                        <h4 style={{ margin: "0 0 0.25rem 0", fontSize: "0.98rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                          {issue.title}
+                        </h4>
+
+                        {/* Subtitle */}
+                        <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "0.65rem" }}>
+                          {locationText}
                         </div>
                       </div>
 
-                      {/* Expanded Page Findings */}
-                      {selectedPage?.id === page.id && (
-                        <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                          {page.audits.map((item) => {
-                            const layer = getAuditLayer(item.category, item.title);
-                            const b = layerBadgeStyle(layer);
-                            return (
-                              <div
-                                key={item.id}
-                                style={{
-                                  padding: "0.75rem",
-                                  borderRadius: 8,
-                                  background: "var(--bg-card)",
-                                  border: "1px solid var(--border)",
-                                }}
-                              >
-                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                                    <span>{item.status === "passed" ? "✅" : item.status === "warning" ? "⚠️" : "❌"}</span>
-                                    <span style={{ fontWeight: 600, fontSize: "0.85rem", color: "var(--text-primary)" }}>
-                                      {item.title}
-                                    </span>
-                                    <span
-                                      style={{
-                                        fontSize: "0.68rem",
-                                        fontWeight: 700,
-                                        padding: "1px 6px",
-                                        borderRadius: 4,
-                                        background: b.bg,
-                                        color: b.color,
-                                        border: `1px solid ${b.border}`,
-                                      }}
-                                    >
-                                      {b.label}
-                                    </span>
-                                    <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
-                                      ({item.category})
-                                    </span>
-                                  </div>
-                                  <span style={{ fontSize: "0.78rem", color: item.status === "passed" ? "#10B981" : item.status === "warning" ? "#F59E0B" : "#EF4444", fontWeight: 700 }}>
-                                    {item.score_text}
-                                  </span>
-                                </div>
-                                <p style={{ margin: "0.3rem 0 0 0", fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                                  {item.description}
-                                </p>
-                                {item.fix_recommendation && (
-                                  <div style={{ marginTop: "0.5rem", padding: "0.5rem 0.75rem", borderRadius: 6, background: "rgba(0,0,0,0.2)", fontSize: "0.78rem", color: "var(--text-primary)", borderLeft: `3px solid ${item.status === "passed" ? "#10B981" : item.status === "warning" ? "#F59E0B" : "#EF4444"}` }}>
-                                    <strong>Fix:</strong> {item.fix_recommendation}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── View 2: Aggregated Issues Checklist ── */}
-          {viewMode === "issues" && (
-            <div
-              style={{
-                backgroundColor: "var(--bg-card)",
-                border: "1px solid var(--border)",
-                borderRadius: 14,
-                padding: "1.5rem",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "flex-start",
-                  marginBottom: "1.25rem",
-                  flexWrap: "wrap",
-                  gap: "1rem",
-                }}
-              >
-                <div>
-                  <h4 style={{ margin: "0 0 0.2rem 0", fontSize: "1.05rem", fontWeight: 800, color: "var(--text-primary)" }}>
-                    Aggregated Issues Checklist
-                  </h4>
-                  <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--text-muted)" }}>
-                    Issues grouped across all crawled pages with affected URL lists, evidence, and actionable code fixes.
-                  </p>
-                </div>
-
-                {/* Severity Filter */}
-                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 600 }}>Severity:</span>
-                  {(["all", "error", "warning"] as const).map((f) => {
-                    const isActive = issueFilter === f;
-                    return (
+                      {/* Show/Hide Pages Button */}
                       <button
-                        key={f}
-                        onClick={() => setIssueFilter(f)}
+                        onClick={() => toggleIssueExpanded(issue.id)}
                         style={{
-                          padding: "0.3rem 0.75rem",
+                          padding: "0.35rem 0.75rem",
                           borderRadius: 6,
-                          border: isActive ? "1px solid rgba(99,102,241,0.5)" : "1px solid var(--border)",
-                          background: isActive ? "rgba(99,102,241,0.2)" : "transparent",
-                          color: isActive ? "#818CF8" : "var(--text-muted)",
-                          fontSize: "0.75rem",
-                          fontWeight: 700,
-                          cursor: "pointer",
-                          textTransform: "capitalize",
-                        }}
-                      >
-                        {f === "error" ? "❌ Errors" : f === "warning" ? "⚠️ Warnings" : "All"}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Discoverability Layer Filter Bar */}
-              <div
-                style={{
-                  display: "flex",
-                  gap: "0.5rem",
-                  marginBottom: "1.5rem",
-                  paddingBottom: "1rem",
-                  borderBottom: "1px solid var(--border)",
-                  overflowX: "auto",
-                  flexWrap: "wrap",
-                }}
-              >
-                {DISCOVERABILITY_LAYERS.map((layer) => {
-                  const isActive = layerFilter === layer.key;
-                  const count = layerCounts[layer.key];
-                  return (
-                    <button
-                      key={layer.key}
-                      onClick={() => setLayerFilter(layer.key)}
-                      title={layer.description}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                        padding: "0.4rem 0.85rem",
-                        borderRadius: 8,
-                        border: isActive ? "1px solid rgba(139, 92, 246, 0.5)" : "1px solid var(--border)",
-                        background: isActive ? "rgba(139, 92, 246, 0.15)" : "var(--bg-surface)",
-                        color: isActive ? "var(--accent, #8A64E9)" : "var(--text-muted)",
-                        fontSize: "0.8rem",
-                        fontWeight: isActive ? 700 : 500,
-                        cursor: "pointer",
-                        transition: "all 0.15s ease",
-                      }}
-                    >
-                      <span>{layer.icon}</span>
-                      <span>{layer.label}</span>
-                      <span
-                        style={{
-                          fontSize: "0.68rem",
-                          padding: "1px 6px",
-                          borderRadius: 10,
-                          background: isActive ? "rgba(139, 92, 246, 0.25)" : "rgba(125,125,125,0.12)",
-                          color: isActive ? "var(--accent, #8A64E9)" : "var(--text-muted)",
-                          fontWeight: 700,
-                        }}
-                      >
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {filteredIssues.length === 0 ? (
-                <div style={{ padding: "2.5rem", textAlign: "center", color: "var(--text-muted)", fontSize: "0.88rem" }}>
-                  No issues found matching the selected filter ({issueFilter} / {DISCOVERABILITY_LAYERS.find(l => l.key === layerFilter)?.label}).
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                  {filteredIssues.map((issue) => {
-                    const layer = getAuditLayer(issue.category, issue.title);
-                    const b = layerBadgeStyle(layer);
-                    return (
-                      <div
-                        key={issue.id}
-                        style={{
-                          backgroundColor: "var(--bg-surface)",
                           border: "1px solid var(--border)",
-                          borderRadius: 10,
-                          padding: "1.25rem",
+                          backgroundColor: "var(--bg-surface)",
+                          color: "var(--text-secondary)",
+                          fontSize: "0.78rem",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          whiteSpace: "nowrap",
                         }}
                       >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem", flexWrap: "wrap" }}>
-                          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                            <span style={{ fontSize: "1.2rem", marginTop: 2 }}>{issue.status === "error" ? "❌" : "⚠️"}</span>
-                            <div>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                                <span style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)" }}>
-                                  {issue.title}
-                                </span>
-                                <span
-                                  style={{
-                                    fontSize: "0.7rem",
-                                    fontWeight: 700,
-                                    padding: "2px 8px",
-                                    borderRadius: 4,
-                                    backgroundColor: b.bg,
-                                    color: b.color,
-                                    border: `1px solid ${b.border}`,
-                                  }}
-                                >
-                                  {b.label}
-                                </span>
-                              </div>
-                              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: 4 }}>
-                                Category: <strong>{issue.category}</strong> · Affects{" "}
-                                <strong style={{ color: issue.status === "error" ? "#EF4444" : "#F59E0B" }}>
-                                  {issue.affectedPages.length} {issue.affectedPages.length === 1 ? "page" : "pages"}
-                                </strong>
-                              </div>
-                            </div>
-                          </div>
+                        {isExpanded ? "Hide pages ▲" : "Show pages ▼"}
+                      </button>
+                    </div>
 
-                          <button
-                            onClick={() => setExpandedIssue(expandedIssue === issue.id ? null : issue.id)}
+                    {/* How to Fix Recommendation */}
+                    {issue.fix_recommendation && (
+                      <div
+                        style={{
+                          fontSize: "0.85rem",
+                          color: "var(--text-secondary)",
+                          lineHeight: 1.5,
+                          marginTop: "0.25rem",
+                        }}
+                      >
+                        <strong style={{ color: "var(--text-primary)" }}>How to fix:</strong> {issue.fix_recommendation}
+                      </div>
+                    )}
+
+                    {/* Expandable Affected Pages List */}
+                    {isExpanded && (
+                      <div
+                        style={{
+                          marginTop: "1rem",
+                          paddingTop: "0.85rem",
+                          borderTop: "1px solid var(--border)",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 6,
+                          maxHeight: 280,
+                          overflowY: "auto",
+                        }}
+                      >
+                        {issue.affectedPages.map((ap, i) => (
+                          <div
+                            key={i}
                             style={{
-                              padding: "0.35rem 0.75rem",
-                              borderRadius: 6,
-                              border: "1px solid var(--border)",
-                              background: "var(--bg-card)",
-                              color: "var(--text-primary)",
-                              fontSize: "0.75rem",
-                              fontWeight: 600,
-                              cursor: "pointer",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              fontSize: "0.82rem",
+                              padding: "4px 0",
+                              borderBottom: i < issue.affectedPages.length - 1 ? "1px solid var(--border)" : "none",
+                              gap: 12,
                             }}
                           >
-                            {expandedIssue === issue.id ? "Hide Pages ▲" : `View ${issue.affectedPages.length} Pages ▼`}
-                          </button>
-                        </div>
-
-                      <p style={{ margin: "0.75rem 0 0 0", fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.5 }}>
-                        {issue.description}
-                      </p>
-
-                      {issue.fix_recommendation && (
-                        <div
-                          style={{
-                            marginTop: "0.85rem",
-                            padding: "0.75rem 1rem",
-                            borderRadius: 6,
-                            background: "var(--bg-card)",
-                            borderLeft: `3px solid ${issue.status === "error" ? "#EF4444" : "#F59E0B"}`,
-                            fontSize: "0.82rem",
-                            color: "var(--text-primary)",
-                            lineHeight: 1.5,
-                          }}
-                        >
-                          <strong>Actionable Fix:</strong> {issue.fix_recommendation}
-                        </div>
-                      )}
-
-                      {/* Expanded list of affected URLs */}
-                      {expandedIssue === issue.id && (
-                        <div
-                          style={{
-                            marginTop: "1rem",
-                            padding: "0.75rem 1rem",
-                            borderRadius: 8,
-                            background: "var(--bg-card)",
-                            border: "1px solid var(--border)",
-                          }}
-                        >
-                          <div style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>
-                            Affected URLs ({issue.affectedPages.length}):
+                            <span style={{ color: "var(--text-primary)", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {formatUrlDisplay(ap.url, selectedWebsite?.root_url)}
+                            </span>
+                            <span style={{ color: "var(--text-muted)", fontSize: "0.78rem", whiteSpace: "nowrap" }}>
+                              {ap.score_text || "Needs attention"}
+                            </span>
                           </div>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }}>
-                            {issue.affectedPages.map((ap, i) => (
-                              <div
-                                key={i}
-                                style={{
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  alignItems: "center",
-                                  fontSize: "0.8rem",
-                                  padding: "4px 0",
-                                  borderBottom: "1px solid rgba(255,255,255,0.04)",
-                                }}
-                              >
-                                <span style={{ color: "var(--text-primary)", fontFamily: "monospace" }}>
-                                  {ap.url}
-                                </span>
-                                <span style={{ color: "var(--text-muted)", fontSize: "0.72rem" }}>
-                                  {ap.score_text}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              )}
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
       )}
 
-      {/* ── Recent Audit History ── */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* ── VIEW 2: BY PAGE ── */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+
+      {viewMode === "by-page" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {/* Sub-filters row */}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {[
+              { key: "all" as const, label: `All · ${pages.length}` },
+              { key: "has-must-fix" as const, label: `Has must-fix · ${mustFixPagesCount}` },
+              { key: "should-fix-only" as const, label: `Should fix only · ${shouldFixOnlyPagesCount}` },
+              { key: "all-good" as const, label: `All good · ${allGoodPagesCount}` },
+            ].map(({ key, label }) => {
+              const isActive = pageFilter === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setPageFilter(key)}
+                  style={{
+                    padding: "0.35rem 0.85rem",
+                    borderRadius: 9999,
+                    border: isActive ? "1px solid rgba(138, 100, 233, 0.45)" : "1px solid var(--border)",
+                    backgroundColor: isActive ? "rgba(138, 100, 233, 0.14)" : "var(--bg-card)",
+                    color: isActive ? "var(--accent, #8A64E9)" : "var(--text-muted)",
+                    fontSize: "0.8rem",
+                    fontWeight: isActive ? 700 : 500,
+                    cursor: "pointer",
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Page Cards */}
+          {filteredPages.length === 0 ? (
+            <div
+              style={{
+                backgroundColor: "var(--bg-card)",
+                border: "1px solid var(--border)",
+                borderRadius: 12,
+                padding: "3rem 2rem",
+                textAlign: "center",
+                color: "var(--text-muted)",
+                fontSize: "0.9rem",
+              }}
+            >
+              No pages match filter &quot;{pageFilter}&quot;.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              {filteredPages.map((page) => {
+                const isExpanded = expandedPageIds.has(page.id);
+                const isPassedExpanded = expandedPassedPageIds.has(page.id);
+                const color = scoreColor(page.overall_score);
+                const problemAudits = (page.audits || []).filter((a) => a.status === "error" || a.status === "warning");
+                const passedAudits = (page.audits || []).filter((a) => a.status === "passed");
+
+                const summaryText = (() => {
+                  if (page.error) return "Page check failed";
+                  if (page.errors > 0 && page.warnings > 0) return `${page.errors} must fix · ${page.warnings} should fix`;
+                  if (page.errors > 0) return `${page.errors} must fix`;
+                  if (page.warnings > 0) return `${page.warnings} should fix`;
+                  return "All good";
+                })();
+
+                return (
+                  <div
+                    key={page.id}
+                    style={{
+                      backgroundColor: "var(--bg-card)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 12,
+                      padding: "1.1rem 1.4rem",
+                    }}
+                  >
+                    {/* Page Row Header */}
+                    <div
+                      onClick={() => togglePageExpanded(page.id)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        cursor: "pointer",
+                        gap: 12,
+                        userSelect: "none",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 200 }}>
+                        {/* Score Circle */}
+                        <div
+                          style={{
+                            width: 38,
+                            height: 38,
+                            borderRadius: "50%",
+                            backgroundColor: scoreBg(page.overall_score),
+                            border: `2px solid ${color}`,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: "0.88rem",
+                            fontWeight: 800,
+                            color,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {page.overall_score !== null ? Math.round(page.overall_score) : "—"}
+                        </div>
+
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: "0.92rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                              {formatUrlDisplay(page.url, selectedWebsite?.root_url)}
+                            </span>
+                            <a
+                              href={page.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              title="Open live URL in new tab"
+                              style={{
+                                color: "var(--text-muted)",
+                                fontSize: "0.78rem",
+                                textDecoration: "none",
+                              }}
+                            >
+                              ↗
+                            </a>
+                          </div>
+
+                          <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>
+                            {summaryText}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", paddingLeft: 8 }}>
+                        {isExpanded ? "▲" : "▼"}
+                      </div>
+                    </div>
+
+                    {/* Expanded Page Findings */}
+                    {isExpanded && (
+                      <div
+                        style={{
+                          marginTop: "1.25rem",
+                          paddingTop: "1.25rem",
+                          borderTop: "1px solid var(--border)",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "1.25rem",
+                        }}
+                      >
+                        {/* 4 Area Scores Row */}
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+                            gap: "1rem",
+                            padding: "0.85rem 1rem",
+                            backgroundColor: "var(--bg-surface)",
+                            borderRadius: 8,
+                            border: "1px solid var(--border)",
+                          }}
+                        >
+                          {[
+                            { label: "Titles & headings", score: page.meta_score },
+                            { label: "Page structure", score: page.structure_score },
+                            { label: "Images & files", score: page.media_score },
+                            { label: "Social sharing", score: page.social_score },
+                          ].map(({ label, score }) => (
+                            <div key={label}>
+                              <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", fontWeight: 600 }}>
+                                {label}
+                              </div>
+                              <div style={{ fontSize: "0.88rem", fontWeight: 700, color: scoreColor(score), marginTop: 2 }}>
+                                {score !== null ? `${Math.round(score)} · ${scoreLabel(score)}` : "—"}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Page Problem Items (Errors & Warnings first) */}
+                        {problemAudits.length === 0 ? (
+                          <div style={{ fontSize: "0.85rem", color: "#10B981", fontWeight: 600, padding: "0.5rem 0" }}>
+                            ✓ No problems detected on this page. All checks passed!
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
+                            {problemAudits.map((item) => {
+                              const isError = item.status === "error";
+                              return (
+                                <div
+                                  key={item.id}
+                                  style={{
+                                    padding: "0.85rem 1rem",
+                                    borderRadius: 8,
+                                    backgroundColor: "var(--bg-surface)",
+                                    border: "1px solid var(--border)",
+                                  }}
+                                >
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                      <span
+                                        style={{
+                                          padding: "1px 6px",
+                                          borderRadius: 4,
+                                          backgroundColor: isError ? "rgba(239, 68, 68, 0.12)" : "rgba(245, 158, 11, 0.12)",
+                                          color: isError ? "#EF4444" : "#F59E0B",
+                                          fontSize: "0.7rem",
+                                          fontWeight: 700,
+                                        }}
+                                      >
+                                        {isError ? "Must fix" : "Should fix"}
+                                      </span>
+                                      <span style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                                        {item.title}
+                                      </span>
+                                    </div>
+
+                                    {item.score_text && (
+                                      <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                                        {item.score_text}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {item.fix_recommendation && (
+                                    <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", marginTop: "0.4rem", lineHeight: 1.4 }}>
+                                      <strong style={{ color: "var(--text-primary)" }}>How to fix:</strong> {item.fix_recommendation}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Hidden Passed Checks Drawer */}
+                        {passedAudits.length > 0 && (
+                          <div>
+                            <button
+                              onClick={() => togglePassedChecksExpanded(page.id)}
+                              style={{
+                                padding: "0.4rem 0.85rem",
+                                borderRadius: 6,
+                                border: "1px solid var(--border)",
+                                backgroundColor: "transparent",
+                                color: "var(--text-muted)",
+                                fontSize: "0.78rem",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                              }}
+                            >
+                              {isPassedExpanded ? "Hide passed checks ▲" : `Show ${passedAudits.length} passed checks ▼`}
+                            </button>
+
+                            {isPassedExpanded && (
+                              <div
+                                style={{
+                                  marginTop: "0.75rem",
+                                  display: "grid",
+                                  gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+                                  gap: "0.5rem",
+                                  padding: "0.75rem",
+                                  backgroundColor: "var(--bg-surface)",
+                                  borderRadius: 8,
+                                  border: "1px solid var(--border)",
+                                }}
+                              >
+                                {passedAudits.map((item) => (
+                                  <div
+                                    key={item.id}
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 6,
+                                      fontSize: "0.78rem",
+                                      color: "var(--text-secondary)",
+                                    }}
+                                  >
+                                    <span style={{ color: "#10B981", fontWeight: 800 }}>✓</span>
+                                    <span>{item.title}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* ── PAST CHECKS SECTION (At bottom of results) ── */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+
       {auditHistory.length > 0 && (
         <div
           style={{
             backgroundColor: "var(--bg-card)",
             border: "1px solid var(--border)",
             borderRadius: 14,
-            padding: "1.5rem",
+            padding: "1.5rem 1.75rem",
+            marginTop: "1rem",
           }}
         >
           <h3 style={{ margin: "0 0 1rem 0", fontSize: "1rem", fontWeight: 700, color: "var(--text-primary)" }}>
-            Recent Audit History
+            Past checks
           </h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-            {auditHistory.map((a) => (
-              <div
-                key={a.id}
-                onClick={() => {
-                  if (a.website_id) {
-                    setSelectedWebsiteId(a.website_id);
-                    void api.get<SiteAudit>(`/api/site-audit/${a.id}`).then(setCurrentAudit);
-                  }
-                }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "0.85rem 1.1rem",
-                  borderRadius: 8,
-                  backgroundColor: currentAudit?.id === a.id ? "rgba(99,102,241,0.12)" : "var(--bg-surface)",
-                  border: currentAudit?.id === a.id ? "1px solid rgba(99,102,241,0.35)" : "1px solid var(--border)",
-                  cursor: "pointer",
-                  gap: 12,
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: "50%",
-                      background:
-                        a.status === "completed"
-                          ? `${scoreColor(a.avg_overall_score)}20`
-                          : "rgba(107,114,128,0.15)",
-                      border: `2px solid ${a.status === "completed" ? scoreColor(a.avg_overall_score) : "#6B7280"}`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontWeight: 800,
-                      fontSize: "0.85rem",
-                      color: a.status === "completed" ? scoreColor(a.avg_overall_score) : "#6B7280",
-                    }}
-                  >
-                    {a.status === "completed" && a.avg_overall_score !== null
-                      ? Math.round(a.avg_overall_score)
-                      : "—"}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "var(--text-primary)" }}>
-                      {formatDate(a.created_at)}
-                    </div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: 2 }}>
-                      {a.pages_crawled} pages · {a.total_errors} errors · {a.total_warnings} warnings
-                    </div>
-                  </div>
-                </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={statusBadgeStyle(a.status)}>
-                    {a.status}
-                  </span>
-                  {a.status === "completed" && (
-                    <Link
-                      href={`/workspace/seo/site-audit/${a.id}`}
-                      onClick={(e) => e.stopPropagation()}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+            {auditHistory.map((a) => {
+              const isCurrent = currentAudit?.id === a.id;
+              const color = scoreColor(a.avg_overall_score);
+
+              return (
+                <div
+                  key={a.id}
+                  onClick={() => {
+                    if (a.website_id && !isCurrent) {
+                      setSelectedWebsiteId(a.website_id);
+                      void api.get<SiteAudit>(`/api/site-audit/${a.id}`).then(setCurrentAudit);
+                    }
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "0.85rem 1.1rem",
+                    borderRadius: 8,
+                    backgroundColor: isCurrent ? "rgba(138, 100, 233, 0.08)" : "var(--bg-surface)",
+                    border: isCurrent ? "1px solid rgba(138, 100, 233, 0.3)" : "1px solid var(--border)",
+                    cursor: isCurrent ? "default" : "pointer",
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    {/* Score Circle */}
+                    <div
                       style={{
-                        fontSize: "0.75rem",
-                        color: "#fff",
-                        background: "rgba(99,102,241,0.2)",
-                        border: "1px solid rgba(99,102,241,0.35)",
-                        padding: "3px 8px",
-                        borderRadius: 6,
-                        textDecoration: "none",
-                        fontWeight: 600,
+                        width: 32,
+                        height: 32,
+                        borderRadius: "50%",
+                        backgroundColor: scoreBg(a.avg_overall_score),
+                        border: `2px solid ${color}`,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "0.82rem",
+                        fontWeight: 800,
+                        color,
+                        flexShrink: 0,
                       }}
                     >
-                      Full Report ↗
-                    </Link>
-                  )}
+                      {a.avg_overall_score !== null ? Math.round(a.avg_overall_score) : "—"}
+                    </div>
+
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "var(--text-primary)" }}>
+                        {formatDate(a.completed_at || a.created_at)}
+                      </div>
+                      <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: 2 }}>
+                        {a.pages_crawled} pages · {a.total_errors} must fix · {a.total_warnings} should fix
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    {isCurrent ? (
+                      <span
+                        style={{
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          padding: "3px 10px",
+                          borderRadius: 20,
+                          backgroundColor: "rgba(138, 100, 233, 0.15)",
+                          color: "var(--accent, #8A64E9)",
+                        }}
+                      >
+                        Showing now
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          fontSize: "0.75rem",
+                          fontWeight: 600,
+                          padding: "3px 10px",
+                          borderRadius: 6,
+                          border: "1px solid var(--border)",
+                          backgroundColor: "var(--bg-card)",
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        Done
+                      </span>
+                    )}
+                  </div>
                 </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* ── OPTIONS MODAL ── */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+
+      {showOptionsModal && (
+        <div
+          onClick={() => setShowOptionsModal(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+            padding: "1rem",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: "var(--bg-card)",
+              border: "1px solid var(--border)",
+              borderRadius: 14,
+              padding: "1.75rem",
+              width: "100%",
+              maxWidth: 420,
+              boxShadow: "0 12px 36px rgba(0,0,0,0.25)",
+            }}
+          >
+            <h3 style={{ margin: "0 0 1.25rem 0", fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>
+              Check Options
+            </h3>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+              {/* Website Selector */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 6 }}>
+                  Website
+                </label>
+                <select
+                  value={selectedWebsiteId ?? ""}
+                  onChange={(e) => setSelectedWebsiteId(Number(e.target.value))}
+                  style={{
+                    width: "100%",
+                    padding: "0.6rem 0.85rem",
+                    borderRadius: 8,
+                    border: "1px solid var(--border)",
+                    backgroundColor: "var(--bg-surface)",
+                    color: "var(--text-primary)",
+                    fontSize: "0.88rem",
+                  }}
+                >
+                  {websites.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.domain} {w.is_primary ? "(Primary)" : ""}
+                    </option>
+                  ))}
+                </select>
               </div>
-            ))}
+
+              {/* Max Pages Selector */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 6 }}>
+                  Pages to check
+                </label>
+                <select
+                  value={maxPages}
+                  onChange={(e) => setMaxPages(Number(e.target.value))}
+                  style={{
+                    width: "100%",
+                    padding: "0.6rem 0.85rem",
+                    borderRadius: 8,
+                    border: "1px solid var(--border)",
+                    backgroundColor: "var(--bg-surface)",
+                    color: "var(--text-primary)",
+                    fontSize: "0.88rem",
+                  }}
+                >
+                  <option value={10}>10 pages</option>
+                  <option value={25}>25 pages (recommended)</option>
+                  <option value={50}>50 pages</option>
+                </select>
+              </div>
+
+              {/* Action buttons */}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: "0.5rem" }}>
+                <button
+                  onClick={() => setShowOptionsModal(false)}
+                  style={{
+                    padding: "0.55rem 1rem",
+                    borderRadius: 8,
+                    border: "1px solid var(--border)",
+                    backgroundColor: "transparent",
+                    color: "var(--text-secondary)",
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => setShowOptionsModal(false)}
+                  style={{
+                    padding: "0.55rem 1.25rem",
+                    borderRadius: 8,
+                    border: "none",
+                    backgroundColor: "var(--accent, #8A64E9)",
+                    color: "#fff",
+                    fontSize: "0.85rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Done
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

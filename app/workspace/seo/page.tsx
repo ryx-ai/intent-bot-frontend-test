@@ -3,29 +3,12 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { FullSiteAuditTab } from "./_components/FullSiteAuditTab";
-import type { SeoAnalysisResult } from "./_components/SinglePageScanTab";
-// import { SinglePageScanTab } from "./_components/SinglePageScanTab";
+import { FullSiteAuditTab, type ConnectedWebsite } from "./_components/FullSiteAuditTab";
 import { TrafficMatrixTab } from "./_components/TrafficMatrixTab";
-
-interface ConnectedWebsite {
-  id: number;
-  domain: string;
-  root_url: string;
-  is_primary: boolean;
-  authorization_status: string;
-  is_authorized: boolean;
-  indexing_status: string;
-  indexed_pages_count: number;
-  total_chunks_count: number;
-  last_indexed_at: string | null;
-  last_crawl_error: string | null;
-}
 
 interface AppPerformanceData {
   target_website_url: string | null;
   connected_website?: ConnectedWebsite | null;
-  seo_analysis: SeoAnalysisResult | null;
   traffic: {
     total_sessions: number;
     total_messages: number;
@@ -53,182 +36,145 @@ interface AppPerformanceData {
   };
 }
 
-type TabKey = "site-audit" | /* "single-page" | */ "traffic";
+type TabKey = "site-audit" | "traffic";
 
 export default function SeoHubPage() {
-  const [data, setData] = useState<AppPerformanceData | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("site-audit");
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [primaryWebsite, setPrimaryWebsite] = useState<ConnectedWebsite | null>(null);
 
-  // Sync tab from URL if present (e.g. ?tab=traffic)
+  // Lazy-loaded Chat Activity performance data
+  const [performanceData, setPerformanceData] = useState<AppPerformanceData | null>(null);
+  const [loadingPerformance, setLoadingPerformance] = useState(false);
+  const [performanceError, setPerformanceError] = useState<string | null>(null);
+
+  // Sync tab from URL if present (e.g. ?tab=traffic or ?tab=chat-activity)
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tab = params.get("tab");
-      if (tab === "site-audit" || /* tab === "single-page" || */ tab === "traffic") {
-        setActiveTab(tab as TabKey);
+      if (tab === "site-audit" || tab === "website-check") {
+        setActiveTab("site-audit");
+      } else if (tab === "traffic" || tab === "chat-activity") {
+        setActiveTab("traffic");
       }
     }
   }, []);
 
-  const loadData = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    setErrorMsg(null);
-    try {
-      const res = await api.get<AppPerformanceData>("/api/analytics/app-performance");
-      setData(res);
-    } catch (err: unknown) {
-      console.error("Failed to load app performance data", err);
-      setErrorMsg("Unable to load performance matrix data.");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
+  // Fetch website list once for header domain link
   useEffect(() => {
     let cancelled = false;
-    async function init() {
-      try {
-        const res = await api.get<AppPerformanceData>("/api/analytics/app-performance");
-        if (!cancelled) setData(res);
-      } catch (err: unknown) {
-        if (!cancelled) {
-          console.error("Failed to load app performance data", err);
-          setErrorMsg("Unable to load performance matrix data.");
+    api
+      .get<{ websites: ConnectedWebsite[] }>("/api/knowledge/websites")
+      .then((res) => {
+        if (cancelled) return;
+        const authorized = (res.websites || []).filter((w) => w.is_authorized);
+        if (authorized.length > 0) {
+          const primary = authorized.find((w) => w.is_primary) || authorized[0];
+          setPrimaryWebsite(primary);
         }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    void init();
+      })
+      .catch((err) => {
+        console.warn("Could not load tenant websites for header", err);
+      });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const connectedWebsite = data?.connected_website;
-  const targetUrl = data?.target_website_url;
-  const isConfigured = Boolean(connectedWebsite?.root_url || targetUrl);
-  const websiteUrl = connectedWebsite?.root_url || targetUrl || "";
+  // Lazy-load app-performance only when Chat Activity is activated
+  const loadPerformance = useCallback(async () => {
+    if (performanceData || loadingPerformance) return;
+    setLoadingPerformance(true);
+    setPerformanceError(null);
+    try {
+      const res = await api.get<AppPerformanceData>("/api/analytics/app-performance");
+      setPerformanceData(res);
+    } catch (err: unknown) {
+      console.error("Failed to load app performance data", err);
+      setPerformanceError("Unable to load chat activity data.");
+    } finally {
+      setLoadingPerformance(false);
+    }
+  }, [performanceData, loadingPerformance]);
+
+  useEffect(() => {
+    if (activeTab === "traffic" && !performanceData && !loadingPerformance) {
+      void loadPerformance();
+    }
+  }, [activeTab, performanceData, loadingPerformance, loadPerformance]);
 
   const handleTabChange = (tab: TabKey) => {
     setActiveTab(tab);
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
-      url.searchParams.set("tab", tab);
+      url.searchParams.set("tab", tab === "traffic" ? "chat-activity" : "website-check");
       window.history.replaceState({}, "", url.toString());
     }
   };
 
+  const domainDisplay = primaryWebsite?.domain || primaryWebsite?.root_url?.replace(/^https?:\/\//, "").replace(/\/.*$/, "") || "";
+
   return (
-    <div style={{ width: "100%", maxWidth: 1400, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
-      {/* ── Main Header ── */}
+    <div style={{ width: "100%", maxWidth: 1400, margin: "0 auto", padding: "2rem 1.5rem", boxSizing: "border-box" }}>
+      {/* ── Main Header: "Website health" with site link on the right ── */}
       <header
         style={{
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: "1.75rem",
+          alignItems: "center",
+          marginBottom: "1.5rem",
           flexWrap: "wrap",
-          gap: "1.25rem",
+          gap: "1rem",
         }}
       >
-        <div>
-          <h1
-            style={{
-              margin: "0 0 0.35rem 0",
-              fontSize: "1.75rem",
-              fontWeight: 800,
-              color: "var(--text-primary)",
-              letterSpacing: "-0.02em",
-            }}
-          >
-            SEO Health &amp; Audit Hub
-          </h1>
-          <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.9rem", lineHeight: 1.5 }}>
-            Run multi-page site crawls, inspect single-page SEO diagnostics, and track visitor traffic retention.
-          </p>
-        </div>
+        <h1
+          style={{
+            margin: 0,
+            fontSize: "1.75rem",
+            fontWeight: 800,
+            color: "var(--text-primary)",
+            letterSpacing: "-0.02em",
+          }}
+        >
+          Website health
+        </h1>
 
-        {/* Connected Website Status Pill */}
-        {isConfigured && (
-          <div
+        {/* Site link on the right */}
+        {primaryWebsite?.root_url && (
+          <a
+            href={primaryWebsite.root_url}
+            target="_blank"
+            rel="noopener noreferrer"
             style={{
-              display: "flex",
+              fontSize: "0.9rem",
+              fontWeight: 600,
+              color: "var(--text-secondary)",
+              textDecoration: "none",
+              display: "inline-flex",
               alignItems: "center",
-              gap: 10,
-              padding: "0.6rem 1rem",
-              background: "var(--bg-card)",
-              border: "1px solid var(--border)",
-              borderRadius: 10,
+              gap: 4,
             }}
           >
-            <div
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 6,
-                background: "rgba(138,100,233,0.15)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "0.95rem",
-              }}
-            >
-              🌐
-            </div>
-            <div>
-              <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700 }}>
-                Primary Domain
-              </div>
-              <a
-                href={websiteUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  fontSize: "0.85rem",
-                  fontWeight: 700,
-                  color: "var(--text-primary)",
-                  textDecoration: "none",
-                }}
-              >
-                {websiteUrl.replace(/^https?:\/\//, "")} ↗
-              </a>
-            </div>
-          </div>
+            <span>🌐</span>
+            <span>{domainDisplay}</span>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>↗</span>
+          </a>
         )}
       </header>
 
-      {/* ── Primary Navigation Tabs ── */}
+      {/* ── Primary Navigation Tabs: "Website check" and "Chat activity" ── */}
       <div
         style={{
           display: "flex",
-          gap: "0.6rem",
-          marginBottom: "2rem",
+          gap: "0.5rem",
+          marginBottom: "1.75rem",
           borderBottom: "1px solid var(--border)",
-          paddingBottom: "0.75rem",
-          flexWrap: "wrap",
+          paddingBottom: "0.5rem",
         }}
       >
         {[
-          {
-            id: "site-audit" as const,
-            label: "🔬 Full-Site Audit (Crawler)",
-            badge: "Multi-Page",
-          },
-          /* {
-            id: "single-page" as const,
-            label: "📄 Single-Page Quick Scan",
-            badge: null,
-          }, */
-          {
-            id: "traffic" as const,
-            label: "📊 Traffic & Conversions",
-            badge: null,
-          },
+          { id: "site-audit" as const, label: "Website check" },
+          { id: "traffic" as const, label: "Chat activity" },
         ].map((tab) => {
           const isActive = activeTab === tab.id;
           return (
@@ -236,58 +182,49 @@ export default function SeoHubPage() {
               key={tab.id}
               onClick={() => handleTabChange(tab.id)}
               style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "0.6rem 1.15rem",
+                padding: "0.5rem 1.15rem",
                 borderRadius: 8,
-                fontSize: "0.88rem",
+                fontSize: "0.9rem",
                 fontWeight: isActive ? 700 : 500,
                 cursor: "pointer",
-                border: isActive ? "1px solid rgba(138, 100, 233, 0.45)" : "1px solid transparent",
-                backgroundColor: isActive ? "rgba(138, 100, 233, 0.14)" : "transparent",
+                border: isActive ? "1px solid rgba(138, 100, 233, 0.4)" : "1px solid transparent",
+                backgroundColor: isActive ? "rgba(138, 100, 233, 0.12)" : "transparent",
                 color: isActive ? "var(--accent, #8A64E9)" : "var(--text-muted)",
-                transition: "all 0.18s ease",
+                transition: "all 0.15s ease",
                 fontFamily: "inherit",
               }}
             >
               {tab.label}
-              {tab.badge && (
-                <span
-                  style={{
-                    fontSize: "0.68rem",
-                    padding: "2px 6px",
-                    borderRadius: 9999,
-                    background: isActive ? "rgba(138, 100, 233, 0.25)" : "rgba(255,255,255,0.06)",
-                    color: isActive ? "var(--accent, #8A64E9)" : "var(--text-muted)",
-                    fontWeight: 700,
-                  }}
-                >
-                  {tab.badge}
-                </span>
-              )}
             </button>
           );
         })}
       </div>
 
       {/* ── Active Tab Content ── */}
-      {activeTab === "site-audit" && <FullSiteAuditTab />}
-
-      {/* {activeTab === "single-page" && (
-        <SinglePageScanTab
-          initialSeo={data?.seo_analysis || null}
-          defaultUrl={websiteUrl}
-          isConfigured={isConfigured}
+      {activeTab === "site-audit" && (
+        <FullSiteAuditTab
+          onWebsiteLoaded={(site) => {
+            if (site && !primaryWebsite) {
+              setPrimaryWebsite(site);
+            }
+          }}
         />
-      )} */}
+      )}
 
       {activeTab === "traffic" && (
-        <TrafficMatrixTab
-          traffic={data?.traffic}
-          retention={data?.retention}
-          usage={data?.chatbot_usage}
-        />
+        <div>
+          {performanceError && (
+            <div style={{ marginBottom: "1rem", padding: "0.75rem 1rem", borderRadius: 8, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#EF4444", fontSize: "0.85rem" }}>
+              ⚠️ {performanceError}
+            </div>
+          )}
+          <TrafficMatrixTab
+            traffic={performanceData?.traffic}
+            retention={performanceData?.retention}
+            usage={performanceData?.chatbot_usage}
+            loading={loadingPerformance}
+          />
+        </div>
       )}
     </div>
   );

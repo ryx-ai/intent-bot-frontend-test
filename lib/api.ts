@@ -132,6 +132,24 @@ export const api = {
     maybeRedirectOnAuthError(endpoint, res.status);
     return res;
   },
+
+  // File download helper — returns Blob for CSV/JSON/PDF exports.
+  // Still applies BASE_URL prefix, credentials, and the global 401 redirect.
+  getBlob: async (endpoint: string): Promise<Blob> => {
+    const res = await fetchWithCreds(endpoint);
+    if (!res.ok) {
+      maybeRedirectOnAuthError(endpoint, res.status);
+      let msg = "Download failed";
+      try {
+        const err = await res.json();
+        msg = err.detail || err.error || err.message || msg;
+      } catch {
+        // non-json response
+      }
+      throw new ApiError(msg, res.status);
+    }
+    return res.blob();
+  },
 };
 
 export { ApiError };

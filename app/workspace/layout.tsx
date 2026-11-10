@@ -123,7 +123,7 @@ export default function WorkspaceLayout({
     if (isSuperAdmin && !isAdminRoute) {
       router.replace("/workspace/admin/tenants");
     } else if (!isSuperAdmin && isAdminRoute) {
-      router.replace("/workspace/dashboard");
+      router.replace("/workspace/testing");
     }
   }, [pathname, router, user?.role]);
 

@@ -30,7 +30,7 @@ export function useAuth() {
       router.push(
         me.role === "super_admin"
           ? "/workspace/admin/tenants"
-          : "/workspace/dashboard"
+          : "/workspace/testing"
       );
       return me;
     },

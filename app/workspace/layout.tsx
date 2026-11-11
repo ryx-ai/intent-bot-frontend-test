@@ -212,16 +212,28 @@ export default function WorkspaceLayout({
             padding: "0 0.25rem",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center" }}>
+          <Link
+            href={isSuperAdmin ? "/workspace/admin/tenants" : "/workspace/testing"}
+            style={{ display: "flex", alignItems: "center", textDecoration: "none" }}
+          >
             <Image
-              src="/logo-only.png"
-              alt="RYX AI"
-              width={95}
-              height={28}
+              src={
+                isDark
+                  ? "/ferry/svg/ferry-horizontal-white.svg"
+                  : "/ferry/svg/ferry-horizontal-black.svg"
+              }
+              alt="Ferry by RYX AI"
+              width={140}
+              height={30}
               priority
-              style={{ height: "auto" }}
+              style={{
+                width: "auto",
+                height: 28,
+                maxWidth: 160,
+                objectFit: "contain",
+              }}
             />
-          </div>
+          </Link>
         </div>
 
         {/* Scrollable Navigation Area */}
@@ -564,14 +576,28 @@ export default function WorkspaceLayout({
             zIndex: 40,
           }}
         >
-          <Image
-            src="/logo-only.png"
-            alt="RYX AI"
-            width={85}
-            height={25}
-            priority
-            style={{ height: "auto" }}
-          />
+          <Link
+            href={isSuperAdmin ? "/workspace/admin/tenants" : "/workspace/testing"}
+            style={{ display: "flex", alignItems: "center", textDecoration: "none" }}
+          >
+            <Image
+              src={
+                isDark
+                  ? "/ferry/svg/ferry-horizontal-white.svg"
+                  : "/ferry/svg/ferry-horizontal-black.svg"
+              }
+              alt="Ferry by RYX AI"
+              width={110}
+              height={24}
+              priority
+              style={{
+                width: "auto",
+                height: 24,
+                maxWidth: 130,
+                objectFit: "contain",
+              }}
+            />
+          </Link>
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}

@@ -8,8 +8,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "RYX AI — Workspace",
-  description: "RYX AI Communication Infrastructure",
+  title: "Ferry by RYX AI — Workspace",
+  description: "Ferry by RYX AI Communication Infrastructure",
 };
 
 export default function RootLayout({

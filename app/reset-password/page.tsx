@@ -394,13 +394,13 @@ export default function ResetPasswordPage() {
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <Image
-            src="/logo-only.png"
-            alt="RYX AI Logo"
+            src="/ferry/svg/ferry-horizontal-black.svg"
+            alt="Ferry by RYX AI Logo"
             width={180}
-            height={60}
+            height={40}
             style={{
               width: "auto",
-              height: 52,
+              height: 40,
               margin: "0 auto 16px auto",
               objectFit: "contain",
             }}

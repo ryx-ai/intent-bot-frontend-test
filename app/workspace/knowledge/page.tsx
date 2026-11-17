@@ -16,6 +16,7 @@ interface WebUrl {
   url: string;
   chunk_count: number;
   indexed_at: string | null;
+  is_manual?: boolean;
 }
 
 interface TenantWebsite {
@@ -34,8 +35,6 @@ interface TenantWebsite {
   last_crawl_error: string | null;
   created_at: string | null;
 }
-
-type KnowledgeTab = "documents" | "web";
 
 interface Plan {
   id: number;
@@ -63,6 +62,25 @@ function fileExt(name: string): string {
   return dot === -1 ? "" : name.slice(dot).toLowerCase();
 }
 
+function formatShortDate(timestampOrIso: number | string | null | undefined): string {
+  if (!timestampOrIso) return "";
+  const d = typeof timestampOrIso === "number" ? new Date(timestampOrIso * 1000) : new Date(timestampOrIso);
+  if (isNaN(d.getTime())) return "";
+  const day = d.getDate();
+  const month = d.toLocaleDateString("en-US", { month: "short" });
+  return `${day} ${month}`;
+}
+
+function formatDateTime(timestampOrIso: number | string | null | undefined): string {
+  if (!timestampOrIso) return "";
+  const d = typeof timestampOrIso === "number" ? new Date(timestampOrIso * 1000) : new Date(timestampOrIso);
+  if (isNaN(d.getTime())) return "";
+  const day = d.getDate();
+  const month = d.toLocaleDateString("en-US", { month: "short" });
+  const time = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+  return `${day} ${month}, ${time}`;
+}
+
 interface UploadResult {
   filename: string;
   status: "success" | "failed" | "skipped";
@@ -71,9 +89,8 @@ interface UploadResult {
 
 export default function KnowledgeLakePage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<KnowledgeTab>("documents");
 
-  // ── Documents state ──
+  // ── Documents / Files state ──
   const [files, setFiles] = useState<KBFile[]>([]);
   const [subStatus, setSubStatus] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,34 +106,43 @@ export default function KnowledgeLakePage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const overwriteDecisionRef = useRef<((overwrite: boolean) => void) | null>(null);
 
-  // ── Tenant Websites state (V5 Architecture) ──
+  // ── Tenant Websites state ──
   const [websites, setWebsites] = useState<TenantWebsite[]>([]);
-  const [authorizingWebsite, setAuthorizingWebsite] = useState(false);
   const [reindexingWebsiteId, setReindexingWebsiteId] = useState<number | null>(null);
-  const [websiteUrlInput, setWebsiteUrlInput] = useState("");
-  const [permissionConfirmed, setPermissionConfirmed] = useState(false);
   const [confirmDeleteWebsite, setConfirmDeleteWebsite] = useState<TenantWebsite | null>(null);
   const [deletingWebsiteId, setDeletingWebsiteId] = useState<number | null>(null);
+  const [websiteMenuOpen, setWebsiteMenuOpen] = useState(false);
 
-  // ── Web URL state ──
+  // ── Extra Pages state ──
   const [webUrls, setWebUrls] = useState<WebUrl[]>([]);
-  const [webLoading, setWebLoading] = useState(false);
   const [webIndexing, setWebIndexing] = useState(false);
   const [webUrlInput, setWebUrlInput] = useState("");
   const [forceReindex, setForceReindex] = useState(false);
   const [showManualUrl, setShowManualUrl] = useState(false);
   const [deletingUrl, setDeletingUrl] = useState<string | null>(null);
   const [confirmDeleteUrl, setConfirmDeleteUrl] = useState<string | null>(null);
+  const [reindexingUrl, setReindexingUrl] = useState<string | null>(null);
+  const [openUrlMenu, setOpenUrlMenu] = useState<string | null>(null);
+
+  // Close menus when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-menu-root]")) {
+        setWebsiteMenuOpen(false);
+        setOpenUrlMenu(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const loadWebUrls = useCallback(async (silent = false) => {
-    if (!silent) setWebLoading(true);
     try {
-      const res = await api.get<{ urls: WebUrl[] }>("/api/knowledge/web/urls");
+      const res = await api.get<{ urls: WebUrl[] }>("/api/knowledge/web/urls?manual_only=true");
       setWebUrls(res.urls || []);
     } catch (err) {
-      console.error("Failed to load web URLs", err);
-    } finally {
-      if (!silent) setWebLoading(false);
+      if (!silent) console.error("Failed to load web URLs", err);
     }
   }, []);
 
@@ -134,7 +160,7 @@ export default function KnowledgeLakePage() {
       const [filesRes, statusRes, urlsRes, websitesRes] = await Promise.allSettled([
         api.get<{ files: KBFile[] }>("/api/knowledge/files"),
         api.get<SubscriptionStatus>("/api/payments/subscription-status"),
-        api.get<{ urls: WebUrl[] }>("/api/knowledge/web/urls"),
+        api.get<{ urls: WebUrl[] }>("/api/knowledge/web/urls?manual_only=true"),
         api.get<{ websites: TenantWebsite[] }>("/api/knowledge/websites"),
       ]);
 
@@ -154,7 +180,6 @@ export default function KnowledgeLakePage() {
       console.error("Failed to load knowledge lake data", err);
     } finally {
       setLoading(false);
-      setWebLoading(false);
     }
   }, []);
 
@@ -165,7 +190,7 @@ export default function KnowledgeLakePage() {
         const [filesRes, statusRes, urlsRes, websitesRes] = await Promise.allSettled([
           api.get<{ files: KBFile[] }>("/api/knowledge/files"),
           api.get<SubscriptionStatus>("/api/payments/subscription-status"),
-          api.get<{ urls: WebUrl[] }>("/api/knowledge/web/urls"),
+          api.get<{ urls: WebUrl[] }>("/api/knowledge/web/urls?manual_only=true"),
           api.get<{ websites: TenantWebsite[] }>("/api/knowledge/websites"),
         ]);
 
@@ -187,7 +212,6 @@ export default function KnowledgeLakePage() {
       } finally {
         if (!cancelled) {
           setLoading(false);
-          setWebLoading(false);
         }
       }
     }
@@ -203,7 +227,6 @@ export default function KnowledgeLakePage() {
     const hasNoWebsite = websites.length === 0;
     if (!hasActiveJob && !hasNoWebsite) return;
 
-    // Fast 3s polling during active crawling, gentle 5s polling when waiting for widget ping
     const intervalTime = hasActiveJob ? 3000 : 5000;
     const interval = setInterval(() => {
       void loadWebsites();
@@ -217,6 +240,16 @@ export default function KnowledgeLakePage() {
   const maxKbFiles = subStatus?.plan?.max_kb_files ?? 3;
   const isUnlimited = maxKbFiles === -1;
   const isAtCapacity = !isUnlimited && files.length >= maxKbFiles;
+
+  const planSlug = subStatus?.plan?.slug?.toLowerCase() || "";
+  const planName = subStatus?.plan?.name?.toLowerCase() || "";
+  const isBasicOrTrial =
+    isTrial ||
+    planSlug === "trial" ||
+    planSlug === "basic" ||
+    planName.includes("trial") ||
+    planName.includes("basic");
+  const canGetMore = !isUnlimited && isBasicOrTrial;
 
   // ── Upload one file ──
   async function uploadOne(file: File, overwrite: boolean): Promise<UploadResult> {
@@ -264,14 +297,12 @@ export default function KnowledgeLakePage() {
   async function handleUpload(fileList: FileList) {
     if (fileList.length === 0) return;
 
-    // Check if subscription expired
     if (isExpired) {
       setUpgradeModalReason("Your subscription or free trial has expired. Upgrade your plan to reactivate document uploads and enable your AI bot.");
       setShowUpgradeModal(true);
       return;
     }
 
-    // Check if at storage capacity
     if (isAtCapacity) {
       setUpgradeModalReason(`You have reached the maximum limit of ${maxKbFiles} document(s) for your current plan (${subStatus?.plan?.name || "Trial"}). Upgrade to Basic or Advanced for more document storage.`);
       setShowUpgradeModal(true);
@@ -296,7 +327,6 @@ export default function KnowledgeLakePage() {
 
     if (valid.length === 0 && preRejected.length === 0) return;
 
-    // Check if adding these files would exceed quota
     if (!isUnlimited && files.length + valid.length > maxKbFiles) {
       setUpgradeModalReason(`Uploading ${valid.length} file(s) would exceed your plan limit of ${maxKbFiles} files (currently using ${files.length}/${maxKbFiles}). Upgrade your plan to increase limits.`);
       setShowUpgradeModal(true);
@@ -330,7 +360,7 @@ export default function KnowledgeLakePage() {
     loadData();
   }
 
-  // ── Delete ──
+  // ── Delete file ──
   async function handleDelete(filename: string) {
     setDeleteFilename(filename);
   }
@@ -369,44 +399,15 @@ export default function KnowledgeLakePage() {
     setTimeout(() => setToast(null), 4000);
   }
 
-  // ── Tenant Website handlers (V5 Architecture) ──
-  async function handleAuthorizeWebsite() {
-    const url = websiteUrlInput.trim();
-    if (!url) {
-      showToast("Please enter your website URL.", "error");
-      return;
-    }
-    if (!permissionConfirmed) {
-      showToast("Please check the confirmation box to authorize indexing.", "error");
-      return;
-    }
-    setAuthorizingWebsite(true);
-    try {
-      await api.post("/api/knowledge/websites", {
-        url,
-        confirmed: true,
-        is_primary: true,
-      });
-      showToast("Website authorized! Indexing will trigger when your widget loads, or you can start now.", "success");
-      setWebsiteUrlInput("");
-      setPermissionConfirmed(false);
-      await loadWebsites();
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "Failed to authorize website";
-      showToast(msg, "error");
-    } finally {
-      setAuthorizingWebsite(false);
-    }
-  }
-
+  // ── Tenant Website handlers ──
   async function handleReindexWebsite(id: number) {
     setReindexingWebsiteId(id);
     try {
       await api.post(`/api/knowledge/websites/${id}/reindex`);
-      showToast("Crawl queued! Crawling and indexing website pages in background...", "info");
+      showToast("Reading your website in background...", "info");
       await loadWebsites();
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "Failed to queue re-index";
+      const msg = err instanceof ApiError ? err.message : "Failed to read website";
       showToast(msg, "error");
     } finally {
       setReindexingWebsiteId(null);
@@ -420,7 +421,7 @@ export default function KnowledgeLakePage() {
     setConfirmDeleteWebsite(null);
     try {
       await api.delete(`/api/knowledge/websites/${site.id}`);
-      showToast(`Website ${site.domain} disconnected and chunks purged.`, "success");
+      showToast(`Website ${site.domain} disconnected.`, "success");
       await loadWebsites();
       await loadWebUrls();
     } catch (err) {
@@ -431,10 +432,13 @@ export default function KnowledgeLakePage() {
     }
   }
 
-  // ── Web URL handlers ──
+  // ── Extra Web URL handlers ──
   async function handleIndexUrl() {
     const url = webUrlInput.trim();
-    if (!url) { showToast("Please enter a URL.", "error"); return; }
+    if (!url) {
+      showToast("Please enter a URL.", "error");
+      return;
+    }
     setWebIndexing(true);
     try {
       const res = await api.post<{ status: string; url: string; chunk_count: number; message?: string }>(
@@ -442,15 +446,16 @@ export default function KnowledgeLakePage() {
         { url, force_reindex: forceReindex }
       );
       if (res.status === "already_indexed") {
-        showToast(`Already indexed (${res.chunk_count} chunks). Enable "Force re-index" to refresh.`, "info");
+        showToast("Already read. Enable \"read it again\" to refresh.", "info");
       } else {
-        showToast(`Indexed! ${res.chunk_count} chunks stored from ${res.url}`, "success");
+        showToast("Page added successfully!", "success");
         setWebUrlInput("");
         setForceReindex(false);
+        setShowManualUrl(false);
         await loadWebUrls();
       }
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "Failed to index URL";
+      const msg = err instanceof ApiError ? err.message : "Failed to read page";
       showToast(msg, "error");
     } finally {
       setWebIndexing(false);
@@ -458,19 +463,19 @@ export default function KnowledgeLakePage() {
   }
 
   async function handleReindexUrl(url: string) {
-    setWebIndexing(true);
+    setReindexingUrl(url);
     try {
-      const res = await api.post<{ status: string; url: string; chunk_count: number }>(
+      await api.post<{ status: string; url: string; chunk_count: number }>(
         "/api/knowledge/web/urls/reindex",
         { url }
       );
-      showToast(`Re-indexed! ${res.chunk_count} fresh chunks stored.`, "success");
+      showToast("Page refreshed successfully.", "success");
       await loadWebUrls();
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "Re-index failed";
+      const msg = err instanceof ApiError ? err.message : "Failed to refresh page";
       showToast(msg, "error");
     } finally {
-      setWebIndexing(false);
+      setReindexingUrl(null);
     }
   }
 
@@ -480,7 +485,6 @@ export default function KnowledgeLakePage() {
     setDeletingUrl(url);
     setConfirmDeleteUrl(null);
     try {
-      // Backend DELETE expects a JSON body {url} — use raw fetch because api.delete doesn't forward a body
       const resp = await fetch("/api/knowledge/web/urls", {
         method: "DELETE",
         credentials: "include",
@@ -491,10 +495,10 @@ export default function KnowledgeLakePage() {
       if (!resp.ok) {
         throw new Error(data.error || `HTTP ${resp.status}`);
       }
-      showToast(`Deleted. ${data.chunks_removed ?? 0} chunks removed.`, "success");
+      showToast("Page removed.", "success");
       await loadWebUrls();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Delete failed";
+      const msg = err instanceof Error ? err.message : "Failed to remove page";
       showToast(msg, "error");
     } finally {
       setDeletingUrl(null);
@@ -513,450 +517,655 @@ export default function KnowledgeLakePage() {
     e.target.value = "";
   }
 
-  // ── Tab styles ──
-  const tabStyle = (active: boolean): React.CSSProperties => ({
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "0.5rem",
-    padding: "0.6rem 1.15rem",
-    borderRadius: 8,
-    fontWeight: 600,
-    fontSize: "0.88rem",
-    cursor: "pointer",
-    border: active ? "1px solid var(--accent)" : "1px solid transparent",
-    background: active ? "var(--accent-dim)" : "transparent",
-    color: active ? "var(--accent)" : "var(--text-muted)",
-    transition: "all 0.18s ease",
-    fontFamily: "inherit",
-  });
-
   const primaryWebsite = websites.find((w) => w.is_primary) || websites[0];
-  const totalWebsitePages = websites.reduce((acc, site) => {
-    return acc + (site.indexed_pages_count > 0 ? site.indexed_pages_count : 1);
-  }, 0);
-  const totalWebCount = (websites.length > 0 ? totalWebsitePages : 0) + webUrls.length;
+  const manualWebUrls = webUrls.filter((u) => u.is_manual !== false);
 
   return (
-    <div style={{ width: "100%", maxWidth: 1400, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
-      {/* Header */}
-      <header style={{ marginBottom: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem" }}>
-        <div>
-          <h1 style={{ margin: "0 0 0.25rem 0", fontSize: "1.6rem", fontWeight: 800, color: "var(--text-primary)" }}>
-            Knowledge Lake
-          </h1>
-          <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.9rem" }}>
-            {activeTab === "documents"
-              ? "Upload and safely store unstructured documents (PDF, Word) for your AI assistant."
-              : "Index public web pages into the RAG pipeline — your chatbot will use this content automatically."}
-          </p>
-        </div>
+    <div style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "2rem 1.5rem", boxSizing: "border-box" }}>
+      <style>{`
+        @keyframes indeterminateMove {
+          0% { left: -35%; width: 35%; }
+          50% { left: 30%; width: 50%; }
+          100% { left: 100%; width: 35%; }
+        }
+        @keyframes pulseDot {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.4; transform: scale(0.85); }
+        }
+        .desktop-only-actions {
+          display: flex;
+        }
+        .mobile-only-menu {
+          display: none;
+        }
+        @media (max-width: 640px) {
+          .desktop-only-actions {
+            display: none !important;
+          }
+          .mobile-only-menu {
+            display: block !important;
+          }
+        }
+      `}</style>
 
-        {/* Quota & Plan Status Card */}
-        {subStatus && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "1.25rem",
-              background: "var(--bg-card)",
-              border: isExpired ? "1px solid rgba(239, 68, 68, 0.4)" : "1px solid var(--border)",
-              borderRadius: 10,
-              padding: "0.75rem 1.25rem",
-              boxShadow: "var(--shadow-sm)",
-            }}
-          >
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
-                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700 }}>
-                  Storage Quota
-                </span>
-                <span
-                  style={{
-                    fontSize: "0.7rem",
-                    padding: "0.15rem 0.5rem",
-                    borderRadius: 4,
-                    background: isExpired ? "rgba(239, 68, 68, 0.18)" : "var(--accent-light)",
-                    color: isExpired ? "#f87171" : "var(--accent)",
-                    fontWeight: 700,
-                  }}
-                >
-                  {subStatus.plan?.name || "Trial Plan"}
-                </span>
+      {/* ── Page Header ── */}
+      <header style={{ marginBottom: "2rem" }}>
+        <h1 style={{ margin: "0 0 0.35rem 0", fontSize: "1.75rem", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.02em" }}>
+          What your assistant knows
+        </h1>
+        <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.95rem" }}>
+          Your assistant answers customers using these files and website pages.
+        </p>
+      </header>
+
+      {/* ══════════════════════════════════════════════════════════
+          CARD 1: Files
+      ══════════════════════════════════════════════════════════ */}
+      <div
+        style={{
+          background: "var(--bg-card)",
+          border: "1px solid var(--border)",
+          borderRadius: 14,
+          padding: "1.75rem",
+          boxShadow: "var(--shadow-sm)",
+          marginBottom: "1.75rem",
+        }}
+      >
+        {/* Card Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem", marginBottom: "1.25rem" }}>
+          <div>
+            <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>
+              Files
+            </div>
+            <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", marginTop: "0.2rem" }}>
+              PDF or Word, up to 20 MB each
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "0.85rem", flexWrap: "wrap" }}>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--text-secondary)" }}>
+                {isUnlimited ? `${files.length} files used` : `${files.length} of ${maxKbFiles} used`}
+                <span style={{ margin: "0 0.4rem", color: "var(--border)" }}>·</span>
+                <span style={{ color: "var(--text-muted)" }}>{subStatus?.plan?.name || (isTrial ? "Trial" : "Plan")}</span>
               </div>
-              <div style={{ fontSize: "0.95rem", fontWeight: 700, color: isAtCapacity ? "#f87171" : "var(--text-primary)" }}>
-                {isUnlimited ? `${files.length} files (Unlimited)` : `${files.length} / ${maxKbFiles} files used`}
-              </div>
+              {!isUnlimited && maxKbFiles > 0 && (
+                <div style={{ height: 3, background: "var(--bg-hover)", borderRadius: 9999, overflow: "hidden", marginTop: 4, width: "100%", maxWidth: 120, marginLeft: "auto" }}>
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${Math.min(100, Math.round((files.length / maxKbFiles) * 100))}%`,
+                      background: isAtCapacity ? "var(--warning)" : "var(--accent)",
+                      borderRadius: 9999,
+                      transition: "width 0.3s ease",
+                    }}
+                  />
+                </div>
+              )}
             </div>
 
-            {(isExpired || isAtCapacity || isTrial) && (
+            {canGetMore && (
               <Link
                 href="/workspace/billing"
                 style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.4rem",
-                  background: isExpired ? "rgba(239, 68, 68, 0.15)" : "var(--accent)",
-                  color: isExpired ? "#f87171" : "#fff",
-                  border: isExpired ? "1px solid rgba(239, 68, 68, 0.35)" : "none",
-                  padding: "0.5rem 0.9rem",
-                  borderRadius: 6,
-                  fontSize: "0.82rem",
+                  color: "var(--accent)",
                   fontWeight: 700,
+                  fontSize: "0.85rem",
                   textDecoration: "none",
-                  transition: "all 0.2s ease",
-                  whiteSpace: "nowrap",
+                  padding: "0.25rem 0.5rem",
+                  borderRadius: 6,
+                  transition: "opacity 0.15s",
                 }}
               >
-                ⚡ {isExpired ? "Upgrade to Reactivate" : "Upgrade Plan"}
+                Get more
               </Link>
             )}
           </div>
+        </div>
+
+        {/* Upload Zone / Special Capacity or Empty State */}
+        {loading ? (
+          <div style={{ textAlign: "center", padding: "2.5rem 1rem", color: "var(--text-muted)", fontSize: "0.85rem" }}>
+            Loading files…
+          </div>
+        ) : isAtCapacity ? (
+          /* Capacity Reached State (Yellow box) */
+          <div
+            style={{
+              background: "rgba(245, 158, 11, 0.08)",
+              border: "1px solid rgba(245, 158, 11, 0.35)",
+              borderRadius: 10,
+              padding: "1.25rem 1.4rem",
+              marginBottom: files.length > 0 ? "1.25rem" : 0,
+            }}
+          >
+            <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: "0.3rem" }}>
+              {"You've used all "}
+              {maxKbFiles}
+              {" files on the "}
+              {subStatus?.plan?.name || "Trial"}
+              {" plan"}
+            </div>
+            <div style={{ fontSize: "0.84rem", color: "var(--text-secondary)", marginBottom: "0.9rem" }}>
+              Remove a file to add another, or upgrade for more.
+            </div>
+            <Link
+              href="/workspace/billing"
+              style={{
+                display: "inline-block",
+                padding: "0.45rem 1rem",
+                background: "var(--accent)",
+                color: "#fff",
+                fontWeight: 600,
+                fontSize: "0.84rem",
+                borderRadius: 6,
+                textDecoration: "none",
+                boxShadow: "var(--shadow-sm)",
+              }}
+            >
+              See plans
+            </Link>
+          </div>
+        ) : files.length === 0 ? (
+          /* Zero Files Empty State */
+          <div
+            style={{
+              border: dragOver ? "1.5px dashed var(--accent)" : "1.5px dashed var(--border)",
+              borderRadius: 10,
+              padding: "2.75rem 1.5rem",
+              textAlign: "center",
+              background: dragOver ? "var(--accent-dim)" : "transparent",
+              transition: "all 0.2s ease",
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={onDrop}
+          >
+            <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: "0.35rem" }}>
+              Add your first file
+            </div>
+            <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", maxWidth: 440, margin: "0 auto 1.25rem auto", lineHeight: 1.5 }}>
+              A price list or brochure is a great start. Your assistant will use it to answer questions.
+            </div>
+            <button
+              onClick={() => inputRef.current?.click()}
+              style={{
+                padding: "0.55rem 1.35rem",
+                borderRadius: 6,
+                border: "none",
+                background: "var(--accent)",
+                color: "#fff",
+                fontFamily: "inherit",
+                fontWeight: 600,
+                fontSize: "0.88rem",
+                cursor: "pointer",
+                boxShadow: "var(--shadow-sm)",
+              }}
+            >
+              Choose files
+            </button>
+            <input
+              ref={inputRef}
+              type="file"
+              multiple
+              accept=".pdf,.doc,.docx"
+              style={{ display: "none" }}
+              onChange={onFileChange}
+            />
+          </div>
+        ) : (
+          /* Compact Drop Zone */
+          <div
+            style={{
+              border: dragOver ? "1.5px dashed var(--accent)" : "1.5px dashed var(--border)",
+              borderRadius: 10,
+              padding: "1.35rem 1rem",
+              textAlign: "center",
+              background: dragOver ? "var(--accent-dim)" : "var(--bg-surface)",
+              cursor: "pointer",
+              marginBottom: "1.25rem",
+              transition: "all 0.2s ease",
+            }}
+            onClick={() => inputRef.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={onDrop}
+          >
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: "0.4rem", color: "var(--accent)" }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+            </div>
+            <div style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--text-primary)" }}>
+              Drop files here or{" "}
+              <span style={{ color: "var(--accent)", textDecoration: "underline" }}>choose files</span>
+            </div>
+            <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
+              Price lists, brochures, FAQs, policies
+            </div>
+            <input
+              ref={inputRef}
+              type="file"
+              multiple
+              accept=".pdf,.doc,.docx"
+              style={{ display: "none" }}
+              onChange={onFileChange}
+            />
+          </div>
         )}
-      </header>
 
-      {/* ── Tab Switcher ── */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.75rem", borderBottom: "1px solid var(--border)", paddingBottom: "1rem" }}>
-        <button style={tabStyle(activeTab === "documents")} onClick={() => setActiveTab("documents")}>
-          📄 Documents
-          <span style={{ marginLeft: 6, padding: "2px 8px", borderRadius: 9999, background: activeTab === "documents" ? "var(--accent-light, rgba(79,70,229,0.15))" : "var(--bg-hover, #e2e8f0)", color: activeTab === "documents" ? "var(--accent)" : "var(--text-muted)", fontSize: "0.75rem", fontWeight: 700 }}>{files.length}</span>
-        </button>
-        <button style={tabStyle(activeTab === "web")} onClick={() => setActiveTab("web")}>
-          🌐 Website & Web URLs
-          <span style={{ marginLeft: 6, padding: "2px 8px", borderRadius: 9999, background: activeTab === "web" ? "var(--accent-light, rgba(79,70,229,0.15))" : "var(--bg-hover, #e2e8f0)", color: activeTab === "web" ? "var(--accent)" : "var(--text-muted)", fontSize: "0.75rem", fontWeight: 700 }}>
-            {totalWebCount}
-          </span>
-        </button>
-      </div>
+        {/* Uploading progress indicator */}
+        {uploading && (
+          <div style={{ margin: "0.75rem 0", color: "var(--accent)", fontWeight: 600, fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>🔄</span>
+            Uploading and processing documents... Please wait.
+          </div>
+        )}
 
-      {/* ══════════════ WEB URLS & WEBSITE TAB (V5) ══════════════ */}
-      {activeTab === "web" && (
-        <div>
-          {/* SECTION 1: Automated Workspace Website (Zero-Config or Live Ingestion Radar) */}
-          <div style={{ marginBottom: "2rem" }}>
-            {primaryWebsite ? (
-              /* ── Website Connected: Live Radar or Ready Status ── */
-              <div
-                style={{
-                  background: "var(--bg-card)",
-                  border: primaryWebsite.indexing_status === "indexing" ? "1px solid rgba(99,102,241,0.5)" : "1px solid var(--border)",
-                  borderRadius: 14,
-                  padding: "1.75rem",
-                  boxShadow: "var(--shadow-sm)",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem", marginBottom: "1rem" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
-                    <div style={{ width: 44, height: 44, borderRadius: 10, background: primaryWebsite.indexing_status === "indexing" ? "var(--accent-light)" : "var(--accent-dim)", border: "1px solid rgba(99,102,241,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.4rem" }}>
-                      🌐
+        {/* File List */}
+        {files.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {files.map((f) => {
+              const shortDate = formatShortDate(f.uploaded_at);
+              const isDeleting = deletingFilename === f.filename;
+              return (
+                <div
+                  key={f.filename}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "0.75rem 1rem",
+                    borderRadius: 8,
+                    border: "1px solid var(--border)",
+                    background: "var(--bg-surface)",
+                    transition: "background 0.15s ease",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", minWidth: 0 }}>
+                    <div style={{ color: "var(--accent)", flexShrink: 0 }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                      </svg>
                     </div>
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <a href={primaryWebsite.root_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)", textDecoration: "none" }}>
-                          {primaryWebsite.domain}
-                        </a>
-                        <span style={{ fontSize: "0.75rem", padding: "2px 8px", borderRadius: 9999, background: "var(--accent-dim)", color: "var(--accent)", fontWeight: 700 }}>
-                          ⚡ Primary
-                        </span>
-                        <span style={{ fontSize: "0.72rem", padding: "2px 8px", borderRadius: 9999, background: "rgba(16,185,129,0.15)", color: "#10b981", fontWeight: 600 }}>
-                          ✓ Widget Verified
-                        </span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {f.filename}
                       </div>
-                      <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: 3 }}>
-                        {primaryWebsite.root_url}
+                      <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: "0.15rem" }}>
+                        {f.size}
+                        {shortDate ? ` · added ${shortDate}` : ""}
                       </div>
                     </div>
                   </div>
 
-                  {/* Status badge */}
-                  <div>
-                    {primaryWebsite.indexing_status === "ready" && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 14px", borderRadius: 9999, background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)", color: "#10b981", fontSize: "0.85rem", fontWeight: 700 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981" }} />
-                        Indexed & Ready ({primaryWebsite.indexed_pages_count} pages • {primaryWebsite.total_chunks_count} chunks)
-                      </span>
-                    )}
-                    {primaryWebsite.indexing_status === "indexing" && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "5px 14px", borderRadius: 9999, background: "var(--accent-dim)", border: "1px solid rgba(99,102,241,0.45)", color: "var(--accent)", fontSize: "0.85rem", fontWeight: 700 }}>
-                        <span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>🔄</span>
-                        Crawling & Indexing Pages...
-                      </span>
-                    )}
-                    {primaryWebsite.indexing_status === "queued" && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 14px", borderRadius: 9999, background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.3)", color: "#f59e0b", fontSize: "0.85rem", fontWeight: 700 }}>
-                        ⏳ Queued for Background Crawl
-                      </span>
-                    )}
-                    {primaryWebsite.indexing_status === "unindexed" && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 14px", borderRadius: 9999, background: "var(--bg-hover)", border: "1px solid var(--border)", color: "var(--text-secondary)", fontSize: "0.85rem", fontWeight: 600 }}>
-                        ℹ️ Ready for Crawl
-                      </span>
-                    )}
-                    {primaryWebsite.indexing_status === "stale" && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 14px", borderRadius: 9999, background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.3)", color: "#f59e0b", fontSize: "0.85rem", fontWeight: 700 }}>
-                        ⚠️ Stale Index (Click Re-crawl to refresh)
-                      </span>
-                    )}
-                    {primaryWebsite.indexing_status === "failed" && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 14px", borderRadius: 9999, background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", color: "var(--error, #ef4444)", fontSize: "0.85rem", fontWeight: 700 }}>
-                        ❌ Crawl Failed ({primaryWebsite.last_crawl_error || "Check connectivity"})
-                      </span>
-                    )}
+                  <button
+                    onClick={() => handleDelete(f.filename)}
+                    disabled={isDeleting}
+                    aria-label={`Remove ${f.filename}`}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "var(--error)",
+                      cursor: isDeleting ? "not-allowed" : "pointer",
+                      padding: "0.45rem",
+                      borderRadius: 6,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "background 0.15s, color 0.15s",
+                      opacity: isDeleting ? 0.5 : 1,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(239, 68, 68, 0.12)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  >
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════
+          CARD 2: Your website
+      ══════════════════════════════════════════════════════════ */}
+      <div
+        style={{
+          background: "var(--bg-card)",
+          border: "1px solid var(--border)",
+          borderRadius: 14,
+          padding: "1.75rem",
+          boxShadow: "var(--shadow-sm)",
+        }}
+      >
+        {/* Card Header */}
+        <div style={{ marginBottom: "1.25rem" }}>
+          <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>
+            Your website
+          </div>
+          <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", marginTop: "0.2rem" }}>
+            {websites.length === 0
+              ? "Add the chat to your website and we'll read your public pages automatically (up to 25). Nothing else to set up."
+              : "Your assistant reads the public pages of your website automatically."}
+          </div>
+        </div>
+
+        {/* ── Case 1: No website connected yet (3-step setup) ── */}
+        {websites.length === 0 ? (
+          <div
+            style={{
+              background: "var(--bg-surface)",
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              padding: "1.5rem",
+              marginBottom: "1.5rem",
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem", marginBottom: "1.25rem" }}>
+              <div style={{ fontSize: "0.88rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>1.</span>
+                <span>Add the chat to your website</span>
+              </div>
+              <div style={{ fontSize: "0.88rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>2.</span>
+                <span>We find your website by ourselves</span>
+              </div>
+              <div style={{ fontSize: "0.88rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>3.</span>
+                <span>Your assistant learns your pages</span>
+              </div>
+            </div>
+
+            <Link
+              href="/workspace/deploy"
+              style={{
+                display: "inline-block",
+                padding: "0.6rem 1.25rem",
+                borderRadius: 8,
+                background: "var(--accent)",
+                color: "#fff",
+                fontWeight: 600,
+                fontSize: "0.88rem",
+                textDecoration: "none",
+                boxShadow: "var(--shadow-sm)",
+              }}
+            >
+              Add chat to my website
+            </Link>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "1rem", fontSize: "0.82rem", color: "var(--text-muted)" }}>
+              <span
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: "50%",
+                  background: "#f59e0b",
+                  animation: "pulseDot 2s infinite ease-in-out",
+                }}
+              />
+              Waiting for the chat to appear on your website
+            </div>
+          </div>
+        ) : (
+          /* ── Case 2: Website connected ── */
+          primaryWebsite && (
+            <div
+              style={{
+                background: "var(--bg-surface)",
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+                padding: "1.25rem",
+                marginBottom: "1.75rem",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem" }}>
+                {/* Left: Domain & Status */}
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "0.85rem", minWidth: 0 }}>
+                  <div
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 10,
+                      background: primaryWebsite.indexing_status === "ready" ? "rgba(16, 185, 129, 0.12)" : "var(--accent-dim)",
+                      color: primaryWebsite.indexing_status === "ready" ? "#10b981" : "var(--accent)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="2" y1="12" x2="22" y2="12" />
+                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                    </svg>
+                  </div>
+
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {primaryWebsite.domain}
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.25rem", fontSize: "0.82rem" }}>
+                      {/* Status Tag */}
+                      {primaryWebsite.indexing_status === "ready" && (
+                        <>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#10b981", fontWeight: 600 }}>
+                            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#10b981" }} />
+                            Up to date
+                          </span>
+                          <span style={{ color: "var(--text-muted)" }}>·</span>
+                          <span style={{ color: "var(--text-secondary)" }}>
+                            {primaryWebsite.indexed_pages_count} {primaryWebsite.indexed_pages_count === 1 ? "page" : "pages"}
+                            {primaryWebsite.last_indexed_at ? ` · last read ${formatDateTime(primaryWebsite.last_indexed_at)}` : ""}
+                          </span>
+                        </>
+                      )}
+
+                      {(primaryWebsite.indexing_status === "indexing" || primaryWebsite.indexing_status === "queued") && (
+                        <span style={{ padding: "2px 8px", borderRadius: 9999, background: "var(--accent-dim)", color: "var(--accent)", fontWeight: 600 }}>
+                          Reading your website…
+                        </span>
+                      )}
+
+                      {primaryWebsite.indexing_status === "stale" && (
+                        <span style={{ padding: "2px 8px", borderRadius: 9999, background: "rgba(245, 158, 11, 0.15)", color: "#d97706", fontWeight: 600 }}>
+                          Out of date
+                        </span>
+                      )}
+
+                      {primaryWebsite.indexing_status === "failed" && (
+                        <span style={{ padding: "2px 8px", borderRadius: 9999, background: "rgba(239, 68, 68, 0.15)", color: "var(--error)", fontWeight: 600 }}>
+                          {"Couldn't read"}
+                        </span>
+                      )}
+
+                      {primaryWebsite.indexing_status === "unindexed" && (
+                        <span style={{ padding: "2px 8px", borderRadius: 9999, background: "var(--bg-hover)", color: "var(--text-secondary)", fontWeight: 600 }}>
+                          Not read yet
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Live Crawling Radar Visualization (when indexing or queued) */}
-                {(primaryWebsite.indexing_status === "indexing" || primaryWebsite.indexing_status === "queued") && (
-                  <div style={{ margin: "1.25rem 0", padding: "1.25rem", borderRadius: 8, background: "var(--accent-dim)", border: "1px dashed rgba(99,102,241,0.35)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.6rem" }}>
-                      <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981", animation: "pulse 1.5s infinite" }} />
-                        Live Crawler Active: Scraping pages, removing noise & generating vector embeddings
-                      </div>
-                      <div style={{ fontSize: "0.8rem", color: "var(--accent)", fontWeight: 700 }}>
-                        Auto-refreshing live...
-                      </div>
-                    </div>
-                    {/* Pulsing Progress Bar */}
-                    <div style={{ height: 6, background: "var(--bg-hover)", borderRadius: 9999, overflow: "hidden", position: "relative" }}>
-                      <div style={{ height: "100%", width: "70%", background: "linear-gradient(90deg, var(--accent), #10b981)", borderRadius: 9999, animation: "pulse 1.8s infinite" }} />
-                    </div>
-                    <div style={{ display: "flex", gap: "2rem", marginTop: "1rem", flexWrap: "wrap", fontSize: "0.82rem", color: "var(--text-muted)" }}>
-                      <div>Scope: <strong style={{ color: "var(--text-primary)" }}>Up to 25 same-origin pages</strong></div>
-                      <div>Max Depth: <strong style={{ color: "var(--text-primary)" }}>Level 2 internal links</strong></div>
-                      <div>Tenant Isolation: <strong style={{ color: "#10b981" }}>Protected & Isolated</strong></div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Details and Actions */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid var(--border)", paddingTop: "1rem", marginTop: "1rem", flexWrap: "wrap", gap: "1rem" }}>
-                  <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                    <span>Authorized Origins: </span>
-                    <strong style={{ color: "var(--text-secondary)" }}>
-                      {primaryWebsite.allowed_origins.join(", ")}
-                    </strong>
-                    {primaryWebsite.last_indexed_at && (
-                      <span style={{ marginLeft: "1rem" }}>
-                        Last Crawled: {new Date(primaryWebsite.last_indexed_at).toLocaleString()}
-                      </span>
-                    )}
-                  </div>
-
-                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                {/* Right: Actions */}
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }} data-menu-root>
+                  {primaryWebsite.indexing_status === "failed" ? (
+                    <button
+                      onClick={() => void handleReindexWebsite(primaryWebsite.id)}
+                      disabled={reindexingWebsiteId === primaryWebsite.id}
+                      style={{
+                        padding: "0.45rem 0.95rem",
+                        borderRadius: 6,
+                        border: "1px solid var(--border)",
+                        background: "var(--bg-card)",
+                        color: "var(--text-primary)",
+                        fontWeight: 600,
+                        fontSize: "0.82rem",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      Try again
+                    </button>
+                  ) : (
                     <button
                       onClick={() => void handleReindexWebsite(primaryWebsite.id)}
                       disabled={primaryWebsite.indexing_status === "indexing" || primaryWebsite.indexing_status === "queued" || reindexingWebsiteId === primaryWebsite.id}
                       style={{
-                        background: "var(--accent-dim)",
-                        border: "1px solid rgba(99,102,241,0.3)",
-                        color: "var(--accent)",
-                        padding: "0.45rem 0.9rem",
+                        padding: "0.45rem 0.95rem",
                         borderRadius: 6,
-                        cursor: primaryWebsite.indexing_status === "indexing" ? "not-allowed" : "pointer",
-                        fontSize: "0.85rem",
-                        fontWeight: 700,
-                        fontFamily: "inherit",
-                        opacity: primaryWebsite.indexing_status === "indexing" ? 0.6 : 1,
-                        transition: "all 0.18s",
-                      }}
-                    >
-                      🔄 Re-crawl Website Now
-                    </button>
-                    <button
-                      onClick={() => setConfirmDeleteWebsite(primaryWebsite)}
-                      disabled={deletingWebsiteId === primaryWebsite.id}
-                      style={{
-                        background: "rgba(239,68,68,0.1)",
-                        color: "var(--error, #ef4444)",
-                        border: "1px solid rgba(239,68,68,0.2)",
-                        padding: "0.45rem 0.9rem",
-                        borderRadius: 6,
-                        cursor: "pointer",
-                        fontSize: "0.85rem",
+                        border: "1px solid var(--border)",
+                        background: "var(--bg-card)",
+                        color: "var(--text-primary)",
                         fontWeight: 600,
+                        fontSize: "0.82rem",
+                        cursor: (primaryWebsite.indexing_status === "indexing" || primaryWebsite.indexing_status === "queued") ? "not-allowed" : "pointer",
                         fontFamily: "inherit",
-                        transition: "all 0.2s",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        opacity: (primaryWebsite.indexing_status === "indexing" || primaryWebsite.indexing_status === "queued") ? 0.6 : 1,
+                        transition: "all 0.15s ease",
                       }}
                     >
-                      🗑 Disconnect Website
+                      <span>↻</span> Read again
                     </button>
+                  )}
+
+                  {/* Three dots menu */}
+                  <div style={{ position: "relative" }}>
+                    <button
+                      onClick={() => setWebsiteMenuOpen(!websiteMenuOpen)}
+                      aria-label="More options"
+                      style={{
+                        padding: "0.45rem 0.65rem",
+                        borderRadius: 6,
+                        border: "1px solid var(--border)",
+                        background: websiteMenuOpen ? "var(--bg-hover)" : "var(--bg-card)",
+                        color: "var(--text-primary)",
+                        fontWeight: 700,
+                        fontSize: "0.9rem",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      ···
+                    </button>
+
+                    {websiteMenuOpen && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          right: 0,
+                          top: "calc(100% + 4px)",
+                          background: "var(--bg-card)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 8,
+                          boxShadow: "var(--shadow-md)",
+                          padding: "0.35rem",
+                          zIndex: 20,
+                          minWidth: 140,
+                        }}
+                      >
+                        <button
+                          onClick={() => {
+                            setWebsiteMenuOpen(false);
+                            setConfirmDeleteWebsite(primaryWebsite);
+                          }}
+                          disabled={deletingWebsiteId === primaryWebsite.id}
+                          style={{
+                            width: "100%",
+                            textAlign: "left",
+                            padding: "0.5rem 0.75rem",
+                            borderRadius: 5,
+                            border: "none",
+                            background: "transparent",
+                            color: "var(--error)",
+                            fontSize: "0.82rem",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)")}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                        >
+                          Disconnect
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-            ) : (
-              /* ── Zero-Config Empty State: Premium Theme-Adaptive Hero Card ── */
-              <div
-                style={{
-                  background: "linear-gradient(135deg, var(--bg-card) 0%, var(--accent-dim) 100%)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 14,
-                  padding: "2.25rem 2.25rem",
-                  position: "relative",
-                  overflow: "hidden",
-                  boxShadow: "var(--shadow-sm)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "2.5rem",
-                  flexWrap: "wrap",
-                }}
-              >
-                {/* Ambient glow decoration */}
-                <div
-                  style={{
-                    position: "absolute",
-                    top: -50,
-                    right: -50,
-                    width: 200,
-                    height: 200,
-                    borderRadius: "50%",
-                    background: "radial-gradient(circle, var(--accent-glow) 0%, transparent 70%)",
-                    pointerEvents: "none",
-                  }}
-                />
 
-                <div style={{ maxWidth: 660, flex: "1 1 400px", position: "relative", zIndex: 1 }}>
-                  <div
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 8,
-                      padding: "5px 12px",
-                      borderRadius: 9999,
-                      background: "var(--accent-light, rgba(79, 70, 229, 0.12))",
-                      border: "1px solid rgba(79, 70, 229, 0.25)",
-                      color: "var(--accent, #4f46e5)",
-                      fontSize: "0.8rem",
-                      fontWeight: 700,
-                      marginBottom: "1rem",
-                    }}
-                  >
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981", boxShadow: "0 0 6px rgba(16, 185, 129, 0.6)" }} />
-                    Zero-Config Automated Website Knowledge
-                  </div>
-
-                  <h3
-                    style={{
-                      fontSize: "1.4rem",
-                      fontWeight: 800,
-                      color: "var(--text-primary)",
-                      margin: "0 0 0.6rem 0",
-                      letterSpacing: "-0.015em",
-                      lineHeight: 1.3,
-                    }}
-                  >
-                    Connect & Crawl Your Website Automatically
-                  </h3>
-
-                  <p
-                    style={{
-                      fontSize: "0.92rem",
-                      color: "var(--text-secondary)",
-                      lineHeight: 1.65,
-                      margin: "0 0 1.5rem 0",
-                    }}
-                  >
-                    No manual URL setup required. Once your chat widget is installed on your site, our crawler automatically detects your domain, indexes your public pages (up to 25 pages), and integrates them into your chatbot's RAG knowledge base.
-                  </p>
-
-                  <div style={{ display: "flex", alignItems: "center", gap: "1.25rem", flexWrap: "wrap" }}>
-                    <Link
-                      href="/workspace/deploy"
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "0.6rem",
-                        padding: "0.72rem 1.4rem",
-                        borderRadius: 8,
-                        background: "linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%)",
-                        color: "#fff",
-                        fontWeight: 700,
-                        fontSize: "0.92rem",
-                        textDecoration: "none",
-                        boxShadow: "0 4px 14px var(--accent-glow)",
-                        transition: "all 0.2s ease",
-                      }}
-                    >
-                      <span>🚀 Go to Deploy Agent</span>
-                      <span style={{ fontSize: "1.1rem" }}>→</span>
-                    </Link>
-
+              {/* Status-specific details under main row */}
+              {(primaryWebsite.indexing_status === "indexing" || primaryWebsite.indexing_status === "queued") && (
+                <div style={{ marginTop: "1rem" }}>
+                  <div style={{ height: 4, background: "var(--bg-hover)", borderRadius: 9999, overflow: "hidden", position: "relative" }}>
                     <div
                       style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 8,
-                        fontSize: "0.83rem",
-                        color: "var(--text-secondary)",
-                        padding: "0.45rem 0.9rem",
-                        borderRadius: 6,
-                        background: "var(--bg-surface)",
-                        border: "1px solid var(--border)",
+                        position: "absolute",
+                        top: 0,
+                        bottom: 0,
+                        background: "linear-gradient(90deg, var(--accent), #10b981)",
+                        borderRadius: 9999,
+                        animation: "indeterminateMove 1.6s infinite ease-in-out",
                       }}
-                    >
-                      <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: "#f59e0b", boxShadow: "0 0 6px rgba(245, 158, 11, 0.45)" }} />
-                      Waiting for first widget connection on your website...
-                    </div>
+                    />
+                  </div>
+                  <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", marginTop: "0.45rem" }}>
+                    This takes a few minutes. You can leave this page.
                   </div>
                 </div>
+              )}
 
-                {/* Right Column: 3-step auto-ingestion flow preview */}
-                <div
-                  style={{
-                    background: "var(--bg-surface)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 12,
-                    padding: "1.25rem 1.4rem",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.9rem",
-                    minWidth: 260,
-                    maxWidth: 320,
-                    flex: "0 1 320px",
-                    boxShadow: "var(--shadow-sm)",
-                    position: "relative",
-                    zIndex: 1,
-                  }}
-                >
-                  <div style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--text-muted)" }}>
-                    How Auto-Ingestion Works
-                  </div>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                    <div style={{ width: 22, height: 22, borderRadius: 6, background: "var(--accent-dim)", color: "var(--accent)", fontSize: "0.75rem", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>1</div>
-                    <div>
-                      <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "var(--text-primary)" }}>Embed Widget Script</div>
-                      <div style={{ fontSize: "0.76rem", color: "var(--text-muted)", marginTop: 2 }}>Add one line to your website header</div>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                    <div style={{ width: 22, height: 22, borderRadius: 6, background: "var(--accent-dim)", color: "var(--accent)", fontSize: "0.75rem", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>2</div>
-                    <div>
-                      <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "var(--text-primary)" }}>Origin Auto-Discovery</div>
-                      <div style={{ fontSize: "0.76rem", color: "var(--text-muted)", marginTop: 2 }}>Crawler detects & verifies domain</div>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                    <div style={{ width: 22, height: 22, borderRadius: 6, background: "rgba(16,185,129,0.12)", color: "#10b981", fontSize: "0.75rem", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>3</div>
-                    <div>
-                      <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "var(--text-primary)" }}>Instant RAG Chunks</div>
-                      <div style={{ fontSize: "0.76rem", color: "var(--text-muted)", marginTop: 2 }}>Public pages scraped & vector indexed</div>
-                    </div>
-                  </div>
+              {primaryWebsite.indexing_status === "stale" && (
+                <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", marginTop: "0.75rem" }}>
+                  Your website has changed since we last read it.
                 </div>
-              </div>
-            )}
-          </div>
+              )}
 
-          {/* SECTION 2: Optional Standalone Page Indexing (Collapsible) */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem", flexWrap: "wrap", gap: "0.75rem" }}>
+              {primaryWebsite.indexing_status === "failed" && (
+                <div style={{ fontSize: "0.82rem", color: "var(--error)", marginTop: "0.75rem" }}>
+                  {"We couldn't open your website. Check that it's online, then try again."}
+                  {primaryWebsite.last_crawl_error ? ` (Reason: ${primaryWebsite.last_crawl_error})` : ""}
+                </div>
+              )}
+            </div>
+          )
+        )}
+
+        {/* ── Extra Pages Section ── */}
+        <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1.5rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem", marginBottom: "1rem" }}>
             <div>
-              <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "var(--text-primary)" }}>
-                Indexed Web Pages & Knowledge Chunks
+              <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                Extra pages
               </div>
-              <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", marginTop: 2 }}>
-                Specific URLs and scraped pages powering your chatbot's vector responses
+              <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", marginTop: "0.2rem" }}>
+                Any other public page you want your assistant to read · {manualWebUrls.length} of 50 used
               </div>
             </div>
+
             <button
               onClick={() => setShowManualUrl(!showManualUrl)}
               style={{
@@ -965,47 +1174,44 @@ export default function KnowledgeLakePage() {
                 color: "var(--text-primary)",
                 padding: "0.45rem 0.95rem",
                 borderRadius: 8,
-                fontSize: "0.84rem",
+                fontSize: "0.82rem",
                 fontWeight: 600,
                 cursor: "pointer",
                 fontFamily: "inherit",
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 6,
-                transition: "all 0.18s ease",
-                boxShadow: "var(--shadow-sm)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "var(--accent)";
-                e.currentTarget.style.color = "var(--accent)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "var(--border)";
-                e.currentTarget.style.color = "var(--text-primary)";
+                transition: "all 0.15s ease",
               }}
             >
-              {showManualUrl ? "✕ Close Single URL Indexer" : "+ Index Specific URL"}
+              {showManualUrl ? "✕ Cancel" : "+ Add a single page"}
             </button>
           </div>
 
+          {/* Add page inline form */}
           {showManualUrl && (
-            <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, padding: "1.25rem", marginBottom: "1.5rem" }}>
-              <div style={{ fontSize: "0.84rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
-                Paste any specific article or single landing page URL to scrape and add to your chatbot knowledge.
-              </div>
+            <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "1.1rem", marginBottom: "1.25rem" }}>
               <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
                 <input
                   type="url"
                   value={webUrlInput}
                   onChange={(e) => setWebUrlInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") void handleIndexUrl(); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void handleIndexUrl();
+                  }}
                   placeholder="https://example.com/pricing"
                   disabled={webIndexing}
                   style={{
-                    flex: 1, minWidth: 260,
-                    background: "var(--bg-surface, #1a1a27)", border: "1px solid var(--border)",
-                    borderRadius: 8, color: "var(--text-primary)", fontFamily: "inherit",
-                    fontSize: "0.9rem", padding: "0.65rem 1rem", outline: "none",
+                    flex: 1,
+                    minWidth: 240,
+                    background: "var(--bg-card)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    color: "var(--text-primary)",
+                    fontFamily: "inherit",
+                    fontSize: "0.88rem",
+                    padding: "0.6rem 0.95rem",
+                    outline: "none",
                     opacity: webIndexing ? 0.6 : 1,
                   }}
                 />
@@ -1013,461 +1219,229 @@ export default function KnowledgeLakePage() {
                   onClick={() => void handleIndexUrl()}
                   disabled={webIndexing || !webUrlInput.trim()}
                   style={{
-                    padding: "0.65rem 1.35rem", borderRadius: 8, border: "none",
-                    background: "var(--accent, #8a64e9)", color: "#fff", fontFamily: "inherit",
-                    fontWeight: 700, fontSize: "0.9rem",
+                    padding: "0.6rem 1.25rem",
+                    borderRadius: 8,
+                    border: "none",
+                    background: "var(--accent)",
+                    color: "#fff",
+                    fontFamily: "inherit",
+                    fontWeight: 600,
+                    fontSize: "0.88rem",
                     cursor: webIndexing || !webUrlInput.trim() ? "not-allowed" : "pointer",
                     opacity: webIndexing || !webUrlInput.trim() ? 0.55 : 1,
-                    transition: "opacity 0.18s",
+                    transition: "opacity 0.15s",
                   }}
                 >
-                  {webIndexing ? "Indexing…" : "Index Page"}
+                  {webIndexing ? "Adding…" : "Add page"}
                 </button>
               </div>
-              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.75rem", fontSize: "0.82rem", color: "var(--text-muted)", cursor: "pointer" }}>
+
+              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.75rem", fontSize: "0.82rem", color: "var(--text-secondary)", cursor: "pointer" }}>
                 <input
                   type="checkbox"
                   checked={forceReindex}
                   onChange={(e) => setForceReindex(e.target.checked)}
-                  style={{ accentColor: "var(--accent, #8a64e9)", width: 14, height: 14 }}
+                  style={{ accentColor: "var(--accent)", width: 14, height: 14 }}
                 />
-                Force re-index (replace existing chunks if this URL is already indexed)
+                If this page was added before, read it again
               </label>
             </div>
           )}
 
-          {/* Stats row */}
-          {webUrls.length > 0 && (
-            <div style={{ display: "flex", gap: "1rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
-              {[
-                { label: "Indexed URLs", value: String(webUrls.length), color: "var(--accent, #8a64e9)" },
-                { label: "Total Chunks", value: String(webUrls.reduce((s, u) => s + u.chunk_count, 0)), color: "#10b981" },
-                { label: "URL Quota", value: `${webUrls.length} / 50`, color: "#f59e0b" },
-              ].map((s) => (
-                <div key={s.label} style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, padding: "0.9rem 1.2rem", flex: "1 1 120px" }}>
-                  <div style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--text-muted)", marginBottom: 4 }}>{s.label}</div>
-                  <div style={{ fontSize: "1.5rem", fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</div>
-                </div>
-              ))}
+          {/* Extra pages list */}
+          {manualWebUrls.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              {manualWebUrls.map((u) => {
+                const isDeleting = deletingUrl === u.url;
+                const isReindexing = reindexingUrl === u.url;
+                const shortDate = formatShortDate(u.indexed_at);
+                const isMenuOpen = openUrlMenu === u.url;
+
+                return (
+                  <div
+                    key={u.url}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "0.75rem 1rem",
+                      borderRadius: 8,
+                      border: "1px solid var(--border)",
+                      background: "var(--bg-surface)",
+                      gap: "0.75rem",
+                    }}
+                  >
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <a
+                        href={u.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          fontSize: "0.88rem",
+                          fontWeight: 500,
+                          color: "var(--accent)",
+                          textDecoration: "none",
+                          wordBreak: "break-all",
+                        }}
+                      >
+                        {u.url}
+                      </a>
+                      <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: "0.15rem" }}>
+                        {shortDate ? `Read ${shortDate}` : "Read"}
+                      </div>
+                    </div>
+
+                    {/* Desktop actions: Read again button + red trash icon button */}
+                    <div className="desktop-only-actions" style={{ alignItems: "center", gap: "0.4rem" }}>
+                      <button
+                        onClick={() => void handleReindexUrl(u.url)}
+                        disabled={isReindexing || isDeleting}
+                        style={{
+                          padding: "0.35rem 0.75rem",
+                          borderRadius: 6,
+                          border: "1px solid var(--border)",
+                          background: "var(--bg-card)",
+                          color: "var(--text-primary)",
+                          fontWeight: 600,
+                          fontSize: "0.8rem",
+                          cursor: isReindexing || isDeleting ? "not-allowed" : "pointer",
+                          fontFamily: "inherit",
+                          opacity: isReindexing || isDeleting ? 0.5 : 1,
+                        }}
+                      >
+                        {isReindexing ? "Reading…" : "Read again"}
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteUrl(u.url)}
+                        disabled={isDeleting || isReindexing}
+                        aria-label={`Remove ${u.url}`}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "var(--error)",
+                          cursor: isDeleting || isReindexing ? "not-allowed" : "pointer",
+                          padding: "0.45rem",
+                          borderRadius: 6,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          opacity: isDeleting || isReindexing ? 0.5 : 1,
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(239, 68, 68, 0.12)")}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {/* Mobile menu: ··· dropdown */}
+                    <div className="mobile-only-menu" style={{ position: "relative" }} data-menu-root>
+                      <button
+                        onClick={() => setOpenUrlMenu(isMenuOpen ? null : u.url)}
+                        aria-label="Page options"
+                        style={{
+                          padding: "0.35rem 0.6rem",
+                          borderRadius: 6,
+                          border: "1px solid var(--border)",
+                          background: isMenuOpen ? "var(--bg-hover)" : "var(--bg-card)",
+                          color: "var(--text-primary)",
+                          fontWeight: 700,
+                          fontSize: "0.85rem",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        ···
+                      </button>
+
+                      {isMenuOpen && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            right: 0,
+                            top: "calc(100% + 4px)",
+                            background: "var(--bg-card)",
+                            border: "1px solid var(--border)",
+                            borderRadius: 8,
+                            boxShadow: "var(--shadow-md)",
+                            padding: "0.35rem",
+                            zIndex: 20,
+                            minWidth: 120,
+                          }}
+                        >
+                          <button
+                            onClick={() => {
+                              setOpenUrlMenu(null);
+                              void handleReindexUrl(u.url);
+                            }}
+                            disabled={isReindexing || isDeleting}
+                            style={{
+                              width: "100%",
+                              textAlign: "left",
+                              padding: "0.45rem 0.65rem",
+                              borderRadius: 5,
+                              border: "none",
+                              background: "transparent",
+                              color: "var(--text-primary)",
+                              fontSize: "0.82rem",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                            }}
+                          >
+                            Read again
+                          </button>
+                          <button
+                            onClick={() => {
+                              setOpenUrlMenu(null);
+                              setConfirmDeleteUrl(u.url);
+                            }}
+                            disabled={isDeleting || isReindexing}
+                            style={{
+                              width: "100%",
+                              textAlign: "left",
+                              padding: "0.45rem 0.65rem",
+                              borderRadius: 5,
+                              border: "none",
+                              background: "transparent",
+                              color: "var(--error)",
+                              fontSize: "0.82rem",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
-          {/* URLs table */}
-          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-              <thead>
-                <tr>
-                  {(["Indexed Page URL", "Chunks", "Indexed On", ""] as const).map((h) => (
-                    <th key={h} style={{ background: "var(--bg)", color: "var(--text-secondary)", fontWeight: 700, fontSize: "0.78rem", padding: "0.95rem 1.25rem", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid var(--border)", textAlign: h === "" ? "right" : "left" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {webLoading ? (
-                  <tr><td colSpan={4} style={{ textAlign: "center", padding: "2.5rem", color: "var(--text-secondary)" }}>Loading indexed pages…</td></tr>
-                ) : webUrls.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} style={{ textAlign: "center", padding: "3.5rem 1.5rem" }}>
-                      <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--bg-hover)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 0.75rem auto", fontSize: "1.4rem" }}>
-                        🌐
-                      </div>
-                      <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: "0.3rem" }}>
-                        No standalone pages indexed yet
-                      </div>
-                      <div style={{ fontSize: "0.83rem", color: "var(--text-muted)", maxWidth: 420, margin: "0 auto" }}>
-                        Individual URLs you manually crawl will appear here. Or connect your website above for zero-config automated indexing.
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  webUrls.map((u) => {
-                    const isDeleting = deletingUrl === u.url;
-                    const dt = u.indexed_at ? new Date(u.indexed_at).toLocaleString() : "Unknown";
-                    return (
-                      <tr key={u.url} style={{ borderBottom: "1px solid var(--border)", transition: "background 0.15s" }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-                        <td style={{ padding: "0.9rem 1.25rem", maxWidth: 400 }}>
-                          <a href={u.url} target="_blank" rel="noopener noreferrer"
-                            style={{ color: "var(--accent, #8a64e9)", fontWeight: 500, fontSize: "0.88rem", textDecoration: "none", wordBreak: "break-all" }}>
-                            {u.url}
-                          </a>
-                        </td>
-                        <td style={{ padding: "0.9rem 1.25rem", whiteSpace: "nowrap" }}>
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 10px", borderRadius: 9999, background: "rgba(138,100,233,0.12)", border: "1px solid rgba(138,100,233,0.22)", color: "var(--accent, #8a64e9)", fontSize: "0.78rem", fontWeight: 700 }}>
-                            ⚡ {u.chunk_count} chunks
-                          </span>
-                        </td>
-                        <td style={{ padding: "0.9rem 1.25rem", color: "var(--text-secondary)", fontSize: "0.85rem", whiteSpace: "nowrap" }}>{dt}</td>
-                        <td style={{ padding: "0.9rem 1.25rem", textAlign: "right" }}>
-                          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-                            <button
-                              onClick={() => void handleReindexUrl(u.url)}
-                              disabled={webIndexing || isDeleting}
-                              style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--text-secondary)", padding: "0.3rem 0.75rem", borderRadius: 6, cursor: webIndexing ? "not-allowed" : "pointer", fontSize: "0.82rem", fontWeight: 600, fontFamily: "inherit", opacity: webIndexing || isDeleting ? 0.5 : 1, transition: "all 0.18s" }}
-                              onMouseEnter={(e) => { if (!webIndexing) { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.color = "var(--accent)"; } }}
-                              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text-secondary)"; }}
-                            >🔄 Re-index</button>
-                            <button
-                              onClick={() => setConfirmDeleteUrl(u.url)}
-                              disabled={isDeleting || webIndexing}
-                              style={{ background: "rgba(239,68,68,0.1)", color: "var(--error, #ef4444)", border: "1px solid rgba(239,68,68,0.2)", padding: "0.3rem 0.75rem", borderRadius: 6, cursor: isDeleting ? "not-allowed" : "pointer", fontSize: "0.82rem", fontWeight: 600, fontFamily: "inherit", opacity: isDeleting || webIndexing ? 0.5 : 1, transition: "all 0.2s" }}
-                              onMouseEnter={(e) => { if (!isDeleting) { e.currentTarget.style.background = "var(--error, #ef4444)"; e.currentTarget.style.color = "#fff"; } }}
-                              onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.1)"; e.currentTarget.style.color = "var(--error, #ef4444)"; }}
-                            >{isDeleting ? "Removing…" : "🗑 Remove"}</button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+          <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.85rem" }}>
+            Only public pages can be added.
           </div>
-
-          {/* Security note */}
-          <p style={{ marginTop: "1rem", fontSize: "0.78rem", color: "var(--text-muted)", lineHeight: 1.6 }}>
-            🔒 Private IPs, localhost, and non-HTTP(S) URLs are blocked (SSRF protection). Each tenant is limited to 50 indexed URLs. Pages that require JavaScript may need Playwright mode enabled on the server (<code>WEB_SCRAPER_USE_PLAYWRIGHT=true</code>).
-          </p>
-
-          {/* Delete URL Confirm Dialog */}
-          <ConfirmDialog
-            open={confirmDeleteUrl !== null}
-            tone="danger"
-            eyebrow="Remove indexed URL"
-            title="Remove this URL?"
-            description="All RAG chunks for this URL will be deleted. The chatbot will no longer use content from this page."
-            confirmLabel="Remove URL"
-            busy={deletingUrl !== null}
-            onCancel={() => setConfirmDeleteUrl(null)}
-            onConfirm={() => void handleDeleteWebUrl()}
-          >
-            {confirmDeleteUrl && (
-              <div style={dialogSummaryStyle}>
-                <span style={dialogLabelStyle}>URL</span>
-                <strong style={{ ...dialogValueStyle, color: "var(--accent, #8a64e9)" }}>{confirmDeleteUrl}</strong>
-              </div>
-            )}
-          </ConfirmDialog>
-
-          {/* Disconnect Website Confirm Dialog */}
-          <ConfirmDialog
-            open={confirmDeleteWebsite !== null}
-            tone="danger"
-            eyebrow="Disconnect Website"
-            title="Disconnect authorized website?"
-            description="This will remove website authorization and delete all crawled pages and vector chunks for this domain. The chatbot will no longer use this website's content."
-            confirmLabel="Disconnect Website"
-            busy={deletingWebsiteId !== null}
-            onCancel={() => setConfirmDeleteWebsite(null)}
-            onConfirm={() => void handleDeleteWebsite()}
-          >
-            {confirmDeleteWebsite && (
-              <div style={dialogSummaryStyle}>
-                <span style={dialogLabelStyle}>Website Domain</span>
-                <strong style={{ ...dialogValueStyle, color: "var(--error, #ef4444)" }}>{confirmDeleteWebsite.domain}</strong>
-              </div>
-            )}
-          </ConfirmDialog>
         </div>
-      )}
-
-      {/* ══════════════ DOCUMENTS TAB ══════════════ */}
-      {activeTab === "documents" && (<>
-
-      {/* Expired / Inactive Notice Banner */}
-      {isExpired && (
-        <div
-          style={{
-            marginBottom: "1.75rem",
-            padding: "1.1rem 1.35rem",
-            borderRadius: 10,
-            border: "1px solid rgba(239, 68, 68, 0.4)",
-            background: "linear-gradient(90deg, rgba(239, 68, 68, 0.14) 0%, rgba(239, 68, 68, 0.04) 100%)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: "1rem",
-            boxShadow: "0 4px 20px rgba(239, 68, 68, 0.08)",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: "50%",
-                background: "rgba(239, 68, 68, 0.2)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "1.2rem",
-                flexShrink: 0,
-              }}
-            >
-              ⚠️
-            </div>
-            <div>
-              <div style={{ color: "var(--text-primary)", fontWeight: 700, fontSize: "1rem" }}>
-                {isTrial ? "3-Day Free Trial Expired — Uploads Locked" : "Subscription Inactive — Uploads Locked"}
-              </div>
-              <div style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginTop: "0.2rem" }}>
-                Document uploading and live widget responses are paused. Upgrade to a paid plan to unlock uploads and reactivate your bot.
-              </div>
-            </div>
-          </div>
-          <Link
-            href="/workspace/billing"
-            style={{
-              padding: "0.6rem 1.1rem",
-              background: "#ef4444",
-              color: "#fff",
-              borderRadius: 6,
-              fontSize: "0.88rem",
-              fontWeight: 700,
-              textDecoration: "none",
-              boxShadow: "0 2px 10px rgba(239, 68, 68, 0.4)",
-            }}
-          >
-            Upgrade Plan Now →
-          </Link>
-        </div>
-      )}
-
-      {/* Capacity Warning Banner (when limit reached but not expired) */}
-      {!isExpired && isAtCapacity && (
-        <div
-          style={{
-            marginBottom: "1.75rem",
-            padding: "1rem 1.25rem",
-            borderRadius: 10,
-            border: "1px solid rgba(245, 158, 11, 0.4)",
-            background: "linear-gradient(90deg, rgba(245, 158, 11, 0.12) 0%, rgba(245, 158, 11, 0.03) 100%)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: "1rem",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: "50%",
-                background: "rgba(245, 158, 11, 0.2)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "1.1rem",
-                flexShrink: 0,
-              }}
-            >
-              📦
-            </div>
-            <div>
-              <div style={{ color: "var(--text-primary)", fontWeight: 700, fontSize: "0.95rem" }}>
-                Storage Limit Reached ({files.length}/{maxKbFiles} Files)
-              </div>
-              <div style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginTop: "0.15rem" }}>
-                You have used all {maxKbFiles} document slots in your {subStatus?.plan?.name || "Trial"}. Upgrade for up to 20 or unlimited files.
-              </div>
-            </div>
-          </div>
-          <Link
-            href="/workspace/billing"
-            style={{
-              padding: "0.55rem 1rem",
-              background: "rgba(245, 158, 11, 0.2)",
-              color: "#fbbf24",
-              border: "1px solid rgba(245, 158, 11, 0.4)",
-              borderRadius: 6,
-              fontSize: "0.85rem",
-              fontWeight: 700,
-              textDecoration: "none",
-            }}
-          >
-            Upgrade Storage
-          </Link>
-        </div>
-      )}
-
-      {/* Drop zone */}
-      <div style={{ marginBottom: "2.5rem" }}>
-        <div
-          style={{
-            border: isExpired
-              ? "2px dashed rgba(239, 68, 68, 0.35)"
-              : isAtCapacity
-              ? "2px dashed rgba(245, 158, 11, 0.35)"
-              : dragOver
-              ? "2px dashed var(--accent)"
-              : "2px dashed var(--border)",
-            borderRadius: 12,
-            padding: "3rem 2rem",
-            cursor: "pointer",
-            transition: "all 0.3s ease",
-            position: "relative",
-            background: isExpired
-              ? "rgba(239, 68, 68, 0.03)"
-              : dragOver
-              ? "rgba(107, 76, 255, 0.1)"
-              : "rgba(255, 255, 255, 0.02)",
-            textAlign: "center",
-          }}
-          onClick={() => {
-            if (isExpired) {
-              setUpgradeModalReason("Your trial or subscription is currently expired. Upgrade to resume document uploads.");
-              setShowUpgradeModal(true);
-              return;
-            }
-            if (isAtCapacity) {
-              setUpgradeModalReason(`You have reached the maximum ${maxKbFiles} files for your plan. Upgrade to unlock more document uploads.`);
-              setShowUpgradeModal(true);
-              return;
-            }
-            inputRef.current?.click();
-          }}
-          onDragOver={(e) => {
-            e.preventDefault();
-            if (!isExpired && !isAtCapacity) setDragOver(true);
-          }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={onDrop}
-        >
-          <div style={{ fontSize: "3rem", color: isExpired ? "#ef4444" : "#6b7280", marginBottom: "1rem" }}>
-            {isExpired ? "🔒" : isAtCapacity ? "📦" : "📁"}
-          </div>
-          <div style={{ color: "var(--text-primary)", fontSize: "1.15rem", fontWeight: 600, marginBottom: "0.5rem" }}>
-            {isExpired
-              ? "Uploads Locked (Plan Expired)"
-              : isAtCapacity
-              ? "Storage Capacity Reached"
-              : "Drag & drop your files here"}
-          </div>
-          <div style={{ color: isExpired ? "#f87171" : "var(--text-muted)", fontSize: "0.88rem" }}>
-            {isExpired
-              ? "Click here to upgrade your plan and unlock document uploads"
-              : isAtCapacity
-              ? "Click to upgrade your plan for more document storage"
-              : "or click to browse from your computer (PDF, Word • max 20MB)"}
-          </div>
-
-          <input
-            ref={inputRef}
-            type="file"
-            multiple
-            accept=".pdf,.doc,.docx"
-            style={{ display: "none" }}
-            onChange={onFileChange}
-          />
-        </div>
-
-        {uploading && (
-          <div style={{ marginTop: "1rem", color: "var(--accent)", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>🔄</span>
-            Uploading and processing documents... Please wait.
-          </div>
-        )}
       </div>
 
-      {/* Files table */}
-      <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-          <thead>
-            <tr>
-              <th style={{ backgroundColor: "var(--bg-surface)", color: "var(--text-secondary)", fontWeight: 600, fontSize: "0.82rem", padding: "1rem 1.25rem", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid var(--border)", width: "45%" }}>
-                Filename
-              </th>
-              <th style={{ backgroundColor: "var(--bg-surface)", color: "var(--text-secondary)", fontWeight: 600, fontSize: "0.82rem", padding: "1rem 1.25rem", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid var(--border)" }}>Size</th>
-              <th style={{ backgroundColor: "var(--bg-surface)", color: "var(--text-secondary)", fontWeight: 600, fontSize: "0.82rem", padding: "1rem 1.25rem", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid var(--border)" }}>Uploaded On</th>
-              <th style={{ backgroundColor: "var(--bg-surface)", color: "var(--text-secondary)", fontWeight: 600, fontSize: "0.82rem", padding: "1rem 1.25rem", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid var(--border)", textAlign: "right" }}>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td
-                  colSpan={4}
-                  style={{ textAlign: "center", padding: "2.5rem", color: "var(--text-secondary)" }}
-                >
-                  Loading documents...
-                </td>
-              </tr>
-            ) : files.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={4}
-                  style={{ textAlign: "center", padding: "3rem", color: "var(--text-muted)" }}
-                >
-                  <div style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>📄</div>
-                  Knowledge Lake is empty. Upload PDFs or Word documents to train your bot.
-                </td>
-              </tr>
-            ) : (
-              files.map((f) => {
-                const date = new Date(f.uploaded_at * 1000).toLocaleString();
-                return (
-                  <tr
-                    key={f.filename}
-                    style={{ borderBottom: "1px solid var(--border)", transition: "background-color 0.2s" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.02)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                  >
-                    <td style={{ padding: "1rem 1.25rem", color: "var(--text-primary)", fontWeight: 500 }}>
-                      <span style={{ color: "var(--accent)", marginRight: 10 }}>📄</span>
-                      {f.filename}
-                    </td>
-                    <td style={{ padding: "1rem 1.25rem", color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-                      {f.size}
-                    </td>
-                    <td style={{ padding: "1rem 1.25rem", color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-                      {date}
-                    </td>
-                    <td style={{ padding: "1rem 1.25rem", textAlign: "right" }}>
-                      <button
-                        onClick={() => handleDelete(f.filename)}
-                        style={{
-                          background: "rgba(239, 68, 68, 0.1)",
-                          color: "var(--error)",
-                          border: "1px solid rgba(239, 68, 68, 0.2)",
-                          padding: "0.35rem 0.8rem",
-                          borderRadius: 6,
-                          cursor: "pointer",
-                          transition: "all 0.2s",
-                          fontSize: "0.85rem",
-                          fontWeight: 600,
-                          fontFamily: "inherit",
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = "var(--error)";
-                          e.currentTarget.style.color = "white";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)";
-                          e.currentTarget.style.color = "var(--error)";
-                        }}
-                      >
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      {/* ══════════════════════════════════════════════════════════
+          DIALOGS & MODALS
+      ══════════════════════════════════════════════════════════ */}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete File Confirm Dialog */}
       <ConfirmDialog
         open={deleteFilename !== null}
         tone="danger"
-        eyebrow="Remove document"
+        eyebrow="Remove file"
         title="Remove this file?"
-        description="This removes the document from the Knowledge Lake. Future ingestion and AI chatbot queries will no longer use it."
+        description="Your assistant will no longer use this file to answer questions."
         confirmLabel="Remove file"
         busy={deletingFilename !== ""}
         onCancel={() => setDeleteFilename(null)}
@@ -1481,13 +1455,13 @@ export default function KnowledgeLakePage() {
         )}
       </ConfirmDialog>
 
-      {/* Overwrite Confirmation Modal */}
+      {/* Overwrite File Confirm Dialog */}
       <ConfirmDialog
         open={overwriteFile !== null}
         tone="warning"
         eyebrow="File already exists"
-        title="Overwrite existing document?"
-        description="A document with this filename is already stored. Overwriting replaces the previous file with the new upload."
+        title="Overwrite existing file?"
+        description="A file with this name already exists. Overwriting will replace it with the new version."
         confirmLabel="Overwrite file"
         cancelLabel="Skip file"
         onCancel={() => resolveOverwriteDecision(false)}
@@ -1501,13 +1475,53 @@ export default function KnowledgeLakePage() {
         )}
       </ConfirmDialog>
 
+      {/* Delete URL Confirm Dialog */}
+      <ConfirmDialog
+        open={confirmDeleteUrl !== null}
+        tone="danger"
+        eyebrow="Remove page"
+        title="Remove this page?"
+        description="Your assistant will no longer use content from this page to answer questions."
+        confirmLabel="Remove page"
+        busy={deletingUrl !== null}
+        onCancel={() => setConfirmDeleteUrl(null)}
+        onConfirm={() => void handleDeleteWebUrl()}
+      >
+        {confirmDeleteUrl && (
+          <div style={dialogSummaryStyle}>
+            <span style={dialogLabelStyle}>URL</span>
+            <strong style={{ ...dialogValueStyle, color: "var(--accent)" }}>{confirmDeleteUrl}</strong>
+          </div>
+        )}
+      </ConfirmDialog>
+
+      {/* Disconnect Website Confirm Dialog */}
+      <ConfirmDialog
+        open={confirmDeleteWebsite !== null}
+        tone="danger"
+        eyebrow="Disconnect website"
+        title="Disconnect your website?"
+        description="Your assistant will stop using the pages from this website."
+        confirmLabel="Disconnect website"
+        busy={deletingWebsiteId !== null}
+        onCancel={() => setConfirmDeleteWebsite(null)}
+        onConfirm={() => void handleDeleteWebsite()}
+      >
+        {confirmDeleteWebsite && (
+          <div style={dialogSummaryStyle}>
+            <span style={dialogLabelStyle}>Website domain</span>
+            <strong style={{ ...dialogValueStyle, color: "var(--error)" }}>{confirmDeleteWebsite.domain}</strong>
+          </div>
+        )}
+      </ConfirmDialog>
+
       {/* Plan Upgrade Prompt Modal */}
       <ConfirmDialog
         open={showUpgradeModal}
         tone="neutral"
         eyebrow="Subscription Upgrade"
         title={isExpired ? "Plan Expired — Upgrade to Continue" : "Upgrade Plan for More Storage"}
-        description={upgradeModalReason || "Upgrade your subscription to unlock document uploads, higher limits, and full chatbot embedding."}
+        description={upgradeModalReason || "Upgrade your subscription to unlock document uploads and higher limits."}
         confirmLabel="View Pricing & Upgrade"
         cancelLabel="Dismiss"
         onCancel={() => setShowUpgradeModal(false)}
@@ -1518,13 +1532,13 @@ export default function KnowledgeLakePage() {
       >
         <div style={dialogSummaryStyle}>
           <span style={dialogLabelStyle}>Current Plan</span>
-          <strong style={{ ...dialogValueStyle, color: isExpired ? "#ef4444" : "var(--accent)" }}>
+          <strong style={{ ...dialogValueStyle, color: isExpired ? "var(--error)" : "var(--accent)" }}>
             {subStatus?.plan?.name || "Trial Plan"} ({isExpired ? "Expired" : `${files.length}/${maxKbFiles} Files Used`})
           </strong>
         </div>
       </ConfirmDialog>
 
-      {/* Modern Toast Notification */}
+      {/* Toast Notification */}
       {toast && (
         <div
           style={{
@@ -1538,11 +1552,11 @@ export default function KnowledgeLakePage() {
                 ? "linear-gradient(135deg, #10b981 0%, #047857 100%)"
                 : "linear-gradient(135deg, #8A64E9 0%, #6366f1 100%)",
             color: "#fff",
-            padding: "0.9rem 1.4rem",
+            padding: "0.85rem 1.35rem",
             borderRadius: 8,
             fontWeight: 600,
-            fontSize: "0.9rem",
-            boxShadow: "0 8px 30px rgba(0, 0, 0, 0.4)",
+            fontSize: "0.88rem",
+            boxShadow: "0 8px 30px rgba(0, 0, 0, 0.3)",
             display: "flex",
             alignItems: "center",
             gap: "0.75rem",
@@ -1553,7 +1567,6 @@ export default function KnowledgeLakePage() {
           <span>{toast.message}</span>
         </div>
       )}
-    </>)}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
@@ -324,21 +324,6 @@ export default function AuditDetailPage() {
   const [selectedPage, setSelectedPage] = useState<AuditPage | null>(null);
   const [expandedIssue, setExpandedIssue] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-
-  const loadAudit = useCallback(async () => {
-    if (!auditId) return;
-    setLoading(true);
-    setErrorMsg(null);
-    try {
-      const res = await api.get<SiteAudit>(`/api/site-audit/${auditId}`);
-      setAudit(res);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to load audit report.";
-      setErrorMsg(msg);
-    } finally {
-      setLoading(false);
-    }
-  }, [auditId]);
 
   useEffect(() => {
     let cancelled = false;

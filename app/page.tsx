@@ -6,6 +6,12 @@ import Script from "next/script";
 import { useAuth } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
 
+// Minimal shape of the Google Identity Services object this page uses.
+interface GoogleIdentity {
+  initialize: (options: { client_id: string; callback: (response: { credential?: string }) => void }) => void;
+  renderButton: (parent: HTMLElement, options: Record<string, string>) => void;
+}
+
 export default function AuthPage() {
   const { login, signup, googleAuth } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
@@ -38,18 +44,21 @@ export default function AuthPage() {
   }, []);
 
   const initGoogleSignIn = () => {
-    if (typeof window !== "undefined" && (window as any).google?.accounts?.id) {
+    const googleId = typeof window !== "undefined"
+      ? (window as unknown as { google?: { accounts?: { id?: GoogleIdentity } } }).google?.accounts?.id
+      : undefined;
+    if (googleId) {
       try {
-        (window as any).google.accounts.id.initialize({
+        googleId.initialize({
           client_id: GOOGLE_CLIENT_ID,
-          callback: async (response: any) => {
+          callback: async (response: { credential?: string }) => {
             if (response?.credential) {
               setLoading(true);
               setError("");
               try {
                 await googleAuth(response.credential);
                 setSuccess(true);
-              } catch (err: any) {
+              } catch (err: unknown) {
                 setLoading(false);
                 if (err instanceof ApiError) {
                   if (err.detail === "tenant_suspended") {
@@ -70,7 +79,7 @@ export default function AuthPage() {
         const btnDiv = document.getElementById("googleBtnContainer");
         if (btnDiv) {
           btnDiv.innerHTML = "";
-          (window as any).google.accounts.id.renderButton(btnDiv, {
+          googleId.renderButton(btnDiv, {
             theme: "outline",
             size: "large",
             width: "320",

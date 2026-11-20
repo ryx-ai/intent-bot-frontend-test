@@ -53,13 +53,16 @@ export default function DeployPage() {
   const [copyError, setCopyError] = useState("");
   const [health, setHealth] = useState<HealthState>("checking");
   const [tenantSlug, setTenantSlug] = useState("");
+  const [tenantName, setTenantName] = useState("");
   const [isSubActive, setIsSubActive] = useState<boolean | null>(null);
 
   useEffect(() => {
     async function loadTenant() {
       try {
-        const me = await api.get<{ tenant?: { slug: string; is_subscription_active?: boolean } }>("/api/auth/me");
+        const me = await api.get<{ tenant?: { slug: string; name?: string; is_subscription_active?: boolean } }>("/api/auth/me");
         setTenantSlug(me.tenant?.slug || "");
+        // Workspaces are created as "<Name>'s Workspace"; greet with just the name.
+        setTenantName((me.tenant?.name || "").replace(/['\u2019]s workspace$/i, "").trim());
         if (me.tenant && typeof me.tenant.is_subscription_active === "boolean") {
           setIsSubActive(me.tenant.is_subscription_active);
         }
@@ -492,7 +495,7 @@ export default function DeployPage() {
                   border: "1px solid var(--border)",
                 }}
               >
-                👋 Hello! I&apos;m the RYX AI Assistant. How can I help you?
+                👋 Hello! I&apos;m the {tenantName || "RYX AI"} assistant. How can I help you?
               </div>
               {/* Bot button */}
               <div

@@ -10,6 +10,32 @@ interface ApiOptions extends RequestInit {
   json?: unknown;
 }
 
+// FastAPI validation errors (status 422) send `detail` as a list of objects,
+// not a string. Turn any shape into one readable sentence so pages that show
+// `err.detail` or `err.message` never try to render an object.
+function readableDetail(value: unknown): string | undefined {
+  if (value == null) return undefined;
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object" && "msg" in item) {
+          const msg = String((item as { msg: unknown }).msg);
+          // "Value error, ..." is pydantic's prefix, not useful to people
+          return msg.replace(/^Value error,\s*/i, "");
+        }
+        return "";
+      })
+      .filter(Boolean);
+    return parts.length ? parts.join(" ") : "Please check the details and try again.";
+  }
+  if (typeof value === "object" && "msg" in (value as object)) {
+    return String((value as { msg: unknown }).msg);
+  }
+  return String(value);
+}
+
 class ApiError extends Error {
   status: number;
   detail?: string;
@@ -73,7 +99,7 @@ async function request<T = unknown>(
     if (contentType?.includes("application/json")) {
       try {
         const errorBody = await res.json();
-        detail = errorBody.detail || errorBody.error || errorBody.message;
+        detail = readableDetail(errorBody.detail ?? errorBody.error ?? errorBody.message);
         message = detail || message;
       } catch {
         message = await res.text().catch(() => "Unknown error");
@@ -142,7 +168,7 @@ export const api = {
       let msg = "Download failed";
       try {
         const err = await res.json();
-        msg = err.detail || err.error || err.message || msg;
+        msg = readableDetail(err.detail ?? err.error ?? err.message) || msg;
       } catch {
         // non-json response
       }

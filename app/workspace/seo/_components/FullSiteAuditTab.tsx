@@ -191,7 +191,7 @@ function formatDate(iso: string | null): string {
   }
 }
 
-function formatUrlDisplay(rawUrl: string, rootUrl?: string): string {
+function formatUrlDisplay(rawUrl: string): string {
   try {
     const parsed = new URL(rawUrl);
     const path = parsed.pathname + parsed.search;
@@ -1328,7 +1328,7 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
                             }}
                           >
                             <span style={{ color: "var(--text-primary)", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {formatUrlDisplay(ap.url, selectedWebsite?.root_url)}
+                              {formatUrlDisplay(ap.url)}
                             </span>
                             <span style={{ color: "var(--text-muted)", fontSize: "0.78rem", whiteSpace: "nowrap" }}>
                               {ap.score_text || "Needs attention"}
@@ -1459,7 +1459,7 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
                         <div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <span style={{ fontSize: "0.92rem", fontWeight: 700, color: "var(--text-primary)" }}>
-                              {formatUrlDisplay(page.url, selectedWebsite?.root_url)}
+                              {formatUrlDisplay(page.url)}
                             </span>
                             <a
                               href={page.url}

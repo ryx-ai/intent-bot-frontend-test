@@ -129,7 +129,8 @@ async function restoreConversationMessages(
     if (!convRes.ok) return null;
     const convData = await convRes.json();
     const conversations = convData?.conversations || [];
-    const matchedConv = conversations.find((c: any) => c.session_id === sessId);
+    const matchedConv = (conversations as Array<{ id?: string | number; session_id?: string; message_count?: number }>)
+      .find((c) => c.session_id === sessId);
     if (!matchedConv || !matchedConv.id || matchedConv.message_count === 0) {
       return null;
     }
@@ -142,10 +143,10 @@ async function restoreConversationMessages(
     const rawMsgs = msgData?.messages || [];
     if (!Array.isArray(rawMsgs) || rawMsgs.length === 0) return null;
 
-    return rawMsgs.map((m: any) => ({
+    return (rawMsgs as Array<{ id?: string | number; sequence_number?: number; role?: string; content?: string; created_at?: string }>).map((m) => ({
       id: `msg_${m.id || m.sequence_number}`,
       sender: m.role === "assistant" ? "bot" : "user",
-      text: m.content,
+      text: m.content ?? "",
       timestamp: formatTimeFromISO(m.created_at),
     }));
   } catch (err) {
@@ -316,7 +317,13 @@ export function ChatbotPreview({
   onReset,
   isSubscriptionActive = true,
 }: ChatbotPreviewProps) {
-  const effectiveTenantName = tenantName.trim() || "Tigrid Technologies";
+  // Business name as visitors should read it: workspaces are created as
+  // "<Name>'s Workspace", so that suffix is dropped.
+  const effectiveTenantName = tenantName.trim().replace(/['’]s workspace$/i, "").trim() || "RYX AI";
+  // "RYX AI" + "AI Assistant" would read "RYX AI AI Assistant".
+  const assistantLabel = /(?:^|\s)AI$/i.test(effectiveTenantName)
+    ? `${effectiveTenantName} assistant`
+    : `${effectiveTenantName} AI assistant`;
 
   const [visitorToken, setVisitorToken] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -326,7 +333,7 @@ export function ChatbotPreview({
     {
       id: "greeting",
       sender: "bot",
-      text: `Hello! I'm the ${effectiveTenantName} AI Assistant. How can I help you today?`,
+      text: `Hello! I'm the ${assistantLabel}. How can I help you today?`,
       timestamp: getFormattedTime(),
     },
   ]);
@@ -334,6 +341,21 @@ export function ChatbotPreview({
   const [documents, setDocuments] = useState<DocumentVisual[]>([]);
   const [activeDocIndex, setActiveDocIndex] = useState(0);
   const [isDocViewerOpen, setIsDocViewerOpen] = useState(true);
+  // Width ÷ height of the slide on show, so its box can take the same shape.
+  const [docRatio, setDocRatio] = useState<number | null>(null);
+  // Portrait pages: how far down the page the view is (0 = top, as a share
+  // of the page height), the stage's own shape, and whether the next slide
+  // should open at its bottom (when stepping backwards).
+  const [pageOffset, setPageOffset] = useState(0);
+  const [stageRatio, setStageRatio] = useState(16 / 9);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const startAtEndRef = useRef(false);
+  // Slide-change animation: direction of travel and the slide that is leaving.
+  const [slideDir, setSlideDir] = useState<"next" | "prev" | null>(null);
+  const [outgoingSlide, setOutgoingSlide] = useState<{ url: string; dir: "next" | "prev"; id: number } | null>(null);
+  // Height of the slide panel, so the chat panel beside it can match it.
+  const docPanelRef = useRef<HTMLDivElement>(null);
+  const [docPanelHeight, setDocPanelHeight] = useState<number | null>(null);
 
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -342,7 +364,7 @@ export function ChatbotPreview({
   const chatInputRef = useRef<HTMLInputElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const initPromiseRef = useRef<Promise<any> | null>(null);
+  const initPromiseRef = useRef<Promise<unknown> | null>(null);
 
   // Preset suggested prompts matching Reference Screenshot 1
   const presetQuestions = [
@@ -353,7 +375,7 @@ export function ChatbotPreview({
 
   // Helper to initialize conversation with greeting
   const resetGreeting = useCallback(() => {
-    const greetingText = `Hello! I'm the ${effectiveTenantName} AI Assistant. How can I help you today?`;
+    const greetingText = `Hello! I'm the ${assistantLabel}. How can I help you today?`;
     setMessages([
       {
         id: createMsgId("greet"),
@@ -375,8 +397,8 @@ export function ChatbotPreview({
     async function initSession() {
       try {
         const stored = readStoredPreviewSession(tenantSlug);
-        let curToken = stored?.visitor_token || null;
-        let curSessionId = stored?.session_id || null;
+        const curToken = stored?.visitor_token || null;
+        const curSessionId = stored?.session_id || null;
 
         if (curToken && curSessionId) {
           if (!isCancelled) {
@@ -491,14 +513,19 @@ export function ChatbotPreview({
   }, [tenantSlug]);
 
   // Auto-scroll messages inside the message container without scrolling the main browser window
+  // Runs after layout settles, so a reply's suggestion buttons and a resized
+  // chat panel (it matches the slide's height) never leave the latest reply cut off.
   useEffect(() => {
-    if (messagesScrollRef.current) {
-      messagesScrollRef.current.scrollTo({
-        top: messagesScrollRef.current.scrollHeight,
-        behavior: "smooth",
-      });
-    }
-  }, [messages, isLoading]);
+    const timer = window.setTimeout(() => {
+      if (messagesScrollRef.current) {
+        messagesScrollRef.current.scrollTo({
+          top: messagesScrollRef.current.scrollHeight,
+          behavior: "smooth",
+        });
+      }
+    }, 60);
+    return () => window.clearTimeout(timer);
+  }, [messages, isLoading, docPanelHeight]);
 
   // Escape key for Lightbox
   useEffect(() => {
@@ -794,6 +821,7 @@ export function ChatbotPreview({
       const decoder = new TextDecoder("utf-8");
       let streamBuffer = "";
       let isDone = false;
+      let replyHadSlides = false;
 
       while (!isDone) {
         const { value, done } = await reader.read();
@@ -835,6 +863,7 @@ export function ChatbotPreview({
                 setDocuments(validVisuals);
                 setActiveDocIndex(0);
                 setIsDocViewerOpen(true);
+                replyHadSlides = true;
               } else if (data.meta_image_url && typeof data.meta_image_url === "string") {
                 const singleDoc: DocumentVisual = {
                   image_url: resolveSafeImageUrl(data.meta_image_url),
@@ -845,6 +874,7 @@ export function ChatbotPreview({
                 setDocuments([singleDoc]);
                 setActiveDocIndex(0);
                 setIsDocViewerOpen(true);
+                replyHadSlides = true;
               }
 
               // Handle calendar URL if returned
@@ -869,6 +899,12 @@ export function ChatbotPreview({
             }
           }
         }
+      }
+
+      // A completed reply without slides: remove the previous reply's slides
+      // so they are not shown next to an answer they do not belong to.
+      if (isDone && !replyHadSlides) {
+        setDocuments([]);
       }
 
       // Handle any remaining buffer
@@ -924,6 +960,119 @@ export function ChatbotPreview({
 
   const hasDocuments = documents.length > 0 && isDocViewerOpen;
   const currentDoc = hasDocuments ? documents[activeDocIndex] || documents[0] : null;
+
+  // Slide panel sizing. The panel is always the same height (that of a 16:9
+  // slide at full width) and only its width follows the slide's shape, so a
+  // narrower slide gets no empty side margins and the chat takes the space.
+  const SLIDE_MAX_WIDTH = "((100cqw - 1.5rem) * 2 / 3)";
+  const SLIDE_STAGE_HEIGHT = `max(340px, min(${SLIDE_MAX_WIDTH} * 9 / 16, 100vh - 260px, 640px))`;
+  const slideRatio = docRatio ?? 16 / 9;
+  // Portrait pages (A4 and taller) would be too small to read if shrunk to
+  // fit the height, so they use the full width and are shown in parts.
+  const isPartsMode = slideRatio < 0.95;
+  const slidePanelWidth = isPartsMode
+    ? `calc${SLIDE_MAX_WIDTH}`
+    : `max(300px, min(${SLIDE_MAX_WIDTH}, ${SLIDE_STAGE_HEIGHT} * ${slideRatio.toFixed(4)}))`;
+  const pageViewShare = isPartsMode ? Math.min(1, slideRatio / stageRatio) : 1;
+  const pageMaxOffset = Math.max(0, 1 - pageViewShare);
+  const pageStep = pageViewShare * 0.9; // each step keeps 10% of the previous view
+  const pageOffsetNow = Math.min(pageOffset, pageMaxOffset);
+  const hasPageParts = isPartsMode && pageMaxOffset > 0.001;
+
+  // Move to the previous or next slide, keeping the leaving slide on screen
+  // just long enough to animate it out.
+  const goToSlide = (dir: "next" | "prev") => {
+    if (hasPageParts) {
+      if (dir === "next" && pageOffsetNow < pageMaxOffset - 0.001) {
+        setPageOffset(Math.min(pageMaxOffset, pageOffsetNow + pageStep));
+        return;
+      }
+      if (dir === "prev" && pageOffsetNow > 0.001) {
+        setPageOffset(Math.max(0, pageOffsetNow - pageStep));
+        return;
+      }
+    }
+    const total = documents.length;
+    if (total < 2) {
+      // A single long page: loop back to its other end.
+      if (hasPageParts) setPageOffset(dir === "next" ? 0 : pageMaxOffset);
+      return;
+    }
+    startAtEndRef.current = dir === "prev";
+    const leaving = documents[activeDocIndex] || documents[0];
+    if (leaving) setOutgoingSlide({ url: leaving.image_url, dir, id: Date.now() });
+    setSlideDir(dir);
+    setActiveDocIndex((prev) => (dir === "next" ? (prev + 1) % total : (prev - 1 + total) % total));
+  };
+
+  // A new slide opens at its top, or at its bottom when stepping backwards.
+  useEffect(() => {
+    setPageOffset(startAtEndRef.current ? 1 : 0);
+    startAtEndRef.current = false;
+    // Take the shape from the slide now on screen. If it is still loading (or
+    // failed), forget the previous slide's shape; onLoad fills it in.
+    const imgs = stageRef.current ? stageRef.current.querySelectorAll("img") : null;
+    const shown = imgs && imgs.length ? (imgs[imgs.length - 1] as HTMLImageElement) : null;
+    setDocRatio(shown && shown.complete && shown.naturalWidth && shown.naturalHeight
+      ? shown.naturalWidth / shown.naturalHeight
+      : null);
+  }, [activeDocIndex, currentDoc?.image_url, documents]);
+
+  // Track the stage's shape so the parts match what is actually visible.
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const measure = () => {
+      const box = el.getBoundingClientRect();
+      if (box.width > 0 && box.height > 0) setStageRatio(box.width / box.height);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasDocuments, currentDoc?.image_url]);
+
+  // Mouse wheel / trackpad moves through a portrait page. Attached natively
+  // so it can stop the page behind from scrolling.
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || !hasPageParts) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const pageHeightPx = el.getBoundingClientRect().width / slideRatio || 1;
+      const deltaPx = e.deltaMode === 1 ? e.deltaY * 32 : e.deltaY;
+      setPageOffset((o) => Math.max(0, Math.min(pageMaxOffset, Math.min(o, pageMaxOffset) + deltaPx / pageHeightPx)));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [hasPageParts, pageMaxOffset, slideRatio]);
+
+  useEffect(() => {
+    if (!outgoingSlide) return;
+    const timer = window.setTimeout(() => setOutgoingSlide(null), 650);
+    return () => window.clearTimeout(timer);
+  }, [outgoingSlide]);
+
+  // Keep the chat panel level with the slide panel (side-by-side layout only).
+  useEffect(() => {
+    const el = docPanelRef.current;
+    if (!el || !hasDocuments) {
+      setDocPanelHeight(null);
+      return;
+    }
+    const measure = () => {
+      const sideBySide = window.innerWidth > 900;
+      setDocPanelHeight(sideBySide ? Math.round(el.getBoundingClientRect().height) : null);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [hasDocuments]);
 
   // =========================================================================
   // INITIAL STATE – IDLE PREVIEW (Screenshot 1 Reference)
@@ -992,7 +1141,7 @@ export function ChatbotPreview({
                 margin: 0,
               }}
             >
-              Hello! I&apos;m the {effectiveTenantName} AI Assistant. How can I help you today?
+              Hello! I&apos;m the {assistantLabel}. How can I help you today?
             </p>
           </div>
 
@@ -1147,6 +1296,7 @@ export function ChatbotPreview({
       <div
         className="ryx-panels-row"
         style={{
+          containerType: "inline-size",
           display: "flex",
           gap: "1.5rem",
           alignItems: "stretch",
@@ -1159,160 +1309,80 @@ export function ChatbotPreview({
            =================================================================== */}
         {hasDocuments && currentDoc && (
           <div
+            ref={docPanelRef}
             className="ryx-document-viewer-panel"
+            onMouseMove={(e) => {
+              const panel = e.currentTarget;
+              const box = panel.getBoundingClientRect();
+              const x = e.clientX - box.left;
+              const y = e.clientY - box.top;
+              const side = Math.max(110, box.width * 0.2);
+              panel.classList.toggle("ryx-zone-left", x < side);
+              panel.classList.toggle("ryx-zone-right", x > box.width - side);
+              panel.classList.toggle("ryx-zone-counter", x < 180 && y < 110);
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.classList.remove("ryx-zone-left", "ryx-zone-right", "ryx-zone-counter");
+            }}
             style={{
-              flex: "1.7 1 0%",
+              flex: "0 0 auto",
+              width: slidePanelWidth,
               minWidth: 0,
+              transition: "width 0.5s cubic-bezier(0.22, 1, 0.36, 1)",
               borderRadius: 22,
-              backgroundColor: "#0A0A0A",
-              border: "1px solid rgba(255, 255, 255, 0.12)",
-              boxShadow: "0 20px 40px rgba(0,0,0,0.4), 0 0 25px rgba(255, 77, 0, 0.08)",
+              backgroundColor: "#FFFFFF",
+              border: "1px solid #E5E7EB",
+              boxShadow: "0 20px 40px rgba(0,0,0,0.12)",
               position: "relative",
               overflow: "hidden",
               display: "flex",
               flexDirection: "column",
-              aspectRatio: "16 / 10",
-              minHeight: 540,
+              alignSelf: "flex-start",
               animation: "slideInLeft 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
             }}
           >
-            {/* Top Bar inside Viewer: Counter badge + Close button */}
-            <div
-              style={{
-                position: "absolute",
-                top: "1rem",
-                left: "1rem",
-                right: "1rem",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                zIndex: 10,
-                pointerEvents: "none",
-              }}
-            >
-              {/* Counter Badge */}
-              <div
-                style={{
-                  pointerEvents: "auto",
-                  padding: "0.3rem 0.85rem",
-                  borderRadius: 9999,
-                  backgroundColor: "rgba(18, 18, 20, 0.75)",
-                  backdropFilter: "blur(8px)",
-                  WebkitBackdropFilter: "blur(8px)",
-                  border: "1px solid rgba(255, 255, 255, 0.15)",
-                  color: "#FFFFFF",
-                  fontSize: "0.75rem",
-                  fontWeight: 600,
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-                }}
-              >
-                {activeDocIndex + 1} of {documents.length}
-              </div>
+            {/* Page counter: floats over the top-left corner of the slide */}
+            <div className="ryx-pv-counter" aria-live="polite">
+              {activeDocIndex + 1} of {documents.length}
+            </div>
 
-              {/* Close Button to dismiss document viewer */}
+            {/* Close button: appears only when the pointer is near the top-right corner */}
+            <div className="ryx-pv-close-zone">
               <button
                 type="button"
+                className="ryx-pv-close"
                 onClick={() => setIsDocViewerOpen(false)}
                 aria-label="Close document viewer"
                 title="Hide document viewer"
-                style={{
-                  pointerEvents: "auto",
-                  width: 34,
-                  height: 34,
-                  borderRadius: "50%",
-                  backgroundColor: "rgba(18, 18, 20, 0.85)",
-                  backdropFilter: "blur(8px)",
-                  WebkitBackdropFilter: "blur(8px)",
-                  border: "1px solid rgba(255, 255, 255, 0.2)",
-                  color: "#E5E7EB",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  fontSize: "1rem",
-                  transition: "all 0.15s ease",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "rgba(35, 35, 40, 0.98)";
-                  e.currentTarget.style.color = "#FFFFFF";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "rgba(18, 18, 20, 0.85)";
-                  e.currentTarget.style.color = "#E5E7EB";
-                }}
               >
-                ✕
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
               </button>
             </div>
 
-            {/* Document Navigation Arrows (if multi-page) */}
-            {documents.length > 1 && (
+            {/* Document Navigation Arrows (several slides, or one page shown in parts) */}
+            {(documents.length > 1 || hasPageParts) && (
               <>
                 <button
                   type="button"
-                  onClick={() =>
-                    setActiveDocIndex((prev) => (prev > 0 ? prev - 1 : documents.length - 1))
-                  }
+                  className="ryx-pv-nav ryx-pv-prev"
+                  onClick={() => goToSlide("prev")}
                   aria-label="Previous slide"
-                  style={{
-                    position: "absolute",
-                    left: "1rem",
-                    top: "45%",
-                    transform: "translateY(-50%)",
-                    width: 38,
-                    height: 38,
-                    borderRadius: "50%",
-                    backgroundColor: "rgba(15, 15, 20, 0.75)",
-                    backdropFilter: "blur(8px)",
-                    WebkitBackdropFilter: "blur(8px)",
-                    border: "1px solid rgba(255, 255, 255, 0.2)",
-                    color: "#FFFFFF",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    zIndex: 10,
-                    transition: "transform 0.15s ease",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-50%) scale(1.08)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(-50%) scale(1)")}
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="15 18 9 12 15 6" />
                   </svg>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setActiveDocIndex((prev) => (prev < documents.length - 1 ? prev + 1 : 0))
-                  }
+                  className="ryx-pv-nav ryx-pv-next"
+                  onClick={() => goToSlide("next")}
                   aria-label="Next slide"
-                  style={{
-                    position: "absolute",
-                    right: "1rem",
-                    top: "45%",
-                    transform: "translateY(-50%)",
-                    width: 38,
-                    height: 38,
-                    borderRadius: "50%",
-                    backgroundColor: "rgba(15, 15, 20, 0.75)",
-                    backdropFilter: "blur(8px)",
-                    WebkitBackdropFilter: "blur(8px)",
-                    border: "1px solid rgba(255, 255, 255, 0.2)",
-                    color: "#FFFFFF",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    zIndex: 10,
-                    transition: "transform 0.15s ease",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-50%) scale(1.08)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(-50%) scale(1)")}
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="9 18 15 12 9 6" />
                   </svg>
                 </button>
@@ -1320,82 +1390,86 @@ export function ChatbotPreview({
             )}
 
             {/* Document Image Stage */}
+            {hasPageParts && (
+              <div className="ryx-pv-page-track" aria-hidden="true">
+                <div
+                  className="ryx-pv-page-thumb"
+                  style={{ height: `${pageViewShare * 100}%`, top: `${pageOffsetNow * 100}%` }}
+                />
+              </div>
+            )}
             <div
+              ref={stageRef}
+              className="ryx-pv-stage-box"
               style={{
-                flex: 1,
+                width: "100%",
+                height: SLIDE_STAGE_HEIGHT,
+                position: "relative",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                padding: "2rem 1.5rem 0.5rem 1.5rem",
+                backgroundColor: "#F9FAFB",
                 overflow: "hidden",
                 cursor: "zoom-in",
               }}
               onClick={() => setLightboxDoc(currentDoc)}
               title="Click to enlarge slide"
             >
+              {outgoingSlide && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={`out-${outgoingSlide.id}`}
+                  src={outgoingSlide.url}
+                  alt=""
+                  aria-hidden="true"
+                  className={`ryx-pv-slide-out-${outgoingSlide.dir}`}
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "contain",
+                    pointerEvents: "none",
+                  }}
+                />
+              )}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
+                key={`in-${activeDocIndex}-${currentDoc.image_url}`}
+                className={slideDir ? `ryx-pv-slide-in-${slideDir}` : undefined}
                 src={currentDoc.image_url}
                 alt={currentDoc.description || "Related visual slide"}
-                style={{
-                  maxWidth: "100%",
-                  maxHeight: "100%",
-                  objectFit: "contain",
-                  borderRadius: 8,
-                  boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
+                onLoad={(e) => {
+                  const im = e.currentTarget;
+                  if (im.naturalWidth && im.naturalHeight) {
+                    setDocRatio(im.naturalWidth / im.naturalHeight);
+                  }
                 }}
+                style={
+                  isPartsMode
+                    ? {
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        display: "block",
+                        width: "100%",
+                        height: "auto",
+                        transform: `translateY(-${(pageOffsetNow * 100).toFixed(3)}%)`,
+                        transition: "transform 0.6s cubic-bezier(0.22, 1, 0.36, 1)",
+                      }
+                    : {
+                        display: "block",
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "contain",
+                      }
+                }
               />
             </div>
 
-            {/* Bottom Citation & Metadata Area */}
-            {(currentDoc.document || currentDoc.description) && (
-              <div
-                style={{
-                  padding: "1rem 1.5rem",
-                  background:
-                    "linear-gradient(180deg, rgba(10, 10, 12, 0.4) 0%, rgba(10, 10, 12, 0.95) 40%, #0A0A0C 100%)",
-                  borderTop: "1px solid rgba(255, 255, 255, 0.08)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.35rem",
-                }}
-              >
-                {currentDoc.document && (
-                  <div
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      color: "#A78BFA",
-                      fontSize: "0.75rem",
-                      fontWeight: 700,
-                      letterSpacing: "0.5px",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                    </svg>
-                    <span>
-                      {currentDoc.document} (P. {currentDoc.page})
-                    </span>
-                  </div>
-                )}
-                {currentDoc.description && (
-                  <p
-                    style={{
-                      margin: 0,
-                      color: "#D1D5DB",
-                      fontSize: "0.8rem",
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    {currentDoc.description}
-                  </p>
-                )}
-              </div>
-            )}
+            {/* Only the slide is shown here. The file name and description
+                are left out so the panel stays clean; the enlarged view
+                still shows the file name and page. */}
           </div>
         )}
 
@@ -1415,8 +1489,10 @@ export function ChatbotPreview({
             flexDirection: "column",
             overflow: "hidden",
             position: "relative",
-            minHeight: 540,
-            maxHeight: 700,
+            minHeight: hasDocuments && docPanelHeight ? 0 : 540,
+            maxHeight: hasDocuments && docPanelHeight ? "none" : 700,
+            height: hasDocuments && docPanelHeight ? Math.max(docPanelHeight, 340) : undefined,
+            alignSelf: hasDocuments && docPanelHeight ? "flex-start" : undefined,
             border: "1px solid #E5E7EB",
             transition: "all 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
           }}
@@ -1835,6 +1911,216 @@ export function ChatbotPreview({
 
       {/* Global CSS for dots animation & panel responsiveness */}
       <style jsx>{`
+        /* Previous / next buttons: frosted glass, appear when the pointer is
+           over the slide, nudge in their direction on hover. */
+        .ryx-pv-nav {
+          position: absolute;
+          top: 50%;
+          width: 46px;
+          height: 46px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          z-index: 10;
+          padding: 0;
+          color: #1f2937;
+          background: rgba(255, 255, 255, 0.78);
+          backdrop-filter: blur(14px) saturate(160%);
+          -webkit-backdrop-filter: blur(14px) saturate(160%);
+          border: 1px solid rgba(255, 255, 255, 0.95);
+          box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+          opacity: 0;
+          transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+            box-shadow 0.25s ease, background 0.25s ease, color 0.25s ease;
+        }
+        .ryx-pv-prev {
+          left: 16px;
+          transform: translate(-8px, -50%);
+        }
+        .ryx-pv-next {
+          right: 16px;
+          transform: translate(8px, -50%);
+        }
+        .ryx-document-viewer-panel.ryx-zone-left .ryx-pv-prev,
+        .ryx-document-viewer-panel.ryx-zone-right .ryx-pv-next,
+        .ryx-pv-nav:focus-visible {
+          opacity: 1;
+          transform: translate(0, -50%);
+        }
+        .ryx-pv-nav:hover {
+          background: #ffffff;
+          color: #7c3aed;
+          transform: translate(0, -50%) scale(1.08);
+          box-shadow: 0 12px 30px rgba(15, 23, 42, 0.22), 0 0 0 4px rgba(124, 58, 237, 0.18);
+        }
+        .ryx-pv-nav:active {
+          transform: translate(0, -50%) scale(0.94);
+        }
+        .ryx-pv-nav:focus-visible {
+          outline: none;
+          box-shadow: 0 0 0 3px #ffffff, 0 0 0 6px #7c3aed;
+        }
+        .ryx-pv-nav svg {
+          transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        /* Page counter and close button sit on the slide itself, in dark
+           frosted glass so they read on light and dark slides alike. */
+        .ryx-pv-counter,
+        .ryx-pv-close {
+          color: #ffffff;
+          background: rgba(15, 23, 42, 0.42);
+          backdrop-filter: blur(12px) saturate(160%);
+          -webkit-backdrop-filter: blur(12px) saturate(160%);
+          border: 1px solid rgba(255, 255, 255, 0.35);
+          box-shadow: 0 6px 18px rgba(15, 23, 42, 0.22);
+        }
+        .ryx-pv-counter {
+          position: absolute;
+          top: 14px;
+          left: 14px;
+          z-index: 11;
+          padding: 0.3rem 0.8rem;
+          border-radius: 9999px;
+          font-size: 0.75rem;
+          font-weight: 600;
+          font-variant-numeric: tabular-nums;
+          pointer-events: none;
+          opacity: 0;
+          transform: translateY(-4px);
+          transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .ryx-document-viewer-panel.ryx-zone-counter .ryx-pv-counter {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        .ryx-pv-close-zone {
+          position: absolute;
+          top: 0;
+          right: 0;
+          width: 140px;
+          height: 110px;
+          z-index: 12;
+          display: flex;
+          align-items: flex-start;
+          justify-content: flex-end;
+          padding: 14px;
+          box-sizing: border-box;
+        }
+        .ryx-pv-close {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          padding: 0;
+          opacity: 0;
+          transform: scale(0.9);
+          transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+            background 0.2s ease;
+        }
+        .ryx-pv-close-zone:hover .ryx-pv-close,
+        .ryx-pv-close:focus-visible {
+          opacity: 1;
+          transform: scale(1);
+        }
+        .ryx-pv-close:hover {
+          background: rgba(15, 23, 42, 0.62);
+        }
+        .ryx-pv-close:hover svg {
+          transform: rotate(90deg);
+        }
+        .ryx-pv-close svg {
+          transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .ryx-pv-close:focus-visible {
+          outline: none;
+          box-shadow: 0 0 0 3px #ffffff, 0 0 0 6px #7c3aed;
+        }
+        @media (hover: none) {
+          .ryx-pv-counter,
+          .ryx-pv-close {
+            opacity: 1;
+            transform: none;
+          }
+        }
+        .ryx-pv-prev:hover svg {
+          transform: translateX(-2px);
+        }
+        .ryx-pv-next:hover svg {
+          transform: translateX(2px);
+        }
+        @media (hover: none) {
+          .ryx-pv-nav {
+            opacity: 1;
+            transform: translate(0, -50%);
+          }
+        }
+
+        /* Thin bar on the right edge: position within a portrait page */
+        .ryx-pv-page-track {
+          position: absolute;
+          top: 16px;
+          bottom: 16px;
+          right: 8px;
+          width: 4px;
+          border-radius: 999px;
+          background: rgba(15, 23, 42, 0.12);
+          z-index: 9;
+          pointer-events: none;
+        }
+        .ryx-pv-page-thumb {
+          position: absolute;
+          left: 0;
+          width: 100%;
+          border-radius: 999px;
+          background: rgba(15, 23, 42, 0.5);
+          transition: top 0.6s cubic-bezier(0.22, 1, 0.36, 1), height 0.3s ease;
+        }
+
+        /* Slide change: the old slide drifts out one side as the new one
+           drifts in from the other. */
+        @keyframes ryxPvInNext {
+          from { opacity: 0; transform: translateX(7%) scale(0.98); }
+          to { opacity: 1; transform: translateX(0) scale(1); }
+        }
+        @keyframes ryxPvInPrev {
+          from { opacity: 0; transform: translateX(-7%) scale(0.98); }
+          to { opacity: 1; transform: translateX(0) scale(1); }
+        }
+        @keyframes ryxPvOutNext {
+          from { opacity: 1; transform: translateX(0) scale(1); }
+          to { opacity: 0; transform: translateX(-7%) scale(0.98); }
+        }
+        @keyframes ryxPvOutPrev {
+          from { opacity: 1; transform: translateX(0) scale(1); }
+          to { opacity: 0; transform: translateX(7%) scale(0.98); }
+        }
+        .ryx-pv-slide-in-next {
+          animation: ryxPvInNext 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+        }
+        .ryx-pv-slide-in-prev {
+          animation: ryxPvInPrev 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+        }
+        .ryx-pv-slide-out-next {
+          animation: ryxPvOutNext 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+        .ryx-pv-slide-out-prev {
+          animation: ryxPvOutPrev 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .ryx-pv-slide-in-next,
+          .ryx-pv-slide-in-prev,
+          .ryx-pv-slide-out-next,
+          .ryx-pv-slide-out-prev {
+            animation-duration: 0.01s;
+          }
+        }
+
         @keyframes pulseDot {
           0%,
           80%,
@@ -1862,8 +2148,12 @@ export function ChatbotPreview({
             flex-direction: column !important;
           }
           .ryx-document-viewer-panel {
-            min-height: 360px !important;
-            aspect-ratio: auto !important;
+            align-self: stretch !important;
+            width: 100% !important;
+          }
+          .ryx-pv-stage-box {
+            height: auto !important;
+            aspect-ratio: 16 / 9;
           }
           .ryx-conversation-panel {
             min-height: 440px !important;

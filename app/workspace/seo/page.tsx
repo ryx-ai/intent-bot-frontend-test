@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
 import { api } from "@/lib/api";
 import { FullSiteAuditTab, type ConnectedWebsite } from "./_components/FullSiteAuditTab";
 import { TrafficMatrixTab } from "./_components/TrafficMatrixTab";

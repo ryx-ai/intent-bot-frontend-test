@@ -241,7 +241,25 @@ export default function TestingPage() {
       e.returnValue = "";
     };
     window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
+
+    // In-app navigation (the sidebar links) does not fire beforeunload, so
+    // ask before following a link to another page.
+    const onLinkClick = (e: MouseEvent) => {
+      const link = (e.target as HTMLElement | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!link || link.target === "_blank" || e.defaultPrevented) return;
+      const href = link.getAttribute("href") || "";
+      if (!href || href.startsWith("#") || href === window.location.pathname) return;
+      const ok = window.confirm("You have unsaved changes on this page. Leave without saving?");
+      if (!ok) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    document.addEventListener("click", onLinkClick, true);
+    return () => {
+      window.removeEventListener("beforeunload", handler);
+      document.removeEventListener("click", onLinkClick, true);
+    };
   }, [dirty, promptDirty]);
 
   // Normal Configuration Save: Sends ONLY bot_role, theme_color, and calendar_link.
@@ -284,6 +302,14 @@ export default function TestingPage() {
 
   // Explicit System Prompt Save: Isolated save for prompt only
   async function saveSystemPrompt() {
+    // An empty prompt is stored as "no custom prompt", which brings back the
+    // default one. Make sure that is what the user wants.
+    if (!promptText.trim()) {
+      const ok = window.confirm(
+        "The prompt box is empty. Saving will remove your custom prompt and go back to the default one. Continue?",
+      );
+      if (!ok) return;
+    }
     setSavingPrompt(true);
     try {
       await api.post("/api/config/bot", {

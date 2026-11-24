@@ -10,29 +10,33 @@ interface ApiOptions extends RequestInit {
   json?: unknown;
 }
 
-function formatErrorDetail(detail: unknown): string {
-  if (typeof detail === "string") return detail;
-  if (Array.isArray(detail)) {
-    const formatted = detail
+function formatErrorDetail(value: unknown): string | undefined {
+  if (value == null) return undefined;
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    const parts = value
       .map((item) => {
         if (typeof item === "string") return item;
         if (item && typeof item === "object") {
           const anyItem = item as Record<string, unknown>;
-          if (typeof anyItem.msg === "string") return anyItem.msg;
-          if (typeof anyItem.message === "string") return anyItem.message;
+          if (typeof anyItem.msg === "string") {
+            return anyItem.msg.replace(/^Value error,\s*/i, "");
+          }
+          if (typeof anyItem.message === "string") {
+            return anyItem.message.replace(/^Value error,\s*/i, "");
+          }
         }
         return "";
       })
-      .filter(Boolean)
-      .join(", ");
-    if (formatted) return formatted;
+      .filter(Boolean);
+    return parts.length ? parts.join(" ") : "Please check the details and try again.";
   }
-  if (detail && typeof detail === "object") {
-    const anyDetail = detail as Record<string, unknown>;
-    if (typeof anyDetail.msg === "string") return anyDetail.msg;
-    if (typeof anyDetail.message === "string") return anyDetail.message;
+  if (typeof value === "object") {
+    const anyVal = value as Record<string, unknown>;
+    if (typeof anyVal.msg === "string") return anyVal.msg.replace(/^Value error,\s*/i, "");
+    if (typeof anyVal.message === "string") return anyVal.message.replace(/^Value error,\s*/i, "");
   }
-  return "";
+  return String(value);
 }
 
 class ApiError extends Error {
@@ -100,14 +104,11 @@ async function request<T = unknown>(
     if (contentType?.includes("application/json")) {
       try {
         const errorBody = await res.json();
-        const rawDetail = errorBody.detail || errorBody.error || errorBody.message;
-        const formattedDetail = formatErrorDetail(rawDetail);
-        detail = formattedDetail || (typeof rawDetail === "string" ? rawDetail : undefined);
-        message = detail || `Request failed with status ${res.status}`;
-        maybeRedirectOnAuthError(endpoint, res.status, typeof rawDetail === "string" ? rawDetail : detail);
-        throw new ApiError(message, res.status, detail, rawDetail);
-      } catch (e) {
-        if (e instanceof ApiError) throw e;
+        const rawDetail = errorBody.detail ?? errorBody.error ?? errorBody.message;
+        const formatted = formatErrorDetail(rawDetail);
+        detail = formatted || (typeof rawDetail === "string" ? rawDetail : undefined);
+        message = detail || message;
+      } catch {
         message = await res.text().catch(() => "Unknown error");
       }
     } else {
@@ -174,8 +175,8 @@ export const api = {
       let msg = "Download failed";
       try {
         const err = await res.json();
-        const raw = err.detail || err.error || err.message;
-        msg = formatErrorDetail(raw) || (typeof raw === "string" ? raw : msg);
+        const raw = err.detail ?? err.error ?? err.message;
+        msg = formatErrorDetail(raw) || msg;
       } catch {
         // non-json response
       }

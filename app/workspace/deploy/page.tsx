@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import ShopifyGuide from "./ShopifyGuide";
 
-const PLATFORMS = [
+const PLATFORMS: { icon: string; name: string; guide?: boolean }[] = [
   { icon: "🔷", name: "WordPress" },
-  { icon: "🟧", name: "Shopify" },
+  { icon: "🟧", name: "Shopify", guide: true },
   { icon: "🌐", name: "Wix" },
   { icon: "⬛", name: "Webflow" },
   { icon: "📄", name: "Raw HTML" },
@@ -55,6 +56,7 @@ export default function DeployPage() {
   const [tenantSlug, setTenantSlug] = useState("");
   const [tenantName, setTenantName] = useState("");
   const [isSubActive, setIsSubActive] = useState<boolean | null>(null);
+  const [openGuide, setOpenGuide] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadTenant() {
@@ -67,9 +69,8 @@ export default function DeployPage() {
           };
         }>("/api/auth/me");
         setTenantSlug(me.tenant?.slug || "");
-        if (me.tenant?.name) {
-          setTenantName(me.tenant.name);
-        }
+        // Workspaces are created as "<Name>'s Workspace"; greet with just the name.
+        setTenantName((me.tenant?.name || "").replace(/['\u2019]s workspace$/i, "").trim());
         if (me.tenant && typeof me.tenant.is_subscription_active === "boolean") {
           setIsSubActive(me.tenant.is_subscription_active);
         }
@@ -780,14 +781,18 @@ export default function DeployPage() {
               {PLATFORMS.map((p) => (
                 <div
                   key={p.name}
+                  role={p.guide ? "button" : undefined}
+                  tabIndex={p.guide ? 0 : undefined}
+                  onClick={p.guide ? () => setOpenGuide(openGuide === p.name ? null : p.name) : undefined}
+                  onKeyDown={p.guide ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenGuide(openGuide === p.name ? null : p.name); } } : undefined}
                   style={{
-                    backgroundColor: "var(--bg-surface)",
-                    border: "1px solid var(--border)",
+                    backgroundColor: openGuide === p.name ? "rgba(107, 76, 255, 0.1)" : "var(--bg-surface)",
+                    border: `1px solid ${openGuide === p.name ? "var(--accent)" : "var(--border)"}`,
                     borderRadius: 10,
                     padding: "0.875rem 1rem",
                     textAlign: "center",
                     transition: "all 0.2s",
-                    cursor: "default",
+                    cursor: p.guide ? "pointer" : "default",
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = "var(--accent-glow)";
@@ -795,6 +800,7 @@ export default function DeployPage() {
                       "rgba(107, 76, 255, 0.1)";
                   }}
                   onMouseLeave={(e) => {
+                    if (openGuide === p.name) return;
                     e.currentTarget.style.borderColor = "var(--border)";
                     e.currentTarget.style.background = "var(--bg-surface)";
                   }}
@@ -816,18 +822,21 @@ export default function DeployPage() {
                       display: "inline-block",
                       marginTop: "0.3rem",
                       fontSize: "0.65rem",
-                      background: "rgba(16, 185, 129, 0.15)",
-                      color: "#10b981",
+                      background: p.guide ? "var(--accent-dim)" : "rgba(16, 185, 129, 0.15)",
+                      color: p.guide ? "var(--accent)" : "#10b981",
                       borderRadius: 4,
                       padding: "1px 6px",
                       fontWeight: 600,
                     }}
                   >
-                    ✓ Supported
+                    {p.guide ? (openGuide === p.name ? "Hide steps ▴" : "Show steps →") : "✓ Supported"}
                   </div>
                 </div>
               ))}
             </div>
+            {openGuide === "Shopify" && (
+              <ShopifyGuide copied={copied} onCopy={copySnippet} onClose={() => setOpenGuide(null)} />
+            )}
           </div>
         </div>
       </div>

@@ -325,7 +325,6 @@ export default function AuditDetailPage() {
   const [expandedIssue, setExpandedIssue] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-
   useEffect(() => {
     let cancelled = false;
     const fetchInitial = async () => {

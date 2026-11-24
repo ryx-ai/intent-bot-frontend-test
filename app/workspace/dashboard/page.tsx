@@ -307,7 +307,9 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    loadData();
+    void (async () => {
+      await loadData();
+    })();
   }, [loadData]);
 
   // Lazy-load conversation transcript when expanding

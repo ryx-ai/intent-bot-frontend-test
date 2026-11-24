@@ -129,7 +129,10 @@ async function restoreConversationMessages(
     if (!convRes.ok) return null;
     const convData = await convRes.json();
     const conversations = convData?.conversations || [];
-    const matchedConv = conversations.find((c: any) => c.session_id === sessId);
+    const matchedConv = conversations.find(
+      (c: { session_id?: string; id?: number; message_count?: number }) =>
+        c.session_id === sessId
+    );
     if (!matchedConv || !matchedConv.id || matchedConv.message_count === 0) {
       return null;
     }
@@ -142,12 +145,20 @@ async function restoreConversationMessages(
     const rawMsgs = msgData?.messages || [];
     if (!Array.isArray(rawMsgs) || rawMsgs.length === 0) return null;
 
-    return rawMsgs.map((m: any) => ({
-      id: `msg_${m.id || m.sequence_number}`,
-      sender: m.role === "assistant" ? "bot" : "user",
-      text: m.content,
-      timestamp: formatTimeFromISO(m.created_at),
-    }));
+    return rawMsgs.map(
+      (m: {
+        id?: number;
+        sequence_number?: number;
+        role?: string;
+        content?: string;
+        created_at?: string;
+      }) => ({
+        id: `msg_${m.id || m.sequence_number}`,
+        sender: m.role === "assistant" ? "bot" : "user",
+        text: m.content || "",
+        timestamp: formatTimeFromISO(m.created_at),
+      })
+    );
   } catch (err) {
     console.warn("[ChatbotPreview] Failed to restore previous messages:", err);
     return null;
@@ -342,7 +353,7 @@ export function ChatbotPreview({
   const chatInputRef = useRef<HTMLInputElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const initPromiseRef = useRef<Promise<any> | null>(null);
+  const initPromiseRef = useRef<Promise<void> | null>(null);
 
   // Preset suggested prompts matching Reference Screenshot 1
   const presetQuestions = [
@@ -367,6 +378,16 @@ export function ChatbotPreview({
     setIsDocViewerOpen(true);
   }, [effectiveTenantName]);
 
+  const isExpandedRef = useRef(isExpanded);
+  const onExpandChangeRef = useRef(onExpandChange);
+  const resetGreetingRef = useRef(resetGreeting);
+
+  useEffect(() => {
+    isExpandedRef.current = isExpanded;
+    onExpandChangeRef.current = onExpandChange;
+    resetGreetingRef.current = resetGreeting;
+  }, [isExpanded, onExpandChange, resetGreeting]);
+
   // Initial Session setup and conversation restoration
   useEffect(() => {
     if (!tenantSlug) return;
@@ -375,8 +396,8 @@ export function ChatbotPreview({
     async function initSession() {
       try {
         const stored = readStoredPreviewSession(tenantSlug);
-        let curToken = stored?.visitor_token || null;
-        let curSessionId = stored?.session_id || null;
+        const curToken = stored?.visitor_token || null;
+        const curSessionId = stored?.session_id || null;
 
         if (curToken && curSessionId) {
           if (!isCancelled) {
@@ -388,8 +409,8 @@ export function ChatbotPreview({
           const restored = await restoreConversationMessages(curToken, curSessionId, tenantSlug);
           if (!isCancelled && restored && restored.length > 0) {
             setMessages(restored);
-            if (!isExpanded) {
-              onExpandChange(true);
+            if (!isExpandedRef.current && onExpandChangeRef.current) {
+              onExpandChangeRef.current(true);
             }
           }
 
@@ -444,7 +465,7 @@ export function ChatbotPreview({
                   });
                   setVisitorToken(data.visitor_token);
                   setSessionId(data.session_id);
-                  resetGreeting();
+                  resetGreetingRef.current();
                 }
               }
             }

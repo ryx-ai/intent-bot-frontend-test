@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { unsavedChangesStore } from "@/lib/unsaved-changes";
 import { ConfirmDialog } from "../_components/ConfirmDialog";
 import { ChatbotPreview } from "./ChatbotPreview";
 
@@ -233,15 +234,22 @@ export default function TestingPage() {
     load();
   }, []);
 
-  // Warn before navigating away with unsaved edits
+  // Warn before navigating away with unsaved edits (both browser unload & sidebar navigation)
   useEffect(() => {
+    unsavedChangesStore.setDirty(
+      dirty || promptDirty,
+      "You have unsaved changes to your system prompt or assistant settings. Navigating away will discard these changes. Are you sure you want to leave?"
+    );
     if (!dirty && !promptDirty) return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = "";
     };
     window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
+    return () => {
+      window.removeEventListener("beforeunload", handler);
+      unsavedChangesStore.setDirty(false);
+    };
   }, [dirty, promptDirty]);
 
   // Normal Configuration Save: Sends ONLY bot_role, theme_color, and calendar_link.

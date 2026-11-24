@@ -61,7 +61,9 @@ export default function WorkspaceSettingsPage() {
   }, []);
 
   useEffect(() => {
-    loadUserData();
+    void (async () => {
+      await loadUserData();
+    })();
   }, [loadUserData]);
 
   const slugValidationError = useMemo(() => {
@@ -72,13 +74,11 @@ export default function WorkspaceSettingsPage() {
     return '';
   }, [tenantSlug]);
 
-  const isFormChanged = useMemo(() => {
-    if (!user?.tenant) return false;
-    return (
-      companyName.trim() !== user.tenant.name ||
-      tenantSlug.trim().toLowerCase() !== user.tenant.slug
-    );
-  }, [companyName, tenantSlug, user?.tenant]);
+  const isFormChanged = Boolean(
+    user?.tenant &&
+      (companyName.trim() !== user.tenant.name ||
+        tenantSlug.trim().toLowerCase() !== user.tenant.slug)
+  );
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();

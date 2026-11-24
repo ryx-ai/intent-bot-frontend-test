@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 
 interface Plan {
@@ -81,26 +81,23 @@ export default function PlansAdminPage() {
   const [editingPlan, setEditingPlan] = useState<Partial<Plan> | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const loadPlans = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await api.get<Plan[]>("/api/payments/plans");
-      if (Array.isArray(res) && res.length > 0) {
-        setPlans(res);
-      } else {
-        setPlans(DEFAULT_MOCK_PLANS);
-      }
-    } catch {
-      setPlans(DEFAULT_MOCK_PLANS);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   useEffect(() => {
-    loadPlans();
-  }, [loadPlans]);
+    void (async () => {
+      try {
+        const res = await api.get<Plan[]>("/api/payments/plans");
+        if (Array.isArray(res) && res.length > 0) {
+          setPlans(res);
+        } else {
+          setPlans(DEFAULT_MOCK_PLANS);
+        }
+      } catch {
+        setPlans(DEFAULT_MOCK_PLANS);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   const handleOpenCreate = () => {
     setEditingPlan({

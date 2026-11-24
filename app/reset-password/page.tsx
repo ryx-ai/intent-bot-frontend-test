@@ -110,7 +110,13 @@ function ResetPasswordContent() {
     } catch (err) {
       setLoading(false);
       if (err instanceof ApiError) {
-        setError(err.detail || err.message || "Failed to reset password.");
+        setError(
+          typeof err.detail === "string"
+            ? err.detail
+            : typeof err.message === "string"
+            ? err.message
+            : "Failed to reset password."
+        );
       } else {
         setError("Network error. Please try again.");
       }

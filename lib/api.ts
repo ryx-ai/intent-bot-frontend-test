@@ -10,13 +10,40 @@ interface ApiOptions extends RequestInit {
   json?: unknown;
 }
 
+function formatErrorDetail(detail: unknown): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const formatted = detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object") {
+          const anyItem = item as Record<string, unknown>;
+          if (typeof anyItem.msg === "string") return anyItem.msg;
+          if (typeof anyItem.message === "string") return anyItem.message;
+        }
+        return "";
+      })
+      .filter(Boolean)
+      .join(", ");
+    if (formatted) return formatted;
+  }
+  if (detail && typeof detail === "object") {
+    const anyDetail = detail as Record<string, unknown>;
+    if (typeof anyDetail.msg === "string") return anyDetail.msg;
+    if (typeof anyDetail.message === "string") return anyDetail.message;
+  }
+  return "";
+}
+
 class ApiError extends Error {
   status: number;
   detail?: string;
-  constructor(message: string, status: number, detail?: string) {
+  rawDetail?: unknown;
+  constructor(message: string, status: number, detail?: string, rawDetail?: unknown) {
     super(message);
     this.status = status;
     this.detail = detail;
+    this.rawDetail = rawDetail;
   }
 }
 
@@ -73,9 +100,14 @@ async function request<T = unknown>(
     if (contentType?.includes("application/json")) {
       try {
         const errorBody = await res.json();
-        detail = errorBody.detail || errorBody.error || errorBody.message;
-        message = detail || message;
-      } catch {
+        const rawDetail = errorBody.detail || errorBody.error || errorBody.message;
+        const formattedDetail = formatErrorDetail(rawDetail);
+        detail = formattedDetail || (typeof rawDetail === "string" ? rawDetail : undefined);
+        message = detail || `Request failed with status ${res.status}`;
+        maybeRedirectOnAuthError(endpoint, res.status, typeof rawDetail === "string" ? rawDetail : detail);
+        throw new ApiError(message, res.status, detail, rawDetail);
+      } catch (e) {
+        if (e instanceof ApiError) throw e;
         message = await res.text().catch(() => "Unknown error");
       }
     } else {
@@ -142,7 +174,8 @@ export const api = {
       let msg = "Download failed";
       try {
         const err = await res.json();
-        msg = err.detail || err.error || err.message || msg;
+        const raw = err.detail || err.error || err.message;
+        msg = formatErrorDetail(raw) || (typeof raw === "string" ? raw : msg);
       } catch {
         // non-json response
       }

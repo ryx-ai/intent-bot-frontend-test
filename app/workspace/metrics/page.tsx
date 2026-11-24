@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { unsavedChangesStore } from "@/lib/unsaved-changes";
 import { ConfirmDialog } from "../_components/ConfirmDialog";
 
 interface MetricConfig {
@@ -83,6 +84,10 @@ export default function MetricsPage() {
 
   // Warn on navigate away with unsaved changes
   useEffect(() => {
+    unsavedChangesStore.setDirty(
+      dirty,
+      "You have unsaved changes to your business metrics. Navigating away will discard these changes. Are you sure you want to leave?"
+    );
     function handleBeforeUnload(e: BeforeUnloadEvent) {
       if (dirty) {
         e.preventDefault();
@@ -90,7 +95,10 @@ export default function MetricsPage() {
       }
     }
     window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      unsavedChangesStore.setDirty(false);
+    };
   }, [dirty]);
 
   function addMetric() {

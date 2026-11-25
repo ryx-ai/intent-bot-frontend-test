@@ -191,8 +191,12 @@ function formatDate(iso: string | null): string {
   }
 }
 
-function formatUrlDisplay(rawUrl: string): string {
+function formatUrlDisplay(rawUrl: string, rootUrl?: string): string {
   try {
+    if (rootUrl && rawUrl.startsWith(rootUrl)) {
+      const rel = rawUrl.slice(rootUrl.length);
+      return rel.startsWith("/") ? rel : `/${rel}`;
+    }
     const parsed = new URL(rawUrl);
     const path = parsed.pathname + parsed.search;
     if (!path || path === "/" || path === "") {
@@ -277,18 +281,6 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
     }
   }, []);
 
-  const loadLatestAudit = useCallback(async (websiteId: number) => {
-    try {
-      const res = await api.get<SiteAudit & { audit?: SiteAudit }>(`/api/site-audit/latest/${websiteId}`);
-      if (res && res.id) {
-        setCurrentAudit(res);
-      } else {
-        setCurrentAudit(null);
-      }
-    } catch {
-      setCurrentAudit(null);
-    }
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -306,10 +298,29 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
   }, [loadWebsites, loadAuditHistory]);
 
   useEffect(() => {
+    let cancelled = false;
     if (selectedWebsiteId) {
-      void loadLatestAudit(selectedWebsiteId);
+      void (async () => {
+        try {
+          const res = await api.get<SiteAudit & { audit?: SiteAudit }>(
+            `/api/site-audit/latest/${selectedWebsiteId}`
+          );
+          if (!cancelled) {
+            if (res && res.id) {
+              setCurrentAudit(res);
+            } else {
+              setCurrentAudit(null);
+            }
+          }
+        } catch {
+          if (!cancelled) setCurrentAudit(null);
+        }
+      })();
     }
-  }, [selectedWebsiteId, loadLatestAudit]);
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedWebsiteId]);
 
   // Close download menu on outside click
   useEffect(() => {

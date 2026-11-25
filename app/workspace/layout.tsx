@@ -12,6 +12,8 @@ import {
   getThemeSnapshot,
   getServerThemeSnapshot,
 } from "@/lib/theme";
+import { ConfirmDialog } from "./_components/ConfirmDialog";
+import { unsavedChangesStore } from "@/lib/unsaved-changes";
 
 interface UserInfo {
   name: string;
@@ -56,6 +58,7 @@ const SETTINGS_ITEMS = [
 const SUPER_ADMIN_NAV_ITEMS = [
   { label: "Tenant Management", href: "/workspace/admin/tenants" },
   { label: "Package Management", href: "/workspace/admin/plans" },
+  { label: "Core System Prompt", href: "/workspace/admin/core-prompt" },
 ];
 
 const SUPER_ADMIN_SETTINGS_ITEMS: typeof SETTINGS_ITEMS = [];
@@ -82,14 +85,68 @@ export default function WorkspaceLayout({
     getServerThemeSnapshot,
   );
 
+  const isDirty = useSyncExternalStore(
+    unsavedChangesStore.subscribe,
+    unsavedChangesStore.getSnapshot,
+    unsavedChangesStore.getServerSnapshot,
+  );
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  // Close mobile menu on pathname change without setState inside useEffect
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (prevPathname !== pathname) {
+    setPrevPathname(pathname);
+    setMobileMenuOpen(false);
+  }
+
+  const handleNavClick = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    href: string,
+  ) => {
+    if (isDirty && pathname !== href) {
+      e.preventDefault();
+      setPendingHref(href);
+      setIsLoggingOut(false);
+      setShowConfirmModal(true);
+      return;
+    }
+    setMobileMenuOpen(false);
+  };
+
+  const handleLogoutClick = () => {
+    if (isDirty) {
+      setIsLoggingOut(true);
+      setPendingHref(null);
+      setShowConfirmModal(true);
+      return;
+    }
+    logout();
+  };
+
+  const handleConfirmLeave = () => {
+    unsavedChangesStore.setDirty(false);
+    setShowConfirmModal(false);
+    if (isLoggingOut) {
+      logout();
+    } else if (pendingHref) {
+      setMobileMenuOpen(false);
+      router.push(pendingHref);
+      setPendingHref(null);
+    }
+  };
+
+  const handleCancelLeave = () => {
+    setShowConfirmModal(false);
+    setPendingHref(null);
+    setIsLoggingOut(false);
+  };
+
   const toggleTheme = () => {
     const nextTheme = isDark ? "light" : "dark";
     applyTheme(nextTheme);
   };
-
-  useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [pathname]);
 
   useEffect(() => {
     const saved = localStorage.getItem("theme");
@@ -214,6 +271,12 @@ export default function WorkspaceLayout({
         >
           <Link
             href={isSuperAdmin ? "/workspace/admin/tenants" : "/workspace/testing"}
+            onClick={(e) =>
+              handleNavClick(
+                e,
+                isSuperAdmin ? "/workspace/admin/tenants" : "/workspace/testing"
+              )
+            }
             style={{ display: "flex", alignItems: "center", textDecoration: "none" }}
           >
             <Image
@@ -278,7 +341,7 @@ export default function WorkspaceLayout({
                 <li key={item.href}>
                   <Link
                     href={item.href}
-                    onClick={() => setMobileMenuOpen(false)}
+                    onClick={(e) => handleNavClick(e, item.href)}
                     style={{
                       display: "block",
                       padding: "0.6rem 0.85rem",
@@ -334,7 +397,7 @@ export default function WorkspaceLayout({
                     <li key={item.href}>
                       <Link
                         href={item.href}
-                        onClick={() => setMobileMenuOpen(false)}
+                        onClick={(e) => handleNavClick(e, item.href)}
                         style={{
                           display: "block",
                           padding: "0.6rem 0.85rem",
@@ -499,7 +562,7 @@ export default function WorkspaceLayout({
           </div>
 
           <button
-            onClick={logout}
+            onClick={handleLogoutClick}
             style={{
               display: "flex",
               alignItems: "center",
@@ -578,6 +641,12 @@ export default function WorkspaceLayout({
         >
           <Link
             href={isSuperAdmin ? "/workspace/admin/tenants" : "/workspace/testing"}
+            onClick={(e) =>
+              handleNavClick(
+                e,
+                isSuperAdmin ? "/workspace/admin/tenants" : "/workspace/testing"
+              )
+            }
             style={{ display: "flex", alignItems: "center", textDecoration: "none" }}
           >
             <Image
@@ -651,6 +720,7 @@ export default function WorkspaceLayout({
               </div>
               <Link
                 href="/workspace/billing"
+                onClick={(e) => handleNavClick(e, "/workspace/billing")}
                 style={{
                   background: "#ffffff",
                   color: "#991b1b",
@@ -677,6 +747,18 @@ export default function WorkspaceLayout({
           {children}
         </div>
       </main>
+
+      <ConfirmDialog
+        open={showConfirmModal}
+        tone="warning"
+        eyebrow="Unsaved Changes"
+        title="Discard unsaved edits?"
+        description={unsavedChangesStore.getMessage()}
+        confirmLabel="Discard & Leave"
+        cancelLabel="Stay on Page"
+        onConfirm={handleConfirmLeave}
+        onCancel={handleCancelLeave}
+      />
     </div>
   );
 }

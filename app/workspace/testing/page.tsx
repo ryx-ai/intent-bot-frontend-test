@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { unsavedChangesStore } from "@/lib/unsaved-changes";
 import { ConfirmDialog } from "../_components/ConfirmDialog";
 import { ChatbotPreview } from "./ChatbotPreview";
 import ShopProductsCard from "./ShopProductsCard";
@@ -112,6 +113,46 @@ type CalCredential = {
   created_at: string;
 };
 
+export interface BotRule {
+  id: number;
+  tenant_id: number;
+  instruction_text: string;
+  original_request?: string | null;
+  category: string;
+  is_active: boolean;
+  display_order: number;
+  is_applied: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface BotRulesListResponse {
+  rules: BotRule[];
+  has_unapplied_changes: boolean;
+  is_customized_by_admin: boolean;
+  total_count: number;
+  max_rules: number;
+}
+
+export interface GenerateRuleResponse {
+  rule_text: string;
+  category: string;
+  status: string;
+}
+
+export interface ApplyChangesResponse {
+  status: "success" | "blocked" | string;
+  message: string;
+  rules_applied_count: number;
+  effective_prompt?: string;
+}
+
+const EXAMPLE_CHIPS = [
+  "Don't share pricing",
+  "Keep replies short",
+  "Reply in Malayalam",
+];
+
 export default function TestingPage() {
   const [role, setRole] = useState("hybrid");
   const [themeColor, setThemeColor] = useState("#FF4D00");
@@ -134,11 +175,30 @@ export default function TestingPage() {
   >(null);
   const [calDialogCredId, setCalDialogCredId] = useState<number | null>(null);
 
-  // System Prompt State
+  // System Prompt & Super Admin Override State
   const [promptText, setPromptText] = useState("");
-  const [generatingPrompt, setGeneratingPrompt] = useState(false);
   const [savingPrompt, setSavingPrompt] = useState(false);
   const [promptDirty, setPromptDirty] = useState(false);
+  const [userRole, setUserRole] = useState("admin");
+  const [isCustomizedByAdmin, setIsCustomizedByAdmin] = useState(false);
+  const [resettingPrompt, setResettingPrompt] = useState(false);
+
+  // Custom Rules State (Tell us what to change)
+  const [rules, setRules] = useState<BotRule[]>([]);
+  const [rulesLoading, setRulesLoading] = useState(true);
+  const [hasUnappliedChanges, setHasUnappliedChanges] = useState(false);
+  const [maxRules, setMaxRules] = useState(15);
+  const [ruleInstructionInput, setRuleInstructionInput] = useState("");
+  const [addingRule, setAddingRule] = useState(false);
+  const [editingRuleId, setEditingRuleId] = useState<number | null>(null);
+  const [editingRuleText, setEditingRuleText] = useState("");
+  const [savingEditRule, setSavingEditRule] = useState(false);
+  const [deletingRuleId, setDeletingRuleId] = useState<number | null>(null);
+  const [togglingRuleId, setTogglingRuleId] = useState<number | null>(null);
+  const [applyingChanges, setApplyingChanges] = useState(false);
+  const [ruleError, setRuleError] = useState("");
+  const [applyError, setApplyError] = useState("");
+  const [showSuperAdminOverrideModal, setShowSuperAdminOverrideModal] = useState(false);
 
   // Collapsible Sections
   const [showBookingOptions, setShowBookingOptions] = useState(false);
@@ -168,6 +228,8 @@ export default function TestingPage() {
   // Bumped after saving so preview or directives refresh cleanly
   const [widgetKey, setWidgetKey] = useState(0);
 
+  const isSuperAdmin = userRole === "super_admin";
+
   function showCalCredentialMessage(message: string, isError = false) {
     if (isError) {
       setCalCredError(message);
@@ -193,20 +255,34 @@ export default function TestingPage() {
     }
   }, []);
 
+  const refreshRules = useCallback(async () => {
+    try {
+      const data = await api.get<BotRulesListResponse>("/api/config/rules");
+      setRules(data.rules || []);
+      setHasUnappliedChanges(Boolean(data.has_unapplied_changes));
+      setIsCustomizedByAdmin(Boolean(data.is_customized_by_admin));
+      if (typeof data.max_rules === "number") setMaxRules(data.max_rules);
+    } catch (err) {
+      console.error("Failed to refresh rules", err);
+    }
+  }, []);
+
   useEffect(() => {
     async function load() {
       try {
-        const [dataRes, meRes, credsRes, statusRes] = await Promise.allSettled([
+        const [dataRes, meRes, credsRes, statusRes, rulesRes] = await Promise.allSettled([
           api.get<{
             bot_role: string;
             calendar_link: string;
             theme_color: string;
             system_prompt_text: string;
             support_contact?: string;
+            is_customized_by_admin?: boolean;
           }>("/api/config/bot"),
-          api.get<{ tenant?: { slug: string; name?: string } }>("/api/auth/me"),
+          api.get<{ role?: string; tenant?: { slug: string; name?: string } }>("/api/auth/me"),
           api.get<CalCredential[]>("/api/config/cal/list"),
           api.get<SubscriptionStatus>("/api/payments/subscription-status"),
+          api.get<BotRulesListResponse>("/api/config/rules"),
         ]);
 
         if (statusRes.status === "fulfilled") {
@@ -216,9 +292,18 @@ export default function TestingPage() {
           setCalCredentials(credsRes.value || []);
         }
         if (meRes.status === "fulfilled") {
+          if (meRes.value.role) setUserRole(meRes.value.role);
           const t = meRes.value.tenant;
           if (t?.slug) setTenantSlug(t.slug);
           if (t?.name) setTenantName(t.name);
+        }
+        if (rulesRes.status === "fulfilled") {
+          setRules(rulesRes.value.rules || []);
+          setHasUnappliedChanges(Boolean(rulesRes.value.has_unapplied_changes));
+          setIsCustomizedByAdmin(Boolean(rulesRes.value.is_customized_by_admin));
+          if (typeof rulesRes.value.max_rules === "number") {
+            setMaxRules(rulesRes.value.max_rules);
+          }
         }
         if (dataRes.status === "fulfilled") {
           const data = dataRes.value;
@@ -242,45 +327,39 @@ export default function TestingPage() {
             setCalendarLink("");
           }
           setPromptText(data.system_prompt_text || "");
+          if (typeof data.is_customized_by_admin === "boolean") {
+            setIsCustomizedByAdmin(data.is_customized_by_admin);
+          }
         }
       } catch (err) {
         console.error("Failed to load config", err);
       } finally {
         setCalCredLoading(false);
+        setRulesLoading(false);
         setLoading(false);
       }
     }
     load();
   }, []);
 
-  // Warn before navigating away with unsaved edits
+  // Warn before navigating away with unsaved edits or unapplied rules
   useEffect(() => {
-    if (!dirty && !promptDirty) return;
+    const isDirty = dirty || promptDirty || hasUnappliedChanges;
+    unsavedChangesStore.setDirty(
+      isDirty,
+      "You have unapplied rule changes or unsaved assistant settings. Navigating away will not publish these changes. Are you sure you want to leave?"
+    );
+    if (!isDirty) return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = "";
     };
     window.addEventListener("beforeunload", handler);
-
-    // In-app navigation (the sidebar links) does not fire beforeunload, so
-    // ask before following a link to another page.
-    const onLinkClick = (e: MouseEvent) => {
-      const link = (e.target as HTMLElement | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
-      if (!link || link.target === "_blank" || e.defaultPrevented) return;
-      const href = link.getAttribute("href") || "";
-      if (!href || href.startsWith("#") || href === window.location.pathname) return;
-      const ok = window.confirm("You have unsaved changes on this page. Leave without saving?");
-      if (!ok) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    };
-    document.addEventListener("click", onLinkClick, true);
     return () => {
       window.removeEventListener("beforeunload", handler);
-      document.removeEventListener("click", onLinkClick, true);
+      unsavedChangesStore.setDirty(false);
     };
-  }, [dirty, promptDirty]);
+  }, [dirty, promptDirty, hasUnappliedChanges]);
 
   // Normal Configuration Save: Sends ONLY bot_role, theme_color, and calendar_link.
   async function save() {
@@ -322,13 +401,11 @@ export default function TestingPage() {
     }
   }
 
-  // Explicit System Prompt Save: Isolated save for prompt only
+  // Explicit System Prompt Save: Isolated save for prompt only (Super Admin)
   async function saveSystemPrompt() {
-    // An empty prompt is stored as "no custom prompt", which brings back the
-    // default one. Make sure that is what the user wants.
     if (!promptText.trim()) {
       const ok = window.confirm(
-        "The prompt box is empty. Saving will remove your custom prompt and go back to the default one. Continue?",
+        "The prompt box is empty. Saving will remove your custom prompt and restore platform auto-assembly. Continue?",
       );
       if (!ok) return;
     }
@@ -337,39 +414,13 @@ export default function TestingPage() {
       await api.post("/api/config/bot", {
         system_prompt_text: promptText,
       });
-      setToast("System prompt saved successfully!");
-      setTimeout(() => setToast(""), 3000);
+      setToast("System prompt saved successfully! Configuration is now locked.");
+      setTimeout(() => setToast(""), 4000);
       setPromptDirty(false);
+      setIsCustomizedByAdmin(true);
       setWidgetKey((k) => k + 1);
-    } catch {
-      setToast("Failed to save system prompt.");
-      setTimeout(() => setToast(""), 3000);
-    } finally {
-      setSavingPrompt(false);
-    }
-  }
-
-  async function generateSystemPrompt() {
-    setGeneratingPrompt(true);
-    try {
-      const res = await api.post<{
-        system_prompt: string;
-        sources_detected?: Record<string, boolean>;
-      }>("/api/config/generate-system-prompt", {});
-
-      if (res && typeof res.system_prompt === "string") {
-        setPromptText(res.system_prompt);
-        setPromptDirty(true);
-        setToast(
-          "System prompt generated! Click 'Save System Prompt' to apply.",
-        );
-        setTimeout(() => setToast(""), 4500);
-      } else {
-        setToast("Failed to generate system prompt.");
-        setTimeout(() => setToast(""), 4000);
-      }
     } catch (err: unknown) {
-      let msg = "Failed to generate system prompt.";
+      let msg = "Failed to save system prompt.";
       if (err instanceof Error) {
         msg = err.message;
       } else if (
@@ -381,9 +432,183 @@ export default function TestingPage() {
         msg = (err as { detail: string }).detail;
       }
       setToast(msg);
-      setTimeout(() => setToast(""), 4500);
+      setTimeout(() => setToast(""), 4000);
     } finally {
-      setGeneratingPrompt(false);
+      setSavingPrompt(false);
+    }
+  }
+
+  // Natural Language Rule Creation
+  async function handleAddRule(customText?: string) {
+    const text = (customText ?? ruleInstructionInput).trim();
+    if (!text) return;
+    if (rules.length >= maxRules) {
+      setRuleError(`Maximum limit of ${maxRules} rules reached.`);
+      return;
+    }
+    setRuleError("");
+    setAddingRule(true);
+    try {
+      const genRes = await api.post<GenerateRuleResponse>("/api/config/rules/generate", {
+        request_text: text,
+      });
+      await api.post<BotRule>("/api/config/rules", {
+        instruction_text: genRes.rule_text,
+        original_request: text,
+        category: genRes.category || "general",
+        is_active: true,
+      });
+      setRuleInstructionInput("");
+      await refreshRules();
+      setToast("Rule added to drafts! Click 'Apply changes' to publish.");
+      setTimeout(() => setToast(""), 4000);
+    } catch (err: unknown) {
+      let msg = "Failed to add rule.";
+      if (err instanceof Error) {
+        msg = err.message;
+      } else if (
+        err &&
+        typeof err === "object" &&
+        "detail" in err &&
+        typeof (err as { detail: unknown }).detail === "string"
+      ) {
+        msg = (err as { detail: string }).detail;
+      }
+      setRuleError(msg);
+    } finally {
+      setAddingRule(false);
+    }
+  }
+
+  async function handleToggleRule(rule: BotRule) {
+    setTogglingRuleId(rule.id);
+    try {
+      await api.put(`/api/config/rules/${rule.id}`, {
+        is_active: !rule.is_active,
+      });
+      await refreshRules();
+      setToast(`Rule marked as ${!rule.is_active ? "active" : "inactive"}. Click Apply changes.`);
+      setTimeout(() => setToast(""), 3000);
+    } catch {
+      setToast("Failed to update rule status.");
+      setTimeout(() => setToast(""), 3000);
+    } finally {
+      setTogglingRuleId(null);
+    }
+  }
+
+  function handleStartEdit(rule: BotRule) {
+    setEditingRuleId(rule.id);
+    setEditingRuleText(rule.instruction_text);
+  }
+
+  async function handleSaveEdit(ruleId: number) {
+    if (!editingRuleText.trim()) return;
+    setSavingEditRule(true);
+    try {
+      await api.put(`/api/config/rules/${ruleId}`, {
+        instruction_text: editingRuleText.trim(),
+      });
+      setEditingRuleId(null);
+      setEditingRuleText("");
+      await refreshRules();
+      setToast("Rule updated! Click 'Apply changes' to publish.");
+      setTimeout(() => setToast(""), 3000);
+    } catch {
+      setToast("Failed to save rule edit.");
+      setTimeout(() => setToast(""), 3000);
+    } finally {
+      setSavingEditRule(false);
+    }
+  }
+
+  async function handleDeleteRule(ruleId: number) {
+    const ok = window.confirm("Are you sure you want to delete this rule?");
+    if (!ok) return;
+    setDeletingRuleId(ruleId);
+    try {
+      await api.delete(`/api/config/rules/${ruleId}`);
+      await refreshRules();
+      setToast("Rule deleted. Click 'Apply changes' to publish.");
+      setTimeout(() => setToast(""), 3000);
+    } catch {
+      setToast("Failed to delete rule.");
+      setTimeout(() => setToast(""), 3000);
+    } finally {
+      setDeletingRuleId(null);
+    }
+  }
+
+  async function handleApplyChanges(force = false) {
+    setApplyingChanges(true);
+    setApplyError("");
+    try {
+      const url = force ? "/api/config/rules/apply?force=true" : "/api/config/rules/apply";
+      const res = await api.post<ApplyChangesResponse>(url, {});
+      if (res && res.status === "blocked") {
+        if (userRole === "super_admin") {
+          setShowSuperAdminOverrideModal(true);
+        } else {
+          setApplyError(res.message || "Changes blocked: Super Admin prompt customization lock is active.");
+        }
+        return;
+      }
+      setToast(res?.message || "Changes applied! Assistant updated.");
+      setTimeout(() => setToast(""), 4000);
+      await refreshRules();
+      try {
+        const botData = await api.get<{ system_prompt_text?: string }>("/api/config/bot");
+        if (botData?.system_prompt_text) {
+          setPromptText(botData.system_prompt_text);
+        }
+      } catch {
+        // ignore
+      }
+      setWidgetKey((k) => k + 1);
+      setChatResetKey((k) => k + 1);
+    } catch (err: unknown) {
+      let msg = "Failed to apply changes.";
+      if (err instanceof Error) {
+        msg = err.message;
+      } else if (
+        err &&
+        typeof err === "object" &&
+        "detail" in err &&
+        typeof (err as { detail: unknown }).detail === "string"
+      ) {
+        msg = (err as { detail: string }).detail;
+      }
+      setApplyError(msg);
+    } finally {
+      setApplyingChanges(false);
+    }
+  }
+
+  async function handleResetToPlatformManaged() {
+    const ok = window.confirm(
+      "Resetting will clear the manual Super Admin prompt override and restore automatic platform prompt assembly from rules and knowledge. Continue?"
+    );
+    if (!ok) return;
+    setResettingPrompt(true);
+    try {
+      await api.post("/api/config/bot", { reset_system_prompt: true });
+      setIsCustomizedByAdmin(false);
+      setToast("Prompt reset to platform-managed!");
+      setTimeout(() => setToast(""), 4000);
+      await refreshRules();
+      try {
+        const botData = await api.get<{ system_prompt_text?: string }>("/api/config/bot");
+        setPromptText(botData?.system_prompt_text || "");
+      } catch {
+        // ignore
+      }
+      setWidgetKey((k) => k + 1);
+      setChatResetKey((k) => k + 1);
+    } catch {
+      setToast("Failed to reset prompt override.");
+      setTimeout(() => setToast(""), 3000);
+    } finally {
+      setResettingPrompt(false);
     }
   }
 
@@ -787,7 +1012,612 @@ export default function TestingPage() {
       {/* Shop mode: import the store's products */}
       {(role === "shop" || role === "all") && <ShopProductsCard />}
 
-      {/* Card 2: Booking Link & More Options (booking parts not used by shops) */}
+      {/* Card 2: Tell us what to change (Natural Language Custom Rules) */}
+      <section
+        style={{
+          backgroundColor: C.bgCard,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          padding: "1.5rem",
+          display: "flex",
+          flexDirection: "column",
+          gap: "1.25rem",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              marginBottom: "0.35rem",
+            }}
+          >
+            <h2
+              style={{
+                fontSize: "1rem",
+                fontWeight: 700,
+                color: C.textPrimary,
+                margin: 0,
+              }}
+            >
+              Tell us what to change
+            </h2>
+          </div>
+          <p
+            style={{
+              fontSize: "0.8rem",
+              color: C.textSecondary,
+              margin: 0,
+              lineHeight: 1.45,
+            }}
+          >
+            Give your assistant clear, simple rules. We&apos;ll turn your request into a live rule.
+          </p>
+        </div>
+
+        {/* Input & Add Button */}
+        <div>
+          <div
+            style={{
+              display: "flex",
+              gap: "0.65rem",
+              alignItems: "center",
+            }}
+          >
+            <input
+              type="text"
+              value={ruleInstructionInput}
+              onChange={(e) => {
+                setRuleInstructionInput(e.target.value);
+                if (ruleError) setRuleError("");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleAddRule();
+                }
+              }}
+              placeholder="e.g. Don't talk about pricing"
+              disabled={addingRule || rules.length >= maxRules}
+              style={{
+                flex: 1,
+                backgroundColor: C.bgSurface,
+                border: `1px solid ${ruleError ? C.error : C.border}`,
+                borderRadius: 8,
+                padding: "0.65rem 0.85rem",
+                fontSize: "0.85rem",
+                color: C.textPrimary,
+                outline: "none",
+                fontFamily: "inherit",
+                boxSizing: "border-box",
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => handleAddRule()}
+              disabled={addingRule || !ruleInstructionInput.trim() || rules.length >= maxRules}
+              style={{
+                backgroundColor: C.accent,
+                color: "#ffffff",
+                border: "none",
+                borderRadius: 8,
+                padding: "0.65rem 1.35rem",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                cursor:
+                  addingRule || !ruleInstructionInput.trim() || rules.length >= maxRules
+                    ? "default"
+                    : "pointer",
+                opacity:
+                  addingRule || !ruleInstructionInput.trim() || rules.length >= maxRules
+                    ? 0.6
+                    : 1,
+                transition: "all 0.15s ease",
+                fontFamily: "inherit",
+                whiteSpace: "nowrap",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+              }}
+            >
+              {addingRule ? "Synthesizing…" : "Add"}
+            </button>
+          </div>
+
+          {/* Example Chips */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              flexWrap: "wrap",
+              marginTop: "0.65rem",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "0.75rem",
+                color: C.textMuted,
+                fontWeight: 500,
+              }}
+            >
+              Examples:
+            </span>
+            {EXAMPLE_CHIPS.map((chip) => (
+              <button
+                key={chip}
+                type="button"
+                onClick={() => {
+                  setRuleInstructionInput(chip);
+                  if (ruleError) setRuleError("");
+                }}
+                disabled={addingRule || rules.length >= maxRules}
+                style={{
+                  backgroundColor: "transparent",
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 999,
+                  padding: "0.22rem 0.65rem",
+                  fontSize: "0.75rem",
+                  color: C.textSecondary,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  transition: "all 0.15s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = C.accent;
+                  e.currentTarget.style.color = C.accent;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = C.border;
+                  e.currentTarget.style.color = C.textSecondary;
+                }}
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+
+          {/* Rule Error Notice */}
+          {ruleError && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginTop: "0.75rem",
+                padding: "0.55rem 0.85rem",
+                borderRadius: 8,
+                backgroundColor: "rgba(239, 68, 68, 0.12)",
+                border: `1px solid ${C.error}`,
+                color: C.error,
+                fontSize: "0.78rem",
+              }}
+            >
+              <span>{ruleError}</span>
+              <button
+                type="button"
+                onClick={() => setRuleError("")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: C.error,
+                  cursor: "pointer",
+                  fontSize: "0.85rem",
+                  padding: "0 4px",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Max Rules Quota Warning */}
+          {rules.length >= maxRules && (
+            <div
+              style={{
+                marginTop: "0.65rem",
+                padding: "0.5rem 0.75rem",
+                borderRadius: 6,
+                backgroundColor: "rgba(245, 158, 11, 0.1)",
+                border: "1px solid rgba(245, 158, 11, 0.3)",
+                color: "#b45309",
+                fontSize: "0.75rem",
+              }}
+            >
+              Rule quota reached ({maxRules}/{maxRules}). Delete or deactivate an existing rule to add more.
+            </div>
+          )}
+        </div>
+
+        {/* Divider */}
+        <div style={{ height: 1, backgroundColor: C.border }} />
+
+        {/* Your Custom Rules Section */}
+        <div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: "0.85rem",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <h3
+                style={{
+                  fontSize: "0.92rem",
+                  fontWeight: 700,
+                  color: C.textPrimary,
+                  margin: 0,
+                }}
+              >
+                Your custom rules
+              </h3>
+              <span
+                style={{
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  color: C.textMuted,
+                  backgroundColor: C.bgSurface,
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  border: `1px solid ${C.border}`,
+                }}
+              >
+                {rules.length}/{maxRules}
+              </span>
+            </div>
+
+            {hasUnappliedChanges && (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  fontSize: "0.72rem",
+                  fontWeight: 600,
+                  color: "#d97706",
+                  backgroundColor: "rgba(245, 158, 11, 0.12)",
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                }}
+              >
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    backgroundColor: "#f59e0b",
+                  }}
+                />
+                Not applied yet
+              </span>
+            )}
+          </div>
+
+          {/* Rules List */}
+          {rulesLoading ? (
+            <div
+              style={{
+                color: C.textMuted,
+                fontSize: "0.8rem",
+                padding: "1rem 0",
+                textAlign: "center",
+              }}
+            >
+              Loading rules…
+            </div>
+          ) : rules.length === 0 ? (
+            <div
+              style={{
+                padding: "1.5rem 1rem",
+                textAlign: "center",
+                backgroundColor: C.bgSurface,
+                borderRadius: 8,
+                border: `1px dashed ${C.border}`,
+                color: C.textMuted,
+                fontSize: "0.82rem",
+              }}
+            >
+              No custom rules yet. Tell us what to change above to create your first rule.
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: "0.6rem" }}>
+              {rules.map((r) => {
+                const isEditing = editingRuleId === r.id;
+                return (
+                  <div
+                    key={r.id}
+                    style={{
+                      padding: "0.75rem 0.9rem",
+                      backgroundColor: C.bgSurface,
+                      borderRadius: 8,
+                      border: `1px solid ${C.border}`,
+                      transition: "border-color 0.15s ease",
+                    }}
+                  >
+                    {isEditing ? (
+                      /* Inline Edit Mode */
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.5rem",
+                        }}
+                      >
+                        <textarea
+                          value={editingRuleText}
+                          onChange={(e) => setEditingRuleText(e.target.value)}
+                          rows={2}
+                          style={{
+                            width: "100%",
+                            backgroundColor: C.bgCard,
+                            border: `1px solid ${C.accent}`,
+                            borderRadius: 6,
+                            padding: "0.5rem 0.75rem",
+                            fontSize: "0.82rem",
+                            color: C.textPrimary,
+                            outline: "none",
+                            fontFamily: "inherit",
+                            resize: "vertical",
+                            boxSizing: "border-box",
+                          }}
+                        />
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "flex-end",
+                            gap: "0.5rem",
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingRuleId(null);
+                              setEditingRuleText("");
+                            }}
+                            disabled={savingEditRule}
+                            style={{
+                              background: "none",
+                              border: `1px solid ${C.border}`,
+                              borderRadius: 6,
+                              padding: "0.3rem 0.75rem",
+                              fontSize: "0.75rem",
+                              color: C.textSecondary,
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                            }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveEdit(r.id)}
+                            disabled={savingEditRule || !editingRuleText.trim()}
+                            style={{
+                              backgroundColor: C.accent,
+                              border: "none",
+                              borderRadius: 6,
+                              padding: "0.3rem 0.85rem",
+                              fontSize: "0.75rem",
+                              color: "#ffffff",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                            }}
+                          >
+                            {savingEditRule ? "Saving…" : "Save"}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* View Mode */
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          justifyContent: "space-between",
+                          gap: "0.85rem",
+                        }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.45rem",
+                              flexWrap: "wrap",
+                              marginBottom: 4,
+                            }}
+                          >
+                            {!r.is_applied && (
+                              <span
+                                style={{
+                                  fontSize: "0.68rem",
+                                  fontWeight: 700,
+                                  color: "#d97706",
+                                  backgroundColor: "rgba(245, 158, 11, 0.14)",
+                                  padding: "1px 6px",
+                                  borderRadius: 4,
+                                }}
+                              >
+                                Not applied yet
+                              </span>
+                            )}
+                            {r.category && r.category !== "general" && (
+                              <span
+                                style={{
+                                  fontSize: "0.68rem",
+                                  color: C.textMuted,
+                                  backgroundColor: C.bgCard,
+                                  border: `1px solid ${C.border}`,
+                                  padding: "1px 5px",
+                                  borderRadius: 4,
+                                  textTransform: "capitalize",
+                                }}
+                              >
+                                {r.category}
+                              </span>
+                            )}
+                          </div>
+                          <p
+                            style={{
+                              fontSize: "0.83rem",
+                              color: r.is_active ? C.textPrimary : C.textMuted,
+                              textDecoration: r.is_active ? "none" : "line-through",
+                              margin: 0,
+                              lineHeight: 1.45,
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {r.instruction_text}
+                          </p>
+                        </div>
+
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.45rem",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {/* Toggle Active / Inactive */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleRule(r)}
+                            disabled={togglingRuleId === r.id}
+                            title={r.is_active ? "Click to deactivate rule" : "Click to activate rule"}
+                            style={{
+                              backgroundColor: r.is_active
+                                ? "rgba(16, 185, 129, 0.12)"
+                                : "rgba(156, 163, 175, 0.14)",
+                              border: `1px solid ${r.is_active ? C.success : C.border}`,
+                              color: r.is_active ? C.success : C.textMuted,
+                              borderRadius: 6,
+                              padding: "0.22rem 0.55rem",
+                              fontSize: "0.72rem",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                              transition: "all 0.15s ease",
+                            }}
+                          >
+                            {togglingRuleId === r.id ? "…" : r.is_active ? "Active" : "Inactive"}
+                          </button>
+
+                          {/* Edit Rule */}
+                          <button
+                            type="button"
+                            onClick={() => handleStartEdit(r)}
+                            title="Edit rule text"
+                            style={{
+                              background: "none",
+                              border: `1px solid ${C.border}`,
+                              borderRadius: 6,
+                              padding: "0.22rem 0.55rem",
+                              fontSize: "0.72rem",
+                              color: C.textSecondary,
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                            }}
+                          >
+                            Edit
+                          </button>
+
+                          {/* Delete Rule */}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRule(r.id)}
+                            disabled={deletingRuleId === r.id}
+                            title="Delete rule"
+                            style={{
+                              background: "none",
+                              border: "1px solid rgba(239, 68, 68, 0.3)",
+                              borderRadius: 6,
+                              padding: "0.22rem 0.55rem",
+                              fontSize: "0.72rem",
+                              color: C.error,
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                            }}
+                          >
+                            {deletingRuleId === r.id ? "…" : "Delete"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Apply Changes Section (Prominently shown when hasUnappliedChanges is true) */}
+        {hasUnappliedChanges && (
+          <div
+            style={{
+              padding: "1rem 1.15rem",
+              borderRadius: 10,
+              backgroundColor: "rgba(245, 158, 11, 0.08)",
+              border: "1px solid rgba(245, 158, 11, 0.35)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: "0.85rem",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <span style={{ fontSize: "1.2rem" }}>⚡</span>
+              <div>
+                <div style={{ fontSize: "0.84rem", fontWeight: 700, color: C.textPrimary }}>
+                  Unapplied changes pending
+                </div>
+                <div style={{ fontSize: "0.74rem", color: C.textSecondary, marginTop: 2 }}>
+                  Click Apply changes to compile rules into the live assistant.
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleApplyChanges(false)}
+              disabled={applyingChanges}
+              style={{
+                backgroundColor: "#f59e0b",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: 8,
+                padding: "0.55rem 1.35rem",
+                fontSize: "0.82rem",
+                fontWeight: 700,
+                cursor: applyingChanges ? "default" : "pointer",
+                opacity: applyingChanges ? 0.6 : 1,
+                fontFamily: "inherit",
+                boxShadow: "0 2px 8px rgba(245, 158, 11, 0.3)",
+                transition: "all 0.15s ease",
+              }}
+            >
+              {applyingChanges ? "Applying changes…" : "Apply changes"}
+            </button>
+          </div>
+        )}
+
+        {applyError && (
+          <div
+            style={{
+              padding: "0.55rem 0.85rem",
+              borderRadius: 6,
+              backgroundColor: "rgba(239, 68, 68, 0.12)",
+              border: `1px solid ${C.error}`,
+              color: C.error,
+              fontSize: "0.78rem",
+            }}
+          >
+            {applyError}
+          </div>
+        )}
+      </section>
+
+      {/* Card 3: Booking Link & More Options (booking parts not used by shops) */}
       <section
         style={{
           backgroundColor: C.bgCard,
@@ -1191,165 +2021,201 @@ export default function TestingPage() {
         </>
         )}
 
-        {/* Collapsible: Advanced Settings (System Prompt) */}
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowAdvancedSettings((prev) => !prev)}
-            style={{
-              background: "none",
-              border: "none",
-              padding: 0,
-              color: C.textSecondary,
-              fontSize: "0.82rem",
-              fontWeight: 600,
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-              fontFamily: "inherit",
-            }}
-          >
-            {showAdvancedSettings ? "Hide advanced settings ▴" : "Advanced Settings ▾"}
-          </button>
-
-          {showAdvancedSettings && (
-            <div
+        {/* Collapsible: Advanced Settings (Platform Super Admin Only) */}
+        {isSuperAdmin && (
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowAdvancedSettings((prev) => !prev)}
               style={{
-                marginTop: "1rem",
-                padding: "1.1rem",
-                borderRadius: 10,
-                backgroundColor: C.bgSurface,
-                border: `1px solid ${C.border}`,
+                background: "none",
+                border: "none",
+                padding: 0,
+                color: C.textSecondary,
+                fontSize: "0.82rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                fontFamily: "inherit",
               }}
             >
+              {showAdvancedSettings ? "Hide advanced settings ▴" : "Advanced Settings ▾"}
+            </button>
+
+            {showAdvancedSettings && (
               <div
                 style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "flex-start",
-                  flexWrap: "wrap",
-                  gap: "0.75rem",
-                  marginBottom: "0.85rem",
+                  marginTop: "1rem",
+                  padding: "1.1rem",
+                  borderRadius: 10,
+                  backgroundColor: C.bgSurface,
+                  border: `1px solid ${C.border}`,
                 }}
               >
                 <div>
-                  <h3
+                  <div
                     style={{
-                      fontSize: "0.85rem",
-                      fontWeight: 700,
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      flexWrap: "wrap",
+                      gap: "0.75rem",
+                      marginBottom: "0.85rem",
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <h3
+                          style={{
+                            fontSize: "0.85rem",
+                            fontWeight: 700,
+                            color: C.textPrimary,
+                            margin: 0,
+                          }}
+                        >
+                          Core System Prompt
+                        </h3>
+                        <span
+                          style={{
+                            fontSize: "0.68rem",
+                            fontWeight: 700,
+                            color: "#8b5cf6",
+                            backgroundColor: "rgba(139, 92, 246, 0.12)",
+                            padding: "1px 6px",
+                            borderRadius: 4,
+                          }}
+                        >
+                          Super Admin Only
+                        </span>
+                      </div>
+                      <p
+                        style={{
+                          color: C.textMuted,
+                          fontSize: "0.75rem",
+                          margin: "4px 0 0 0",
+                        }}
+                      >
+                        Platform-level assembled prompt. Manual edits will lock the prompt and prevent automatic rule compilation.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Super Admin Lock Banner */}
+                  {isCustomizedByAdmin && (
+                    <div
+                      style={{
+                        marginBottom: "0.85rem",
+                        padding: "0.75rem 0.9rem",
+                        borderRadius: 8,
+                        backgroundColor: "rgba(245, 158, 11, 0.1)",
+                        border: "1px solid rgba(245, 158, 11, 0.35)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        flexWrap: "wrap",
+                        gap: "0.65rem",
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#d97706" }}>
+                          ⚠️ Prompt Locked by Super Admin
+                        </div>
+                        <div style={{ fontSize: "0.72rem", color: C.textSecondary, marginTop: 2 }}>
+                          Automated rule updates and knowledge base refreshes will not overwrite manual prompt edits.
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleResetToPlatformManaged}
+                        disabled={resettingPrompt}
+                        style={{
+                          backgroundColor: "transparent",
+                          color: "#d97706",
+                          border: "1px solid #d97706",
+                          borderRadius: 6,
+                          padding: "0.35rem 0.75rem",
+                          fontSize: "0.75rem",
+                          fontWeight: 600,
+                          cursor: resettingPrompt ? "default" : "pointer",
+                          opacity: resettingPrompt ? 0.6 : 1,
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        {resettingPrompt ? "Resetting…" : "Reset to Platform Managed"}
+                      </button>
+                    </div>
+                  )}
+
+                  <textarea
+                    value={promptText}
+                    onChange={(e) => {
+                      setPromptText(e.target.value);
+                      setPromptDirty(true);
+                    }}
+                    rows={12}
+                    style={{
+                      width: "100%",
+                      backgroundColor: C.bgCard,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 8,
+                      padding: "0.85rem",
+                      fontSize: "0.78rem",
+                      lineHeight: 1.6,
                       color: C.textPrimary,
-                      margin: "0 0 2px 0",
+                      resize: "vertical",
+                      outline: "none",
+                      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                      boxSizing: "border-box",
                     }}
-                  >
-                    Core System Prompt
-                  </h3>
-                  <p
+                  />
+
+                  <div
                     style={{
-                      color: C.textMuted,
-                      fontSize: "0.75rem",
-                      margin: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      flexWrap: "wrap",
+                      gap: "0.75rem",
+                      marginTop: "0.85rem",
                     }}
                   >
-                    AI instructions assembled for your agent. You can inspect, generate, or customize them here.
-                  </p>
+                    <span
+                      style={{
+                        fontSize: "0.72rem",
+                        color: C.textMuted,
+                      }}
+                    >
+                      Saving manual prompt changes locks the configuration from automatic overwrites.
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={saveSystemPrompt}
+                      disabled={savingPrompt}
+                      style={{
+                        backgroundColor: promptDirty ? C.accent : "transparent",
+                        color: promptDirty ? "#ffffff" : C.textSecondary,
+                        border: `1px solid ${promptDirty ? C.accent : C.border}`,
+                        borderRadius: 6,
+                        padding: "0.45rem 1rem",
+                        fontSize: "0.78rem",
+                        fontWeight: 600,
+                        cursor: savingPrompt ? "default" : "pointer",
+                        opacity: savingPrompt ? 0.6 : 1,
+                        fontFamily: "inherit",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      {savingPrompt ? "Saving Prompt…" : "Save System Prompt"}
+                    </button>
+                  </div>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={generateSystemPrompt}
-                  disabled={generatingPrompt || saving || savingPrompt}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.4rem",
-                    backgroundColor: "rgba(138, 100, 233, 0.12)",
-                    color: C.accent,
-                    border: `1px solid ${C.accent}`,
-                    borderRadius: 6,
-                    padding: "0.45rem 0.85rem",
-                    fontSize: "0.75rem",
-                    fontWeight: 700,
-                    cursor:
-                      generatingPrompt || saving || savingPrompt
-                        ? "not-allowed"
-                        : "pointer",
-                    opacity: generatingPrompt || saving || savingPrompt ? 0.6 : 1,
-                    fontFamily: "inherit",
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  {generatingPrompt ? "Generating…" : "✨ Generate System Prompt"}
-                </button>
               </div>
-
-              <textarea
-                value={promptText}
-                onChange={(e) => {
-                  setPromptText(e.target.value);
-                  setPromptDirty(true);
-                }}
-                rows={12}
-                style={{
-                  width: "100%",
-                  backgroundColor: C.bgCard,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 8,
-                  padding: "0.85rem",
-                  fontSize: "0.78rem",
-                  lineHeight: 1.6,
-                  color: C.textPrimary,
-                  resize: "vertical",
-                  outline: "none",
-                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                  boxSizing: "border-box",
-                }}
-              />
-
-              {/* Isolated System Prompt Save Action */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  flexWrap: "wrap",
-                  gap: "0.75rem",
-                  marginTop: "0.85rem",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: "0.72rem",
-                    color: C.textMuted,
-                  }}
-                >
-                  Prompt changes require explicit saving and reload assistant directives.
-                </span>
-
-                <button
-                  type="button"
-                  onClick={saveSystemPrompt}
-                  disabled={savingPrompt || generatingPrompt}
-                  style={{
-                    backgroundColor: promptDirty ? C.accent : "transparent",
-                    color: promptDirty ? "#ffffff" : C.textSecondary,
-                    border: `1px solid ${promptDirty ? C.accent : C.border}`,
-                    borderRadius: 6,
-                    padding: "0.45rem 1rem",
-                    fontSize: "0.78rem",
-                    fontWeight: 600,
-                    cursor: savingPrompt ? "default" : "pointer",
-                    opacity: savingPrompt ? 0.6 : 1,
-                    fontFamily: "inherit",
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  {savingPrompt ? "Saving Prompt…" : "Save System Prompt"}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </section>
     </div>
   );
@@ -1495,7 +2361,7 @@ export default function TestingPage() {
                 alignItems: "center",
                 gap: 6,
                 fontSize: "0.78rem",
-                color: C.success,
+                color: hasUnappliedChanges ? C.warning : C.success,
                 fontWeight: 600,
               }}
             >
@@ -1504,10 +2370,10 @@ export default function TestingPage() {
                   width: 7,
                   height: 7,
                   borderRadius: "50%",
-                  backgroundColor: C.success,
+                  backgroundColor: hasUnappliedChanges ? C.warning : C.success,
                 }}
               />
-              Live Testing Active
+              {hasUnappliedChanges ? "Draft Preview Active" : "Live Testing Active"}
             </div>
           </div>
 
@@ -1647,7 +2513,7 @@ export default function TestingPage() {
                   gap: 6,
                   fontSize: "0.75rem",
                   fontWeight: 500,
-                  color: C.success,
+                  color: hasUnappliedChanges ? C.warning : C.success,
                 }}
               >
                 <span
@@ -1655,10 +2521,12 @@ export default function TestingPage() {
                     width: 7,
                     height: 7,
                     borderRadius: "50%",
-                    backgroundColor: C.success,
+                    backgroundColor: hasUnappliedChanges ? C.warning : C.success,
                   }}
                 />
-                Ready · updates when you save
+                {hasUnappliedChanges
+                  ? "Draft changes active in preview"
+                  : "Ready · updates when you save"}
               </div>
             </div>
           )}
@@ -1674,6 +2542,7 @@ export default function TestingPage() {
             onExpandChange={(exp: boolean) => setIsChatExpanded(exp)}
             onReset={handleResetTesting}
             isSubscriptionActive={subStatus?.is_active ?? true}
+            useDraft={hasUnappliedChanges}
           />
         </div>
       </div>
@@ -1816,6 +2685,7 @@ export default function TestingPage() {
               onExpandChange={(exp: boolean) => setIsChatExpanded(exp)}
               onReset={handleResetTesting}
               isSubscriptionActive={subStatus?.is_active ?? true}
+              useDraft={hasUnappliedChanges}
             />
           </div>
         </div>
@@ -1876,6 +2746,23 @@ export default function TestingPage() {
           setCalDialogType(null);
         }}
         onConfirm={confirmDisconnectCal}
+      />
+
+      {/* Super Admin Override Confirmation Dialog */}
+      <ConfirmDialog
+        open={showSuperAdminOverrideModal}
+        eyebrow="Super Admin Override"
+        title="Override Super Admin Customization?"
+        description="A platform Super Admin has previously customized the system prompt for this assistant. Applying changes now will overwrite the manual prompt and restore platform-managed rules. Do you want to force apply?"
+        confirmLabel="Force Apply Changes"
+        cancelLabel="Cancel"
+        tone="warning"
+        busy={applyingChanges}
+        onCancel={() => setShowSuperAdminOverrideModal(false)}
+        onConfirm={async () => {
+          setShowSuperAdminOverrideModal(false);
+          await handleApplyChanges(true);
+        }}
       />
 
       {/* Responsive & Animation Styles */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { FullSiteAuditTab, type ConnectedWebsite } from "./_components/FullSiteAuditTab";
 import { TrafficMatrixTab } from "./_components/TrafficMatrixTab";
@@ -38,26 +38,22 @@ interface AppPerformanceData {
 type TabKey = "site-audit" | "traffic";
 
 export default function SeoHubPage() {
-  const [activeTab, setActiveTab] = useState<TabKey>("site-audit");
+  const [activeTab, setActiveTab] = useState<TabKey>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get("tab");
+      if (tab === "traffic" || tab === "chat-activity") {
+        return "traffic";
+      }
+    }
+    return "site-audit";
+  });
   const [primaryWebsite, setPrimaryWebsite] = useState<ConnectedWebsite | null>(null);
 
   // Lazy-loaded Chat Activity performance data
   const [performanceData, setPerformanceData] = useState<AppPerformanceData | null>(null);
   const [loadingPerformance, setLoadingPerformance] = useState(false);
   const [performanceError, setPerformanceError] = useState<string | null>(null);
-
-  // Sync tab from URL if present (e.g. ?tab=traffic or ?tab=chat-activity)
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const tab = params.get("tab");
-      if (tab === "site-audit" || tab === "website-check") {
-        setActiveTab("site-audit");
-      } else if (tab === "traffic" || tab === "chat-activity") {
-        setActiveTab("traffic");
-      }
-    }
-  }, []);
 
   // Fetch website list once for header domain link
   useEffect(() => {
@@ -80,27 +76,32 @@ export default function SeoHubPage() {
     };
   }, []);
 
-  // Lazy-load app-performance only when Chat Activity is activated
-  const loadPerformance = useCallback(async () => {
-    if (performanceData || loadingPerformance) return;
-    setLoadingPerformance(true);
-    setPerformanceError(null);
-    try {
-      const res = await api.get<AppPerformanceData>("/api/analytics/app-performance");
-      setPerformanceData(res);
-    } catch (err: unknown) {
-      console.error("Failed to load app performance data", err);
-      setPerformanceError("Unable to load chat activity data.");
-    } finally {
-      setLoadingPerformance(false);
-    }
-  }, [performanceData, loadingPerformance]);
 
   useEffect(() => {
+    let cancelled = false;
     if (activeTab === "traffic" && !performanceData && !loadingPerformance) {
-      void loadPerformance();
+      void (async () => {
+        try {
+          const res = await api.get<AppPerformanceData>("/api/analytics/app-performance");
+          if (!cancelled) {
+            setPerformanceData(res);
+          }
+        } catch (err: unknown) {
+          if (!cancelled) {
+            console.error("Failed to load app performance data", err);
+            setPerformanceError("Unable to load chat activity data.");
+          }
+        } finally {
+          if (!cancelled) {
+            setLoadingPerformance(false);
+          }
+        }
+      })();
     }
-  }, [activeTab, performanceData, loadingPerformance, loadPerformance]);
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, performanceData, loadingPerformance]);
 
   const handleTabChange = (tab: TabKey) => {
     setActiveTab(tab);

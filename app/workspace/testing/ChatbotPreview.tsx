@@ -31,6 +31,7 @@ export interface ChatbotPreviewProps {
   isSubscriptionActive?: boolean;
   /** Shop mode: shopper starter questions instead of demo booking. */
   isShop?: boolean;
+  useDraft?: boolean;
 }
 
 // Pure ID and timestamp generators to satisfy React compiler purity rules
@@ -321,6 +322,7 @@ export function ChatbotPreview({
   onReset,
   isSubscriptionActive = true,
   isShop = false,
+  useDraft = false,
 }: ChatbotPreviewProps) {
   // Business name as visitors should read it: workspaces are created as
   // "<Name>'s Workspace", so that suffix is dropped.
@@ -369,7 +371,7 @@ export function ChatbotPreview({
   const chatInputRef = useRef<HTMLInputElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const initPromiseRef = useRef<Promise<unknown> | null>(null);
+  const initPromiseRef = useRef<Promise<void> | null>(null);
 
   // Preset suggested prompts matching Reference Screenshot 1
   const presetQuestions = isShop
@@ -398,7 +400,17 @@ export function ChatbotPreview({
     setDocuments([]);
     setActiveDocIndex(0);
     setIsDocViewerOpen(true);
-  }, [effectiveTenantName]);
+  }, [assistantLabel]);
+
+  const isExpandedRef = useRef(isExpanded);
+  const onExpandChangeRef = useRef(onExpandChange);
+  const resetGreetingRef = useRef(resetGreeting);
+
+  useEffect(() => {
+    isExpandedRef.current = isExpanded;
+    onExpandChangeRef.current = onExpandChange;
+    resetGreetingRef.current = resetGreeting;
+  }, [isExpanded, onExpandChange, resetGreeting]);
 
   // Initial Session setup and conversation restoration
   useEffect(() => {
@@ -421,8 +433,8 @@ export function ChatbotPreview({
           const restored = await restoreConversationMessages(curToken, curSessionId, tenantSlug);
           if (!isCancelled && restored && restored.length > 0) {
             setMessages(restored);
-            if (!isExpanded) {
-              onExpandChange(true);
+            if (!isExpandedRef.current && onExpandChangeRef.current) {
+              onExpandChangeRef.current(true);
             }
           }
 
@@ -477,7 +489,7 @@ export function ChatbotPreview({
                   });
                   setVisitorToken(data.visitor_token);
                   setSessionId(data.session_id);
-                  resetGreeting();
+                  resetGreetingRef.current();
                 }
               }
             }
@@ -758,10 +770,15 @@ export function ChatbotPreview({
       };
       if (currentTok) headers["X-Visitor-Token"] = currentTok;
       if (tenantSlug) headers["X-Tenant-Slug"] = tenantSlug;
+      if (useDraft) {
+        headers["x-ryx-draft"] = "true";
+        headers["x-ryx-preview"] = "true";
+      }
 
       const response = await fetch("/api/chat", {
         method: "POST",
         headers,
+        credentials: "include",
         body: JSON.stringify({
           message: rawMessage,
           session_id: currentSess || createMsgId("sess"),
@@ -1123,21 +1140,76 @@ export function ChatbotPreview({
             padding: "1.25rem 1.5rem",
             display: "flex",
             alignItems: "center",
-            gap: "0.75rem",
+            justifyContent: "space-between",
             borderBottom: "1px solid #F3F4F6",
           }}
         >
-          <StarIcon color={themeColor} />
-          <span
-            style={{
-              fontSize: "0.95rem",
-              fontWeight: 600,
-              color: "#1F2937",
-              fontFamily: "inherit",
-            }}
-          >
-            AI Assistant
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <StarIcon color={themeColor} />
+            <span
+              style={{
+                fontSize: "0.95rem",
+                fontWeight: 600,
+                color: "#1F2937",
+                fontFamily: "inherit",
+              }}
+            >
+              AI Assistant
+            </span>
+          </div>
+          {useDraft ? (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                borderRadius: 999,
+                padding: "0.2rem 0.6rem",
+                backgroundColor: "rgba(245, 158, 11, 0.12)",
+                color: "#d97706",
+                fontSize: "0.72rem",
+                fontWeight: 700,
+                letterSpacing: "0.2px",
+              }}
+              title="Previewing draft unapplied rules"
+            >
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  backgroundColor: "#f59e0b",
+                }}
+              />
+              Draft Preview
+            </span>
+          ) : (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                borderRadius: 999,
+                padding: "0.2rem 0.6rem",
+                backgroundColor: "rgba(16, 185, 129, 0.12)",
+                color: "#059669",
+                fontSize: "0.72rem",
+                fontWeight: 700,
+                letterSpacing: "0.2px",
+              }}
+              title="Using published rules"
+            >
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  backgroundColor: "#10b981",
+                }}
+              />
+              Live Agent
+            </span>
+          )}
         </div>
 
         {/* Scrollable Message Content & Suggested Prompts */}
@@ -1540,6 +1612,59 @@ export function ChatbotPreview({
               >
                 AI Assistant
               </span>
+              {useDraft ? (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    borderRadius: 999,
+                    padding: "0.15rem 0.55rem",
+                    backgroundColor: "rgba(245, 158, 11, 0.12)",
+                    color: "#d97706",
+                    fontSize: "0.72rem",
+                    fontWeight: 700,
+                    letterSpacing: "0.2px",
+                  }}
+                  title="Previewing draft unapplied rules"
+                >
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      backgroundColor: "#f59e0b",
+                    }}
+                  />
+                  Draft Preview
+                </span>
+              ) : (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    borderRadius: 999,
+                    padding: "0.15rem 0.55rem",
+                    backgroundColor: "rgba(16, 185, 129, 0.12)",
+                    color: "#059669",
+                    fontSize: "0.72rem",
+                    fontWeight: 700,
+                    letterSpacing: "0.2px",
+                  }}
+                  title="Using published rules"
+                >
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      backgroundColor: "#10b981",
+                    }}
+                  />
+                  Live Agent
+                </span>
+              )}
             </div>
 
             {/* Close / Reset Action in Top-Right of Conversation Card (Screenshot 2) */}

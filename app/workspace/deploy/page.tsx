@@ -62,7 +62,13 @@ export default function DeployPage() {
   useEffect(() => {
     async function loadTenant() {
       try {
-        const me = await api.get<{ tenant?: { slug: string; name?: string; is_subscription_active?: boolean } }>("/api/auth/me");
+        const me = await api.get<{
+          tenant?: {
+            slug: string;
+            name?: string;
+            is_subscription_active?: boolean;
+          };
+        }>("/api/auth/me");
         setTenantSlug(me.tenant?.slug || "");
         // Workspaces are created as "<Name>'s Workspace"; greet with just the name.
         setTenantName((me.tenant?.name || "").replace(/['\u2019]s workspace$/i, "").trim());
@@ -500,7 +506,7 @@ export default function DeployPage() {
                   border: "1px solid var(--border)",
                 }}
               >
-                👋 Hello! I&apos;m the {tenantName || "RYX AI"} assistant. How can I help you?
+                👋 Hello! I&apos;m the {tenantName ? `${tenantName} AI Assistant` : "AI Assistant"}. How can I help you?
               </div>
               {/* Bot button */}
               <div

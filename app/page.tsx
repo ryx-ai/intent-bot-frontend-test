@@ -1,15 +1,38 @@
 "use client";
 
-import { useState, useEffect, FormEvent } from "react";
+import { useState, useEffect, useCallback, FormEvent } from "react";
 import Image from "next/image";
 import Script from "next/script";
 import { useAuth } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
 
-// Minimal shape of the Google Identity Services object this page uses.
-interface GoogleIdentity {
-  initialize: (options: { client_id: string; callback: (response: { credential?: string }) => void }) => void;
-  renderButton: (parent: HTMLElement, options: Record<string, string>) => void;
+interface GoogleCredentialResponse {
+  credential?: string;
+}
+
+interface GoogleAccountsId {
+  initialize: (config: {
+    client_id: string;
+    callback: (response: GoogleCredentialResponse) => void | Promise<void>;
+  }) => void;
+  renderButton: (
+    parent: HTMLElement,
+    options: {
+      theme?: string;
+      size?: string;
+      width?: string | number;
+      text?: string;
+      shape?: string;
+    }
+  ) => void;
+}
+
+interface GoogleWindow extends Window {
+  google?: {
+    accounts?: {
+      id?: GoogleAccountsId;
+    };
+  };
 }
 
 export default function AuthPage() {
@@ -18,84 +41,86 @@ export default function AuthPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("error") === "suspended") {
+        return "This account has been suspended.\nPlease contact support.";
+      } else if (params.get("error") === "deleted") {
+        return "This account is no longer active.";
+      }
+    }
+    return "";
+  });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  const [prevMode, setPrevMode] = useState(mode);
+  if (prevMode !== mode) {
+    setPrevMode(mode);
+    setError("");
+  }
+
   const GOOGLE_CLIENT_ID =
     process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
     "545089022739-gp76voof01st3vkkcs9o0e66p8kd6htg.apps.googleusercontent.com";
 
-  useEffect(() => {
-    setError("");
-  }, [mode]);
-
-  useEffect(() => {
+  const initGoogleSignIn = useCallback(() => {
     if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("error") === "suspended") {
-        setError("This account has been suspended.\nPlease contact support.");
-      } else if (params.get("error") === "deleted") {
-        setError("This account is no longer active.");
-      }
-    }
-  }, []);
-
-  const initGoogleSignIn = () => {
-    const googleId = typeof window !== "undefined"
-      ? (window as unknown as { google?: { accounts?: { id?: GoogleIdentity } } }).google?.accounts?.id
-      : undefined;
-    if (googleId) {
-      try {
-        googleId.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: async (response: { credential?: string }) => {
-            if (response?.credential) {
-              setLoading(true);
-              setError("");
-              try {
-                await googleAuth(response.credential);
-                setSuccess(true);
-              } catch (err: unknown) {
-                setLoading(false);
-                if (err instanceof ApiError) {
-                  if (err.detail === "tenant_suspended") {
-                    setError("This account has been suspended.\nPlease contact support.");
-                  } else if (err.detail === "tenant_deleted") {
-                    setError("This account is no longer active.");
+      const gWin = window as unknown as GoogleWindow;
+      const accountsId = gWin.google?.accounts?.id;
+      if (accountsId) {
+        try {
+          accountsId.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: async (response: GoogleCredentialResponse) => {
+              if (response?.credential) {
+                setLoading(true);
+                setError("");
+                try {
+                  await googleAuth(response.credential);
+                  setSuccess(true);
+                } catch (err: unknown) {
+                  setLoading(false);
+                  if (err instanceof ApiError) {
+                    if (err.detail === "tenant_suspended") {
+                      setError("This account has been suspended.\nPlease contact support.");
+                    } else if (err.detail === "tenant_deleted") {
+                      setError("This account is no longer active.");
+                    } else {
+                      setError(typeof err.detail === "string" ? err.detail : "Google authentication failed.");
+                    }
                   } else {
-                    setError(err.detail || "Google authentication failed.");
+                    setError("Google authentication failed. Please try again.");
                   }
-                } else {
-                  setError("Google authentication failed. Please try again.");
                 }
               }
-            }
-          },
-        });
-
-        const btnDiv = document.getElementById("googleBtnContainer");
-        if (btnDiv) {
-          btnDiv.innerHTML = "";
-          googleId.renderButton(btnDiv, {
-            theme: "outline",
-            size: "large",
-            width: "320",
-            text: mode === "signin" ? "signin_with" : "signup_with",
-            shape: "pill",
+            },
           });
+
+          const btnDiv = document.getElementById("googleBtnContainer");
+          if (btnDiv) {
+            btnDiv.innerHTML = "";
+            accountsId.renderButton(btnDiv, {
+              theme: "outline",
+              size: "large",
+              width: "320",
+              text: mode === "signin" ? "signin_with" : "signup_with",
+              shape: "pill",
+            });
+          }
+        } catch (e) {
+          console.error("Error initializing Google Identity Services:", e);
         }
-      } catch (e) {
-        console.error("Error initializing Google Identity Services:", e);
       }
     }
-  };
+  }, [GOOGLE_CLIENT_ID, googleAuth, mode]);
 
   useEffect(() => {
     initGoogleSignIn();
-  }, [mode]);
+  }, [initGoogleSignIn]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -131,8 +156,10 @@ export default function AuthPage() {
           setError("Invalid email or password.");
         } else if (err.status === 429) {
           setError("Too many attempts. Please wait a moment and try again.");
+        } else if (err.status === 422) {
+          setError(typeof err.detail === "string" ? err.detail : "Validation error. Please check your email or password.");
         } else if (err.detail) {
-          setError(err.detail);
+          setError(typeof err.detail === "string" ? err.detail : err.message || "Authentication failed.");
         } else {
           setError("Authentication failed. Please try again.");
         }

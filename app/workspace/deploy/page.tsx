@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import ShopifyGuide from "./ShopifyGuide";
+import WebsiteConfirmBanner from "../_components/WebsiteConfirmBanner";
 
 const PLATFORMS: { icon: string; name: string; guide?: boolean }[] = [
   { icon: "🔷", name: "WordPress" },
@@ -131,6 +132,8 @@ export default function DeployPage() {
 
   return (
     <div style={{ width: "100%", maxWidth: 1400, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
+      <WebsiteConfirmBanner />
+
       {/* Expired Subscription Warning */}
       {isSubActive === false && (
         <div

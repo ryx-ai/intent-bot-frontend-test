@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import ProductCards, { type ProductCard } from "./ProductCards";
 
 export interface DocumentVisual {
   image_url: string;
@@ -17,6 +18,7 @@ export interface ChatMessage {
   timestamp?: string;
   calendarUrl?: string;
   followups?: string[];
+  products?: ProductCard[];
 }
 
 export interface ChatbotPreviewProps {
@@ -27,6 +29,8 @@ export interface ChatbotPreviewProps {
   onExpandChange: (expanded: boolean) => void;
   onReset?: () => void;
   isSubscriptionActive?: boolean;
+  /** Shop mode: shopper starter questions instead of demo booking. */
+  isShop?: boolean;
 }
 
 // Pure ID and timestamp generators to satisfy React compiler purity rules
@@ -316,6 +320,7 @@ export function ChatbotPreview({
   onExpandChange,
   onReset,
   isSubscriptionActive = true,
+  isShop = false,
 }: ChatbotPreviewProps) {
   // Business name as visitors should read it: workspaces are created as
   // "<Name>'s Workspace", so that suffix is dropped.
@@ -367,11 +372,17 @@ export function ChatbotPreview({
   const initPromiseRef = useRef<Promise<unknown> | null>(null);
 
   // Preset suggested prompts matching Reference Screenshot 1
-  const presetQuestions = [
-    `What does ${effectiveTenantName} do?`,
-    `What are the services provided by ${effectiveTenantName}?`,
-    "Book a Demo/Call",
-  ];
+  const presetQuestions = isShop
+    ? [
+        "What are your bestsellers?",
+        "How long does delivery take?",
+        "What is your return policy?",
+      ]
+    : [
+        `What does ${effectiveTenantName} do?`,
+        `What are the services provided by ${effectiveTenantName}?`,
+        "Book a Demo/Call",
+      ];
 
   // Helper to initialize conversation with greeting
   const resetGreeting = useCallback(() => {
@@ -882,6 +893,15 @@ export function ChatbotPreview({
                 setMessages((prev) =>
                   prev.map((m) =>
                     m.id === botMsgId ? { ...m, calendarUrl: data.meta_calendar_url } : m,
+                  ),
+                );
+              }
+
+              // Shop mode: product cards for the products the reply names
+              if (data.meta_products && Array.isArray(data.meta_products)) {
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === botMsgId ? { ...m, products: data.meta_products } : m,
                   ),
                 );
               }
@@ -1681,6 +1701,10 @@ export function ChatbotPreview({
                               <span>📅 Book Meeting</span>
                             </a>
                           </div>
+                        )}
+
+                        {msg.products && msg.products.length > 0 && (
+                          <ProductCards products={msg.products} themeColor={themeColor} />
                         )}
 
                         {/* Followup suggested question chips */}

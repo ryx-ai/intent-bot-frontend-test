@@ -5,6 +5,10 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { ConfirmDialog } from "../_components/ConfirmDialog";
 import { ChatbotPreview } from "./ChatbotPreview";
+import ShopProductsCard from "./ShopProductsCard";
+import ChatColourPicker from "./ChatColourPicker";
+import ShopSuggestionBanner from "./ShopSuggestionBanner";
+import WebsiteConfirmBanner from "../_components/WebsiteConfirmBanner";
 
 interface Plan {
   id: number;
@@ -42,6 +46,11 @@ const C = {
 
 const ROLES = [
   {
+    key: "all",
+    label: "All-rounder",
+    desc: "Does everything: answers questions, shows your products (if you have a store), helps people buy, and books demos or calls when someone asks.",
+  },
+  {
     key: "hybrid",
     label: "Sales + Support",
     desc: "Answers questions and gently guides people to buy or book.",
@@ -60,6 +69,11 @@ const ROLES = [
     key: "booking",
     label: "Demo booking",
     desc: "Focuses only on collecting Name, Email & Time for a demo.",
+  },
+  {
+    key: "shop",
+    label: "Shop assistant",
+    desc: "For online shops: helps visitors find products and answers shipping, returns and order questions. Never offers demos or calls.",
   },
 ];
 
@@ -102,6 +116,9 @@ export default function TestingPage() {
   const [role, setRole] = useState("hybrid");
   const [themeColor, setThemeColor] = useState("#FF4D00");
   const [calendarLink, setCalendarLink] = useState("");
+  const [supportContact, setSupportContact] = useState("");
+  // Role as last saved: the test chat follows the saved settings.
+  const [savedRole, setSavedRole] = useState("hybrid");
   const [calCredentials, setCalCredentials] = useState<CalCredential[]>([]);
   const [calCredLoading, setCalCredLoading] = useState(true);
   const [calCredName, setCalCredName] = useState("");
@@ -185,6 +202,7 @@ export default function TestingPage() {
             calendar_link: string;
             theme_color: string;
             system_prompt_text: string;
+            support_contact?: string;
           }>("/api/config/bot"),
           api.get<{ tenant?: { slug: string; name?: string } }>("/api/auth/me"),
           api.get<CalCredential[]>("/api/config/cal/list"),
@@ -205,6 +223,8 @@ export default function TestingPage() {
         if (dataRes.status === "fulfilled") {
           const data = dataRes.value;
           setRole(data.bot_role || "hybrid");
+          setSavedRole(data.bot_role || "hybrid");
+          setSupportContact(data.support_contact || "");
           if (data.theme_color) {
             setThemeColor(data.theme_color);
           }
@@ -287,7 +307,9 @@ export default function TestingPage() {
         bot_role: role,
         calendar_link: finalLink,
         theme_color: themeColor,
+        support_contact: supportContact.trim(),
       });
+      setSavedRole(role);
       setToast("Configuration saved!");
       setTimeout(() => setToast(""), 3000);
       setDirty(false);
@@ -601,6 +623,20 @@ export default function TestingPage() {
         </div>
       </div>
 
+      {/* The assistant was seen on a website: the owner confirms it first */}
+      <WebsiteConfirmBanner />
+
+      {/* Products found automatically on the owner's website: offer Shop mode */}
+      <ShopSuggestionBanner
+        onAccepted={() => {
+          setRole("shop");
+          setSavedRole("shop");
+          setWidgetKey((k) => k + 1);
+          setToast("Shop mode is on");
+          setTimeout(() => setToast(""), 3000);
+        }}
+      />
+
       {/* Card 1: Role Selection & Chat Colour */}
       <section
         style={{
@@ -632,7 +668,7 @@ export default function TestingPage() {
             className="role-tabs-grid"
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
+              gridTemplateColumns: "repeat(auto-fit, minmax(118px, 1fr))",
               gap: "0.5rem",
             }}
           >
@@ -688,8 +724,26 @@ export default function TestingPage() {
         {/* Divider */}
         <div style={{ height: 1, backgroundColor: C.border }} />
 
-        {/* Chat Colour Picker */}
-        <div>
+        {/* Chat colour: match the website, or choose a colour */}
+        <ChatColourPicker
+          value={themeColor}
+          onChange={(hex) => {
+            setThemeColor(hex);
+            setDirty(true);
+          }}
+        />
+      </section>
+
+      {/* Shop mode: how visitors reach a person */}
+      {(role === "shop" || role === "all") && (
+        <section
+          style={{
+            backgroundColor: C.bgCard,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            padding: "1.5rem",
+          }}
+        >
           <label
             style={{
               display: "block",
@@ -699,78 +753,41 @@ export default function TestingPage() {
               marginBottom: "0.35rem",
             }}
           >
-            Chat colour
+            Support contact <span style={{ color: C.textMuted, fontWeight: 400 }}>(optional)</span>
           </label>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.85rem",
-              marginTop: "0.5rem",
+          <input
+            type="text"
+            value={supportContact}
+            maxLength={500}
+            onChange={(e) => {
+              setSupportContact(e.target.value);
+              setDirty(true);
             }}
-          >
-            {/* Clickable Colour Swatch */}
-            <label
-              style={{
-                position: "relative",
-                width: 44,
-                height: 38,
-                borderRadius: 8,
-                backgroundColor: themeColor,
-                border: `1px solid ${C.border}`,
-                cursor: "pointer",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                overflow: "hidden",
-                flexShrink: 0,
-              }}
-              title="Click to pick colour"
-            >
-              <input
-                type="color"
-                value={themeColor}
-                onChange={(e) => {
-                  setThemeColor(e.target.value);
-                  setDirty(true);
-                }}
-                style={{
-                  opacity: 0,
-                  width: "100%",
-                  height: "100%",
-                  cursor: "pointer",
-                  position: "absolute",
-                  inset: 0,
-                }}
-              />
-            </label>
-            <div>
-              <span
-                style={{
-                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                  fontSize: "0.85rem",
-                  fontWeight: 600,
-                  color: C.textPrimary,
-                }}
-              >
-                {themeColor.toUpperCase()}
-              </span>
-              <p
-                style={{
-                  fontSize: "0.75rem",
-                  color: C.textMuted,
-                  margin: "2px 0 0 0",
-                }}
-              >
-                Click the box to pick or type your brand colour
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+            placeholder="e.g. WhatsApp +91 98765 43210 or support@yourshop.com"
+            style={{
+              width: "100%",
+              backgroundColor: C.bgSurface,
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+              padding: "0.65rem 0.85rem",
+              fontSize: "0.85rem",
+              color: C.textPrimary,
+              outline: "none",
+              fontFamily: "inherit",
+              boxSizing: "border-box",
+            }}
+          />
+          <p style={{ color: C.textMuted, fontSize: "0.75rem", marginTop: 6, marginBottom: 0, lineHeight: 1.5 }}>
+            Shared when a customer needs a person (damaged item, refund, complaint). Leave it empty and the
+            assistant will take the customer&apos;s name, email and problem instead. You&apos;ll find them on the Leads page.
+          </p>
+        </section>
+      )}
 
-      {/* Card 2: Booking Link & More Options */}
+      {/* Shop mode: import the store's products */}
+      {(role === "shop" || role === "all") && <ShopProductsCard />}
+
+      {/* Card 2: Booking Link & More Options (booking parts not used by shops) */}
       <section
         style={{
           backgroundColor: C.bgCard,
@@ -782,6 +799,8 @@ export default function TestingPage() {
           gap: "1.25rem",
         }}
       >
+        {role !== "shop" && (
+        <>
         <div>
           <label
             style={{
@@ -1169,6 +1188,8 @@ export default function TestingPage() {
             </div>
           )}
         </div>
+        </>
+        )}
 
         {/* Collapsible: Advanced Settings (System Prompt) */}
         <div>
@@ -1645,6 +1666,7 @@ export default function TestingPage() {
           {/* Persistent ChatbotPreview - Never remounts on state transition */}
           <ChatbotPreview
             key={`preview_${widgetKey}_${chatResetKey}`}
+            isShop={savedRole === "shop" || savedRole === "all"}
             themeColor={themeColor}
             tenantName={tenantName}
             tenantSlug={tenantSlug}
@@ -1786,6 +1808,7 @@ export default function TestingPage() {
             }}
           >
             <ChatbotPreview
+              isShop={savedRole === "shop" || savedRole === "all"}
               themeColor={themeColor}
               tenantName={tenantName}
               tenantSlug={tenantSlug}

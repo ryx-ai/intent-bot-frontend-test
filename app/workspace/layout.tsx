@@ -58,6 +58,7 @@ const SETTINGS_ITEMS = [
 const SUPER_ADMIN_NAV_ITEMS = [
   { label: "Tenant Management", href: "/workspace/admin/tenants" },
   { label: "Package Management", href: "/workspace/admin/plans" },
+  { label: "Core System Prompt", href: "/workspace/admin/core-prompt" },
 ];
 
 const SUPER_ADMIN_SETTINGS_ITEMS: typeof SETTINGS_ITEMS = [];

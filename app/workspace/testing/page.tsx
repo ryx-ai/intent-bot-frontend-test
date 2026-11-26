@@ -7,7 +7,7 @@ import { unsavedChangesStore } from "@/lib/unsaved-changes";
 import { ConfirmDialog } from "../_components/ConfirmDialog";
 import { ChatbotPreview } from "./ChatbotPreview";
 import ShopProductsCard from "./ShopProductsCard";
-import ChatColourPicker from "./ChatColourPicker";
+import ChatColourPicker, { MATCH_WEBSITE_COLOR } from "./ChatColourPicker";
 import ShopSuggestionBanner from "./ShopSuggestionBanner";
 import WebsiteConfirmBanner from "../_components/WebsiteConfirmBanner";
 import AssistantCollage, { type SettingKey } from "./AssistantCollage";
@@ -253,6 +253,13 @@ export default function TestingPage() {
   }, [openSetting]);
 
   const isSuperAdmin = userRole === "super_admin";
+
+  // Colour shown in the test chat. "Match your website" can't be shown here (we
+  // can't see their site), and plans without own branding use the standard navy.
+  const previewColor =
+    !planHas("custom_branding") || themeColor.toLowerCase() === MATCH_WEBSITE_COLOR.toLowerCase()
+      ? "#0f172a"
+      : themeColor;
 
   function showCalCredentialMessage(message: string, isError = false) {
     if (isError) {
@@ -861,8 +868,8 @@ export default function TestingPage() {
             onClick={save}
             disabled={saving}
             style={{
-              backgroundColor: C.accent,
-              color: "#ffffff",
+              backgroundColor: "var(--text-primary)",
+              color: "var(--bg-card)",
               border: "none",
               borderRadius: 8,
               padding: "0.55rem 1.25rem",
@@ -2611,8 +2618,8 @@ export default function TestingPage() {
                 onClick={save}
                 disabled={saving}
                 style={{
-                  backgroundColor: C.accent,
-                  color: "#ffffff",
+                  backgroundColor: "var(--text-primary)",
+                  color: "var(--bg-card)",
                   border: "none",
                   borderRadius: 8,
                   padding: "0.5rem 1.15rem",
@@ -2762,7 +2769,7 @@ export default function TestingPage() {
           <ChatbotPreview
             key={`preview_${widgetKey}_${chatResetKey}`}
             isShop={savedRole === "shop" || savedRole === "all"}
-            themeColor={themeColor}
+            themeColor={previewColor}
             tenantName={tenantName}
             tenantSlug={tenantSlug}
             isExpanded={isChatExpanded}
@@ -2816,8 +2823,8 @@ export default function TestingPage() {
           disabled={saving}
           style={{
             flex: 1,
-            backgroundColor: C.accent,
-            color: "#ffffff",
+            backgroundColor: "var(--text-primary)",
+            color: "var(--bg-card)",
             border: "none",
             borderRadius: 8,
             padding: "0.65rem",
@@ -2907,7 +2914,7 @@ export default function TestingPage() {
           >
             <ChatbotPreview
               isShop={savedRole === "shop" || savedRole === "all"}
-              themeColor={themeColor}
+              themeColor={previewColor}
               tenantName={tenantName}
               tenantSlug={tenantSlug}
               isExpanded={isChatExpanded}

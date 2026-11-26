@@ -70,6 +70,25 @@ function errorMessage(err: unknown, fallback: string) {
   return err.detail || fallback;
 }
 
+// Plain names for the feature codes stored with each plan.
+const FEATURE_NAMES: Record<string, string> = {
+  kb_upload: "Upload knowledge files",
+  agent_config: "Set up how the assistant behaves",
+  embed_widget: "Chat box on their website",
+  custom_branding: "Own colours and branding",
+  cal_booking: "Calendar booking in the chat",
+  analytics_export: "Download chats and reports",
+  priority_support: "Priority support",
+};
+function featureName(code: string): string {
+  if (FEATURE_NAMES[code]) return FEATURE_NAMES[code];
+  const t = code.replace(/_/g, " ").trim();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : code;
+}
+function limitText(val: number): string {
+  return val === -1 ? "Unlimited" : val.toLocaleString();
+}
+
 export default function PlansAdminPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -342,17 +361,17 @@ export default function PlansAdminPage() {
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-secondary)" }}>
-                    <span>Monthly Messages:</span>
+                    <span>Messages per month</span>
                     <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>
-                      {p.max_monthly_messages.toLocaleString()}
+                      {limitText(p.max_monthly_messages)}
                     </span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-secondary)" }}>
-                    <span>Max KB Files:</span>
-                    <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{p.max_kb_files}</span>
+                    <span>Knowledge files</span>
+                    <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{limitText(p.max_kb_files)}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-secondary)" }}>
-                    <span>Widget Embedding:</span>
+                    <span>Chat box on website</span>
                     <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>
                       {p.allow_widget_embed ? "Allowed" : "Disabled"}
                     </span>
@@ -371,13 +390,13 @@ export default function PlansAdminPage() {
                         marginBottom: "0.5rem",
                       }}
                     >
-                      Features Included
+                      What&apos;s included
                     </div>
                     <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.35rem", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
                       {p.features.map((feat, idx) => (
                         <li key={idx} style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
                           <span style={{ color: "#10b981", fontWeight: 800 }}>✓</span>
-                          <span>{feat}</span>
+                          <span title={feat}>{featureName(feat)}</span>
                         </li>
                       ))}
                     </ul>
@@ -529,7 +548,7 @@ export default function PlansAdminPage() {
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "0.35rem" }}>
-                    Monthly Messages Limit
+                    Messages per month (-1 = unlimited)
                   </label>
                   <input
                     type="number"
@@ -553,7 +572,7 @@ export default function PlansAdminPage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
                 <div>
                   <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "0.35rem" }}>
-                    Max KB Files
+                    Knowledge files (-1 = unlimited)
                   </label>
                   <input
                     type="number"

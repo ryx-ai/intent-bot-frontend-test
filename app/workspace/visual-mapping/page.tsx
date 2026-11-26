@@ -186,7 +186,7 @@ export default function VisualMappingPage() {
       className="visual-mapping-container"
       style={{
         width: "100%",
-        maxWidth: 1400,
+        maxWidth: 1360,
         margin: "0 auto",
         padding: "2rem",
         boxSizing: "border-box",
@@ -265,8 +265,8 @@ export default function VisualMappingPage() {
           <h1
             style={{
               margin: 0,
-              fontSize: "1.6rem",
-              fontWeight: 800,
+              fontSize: "1.75rem",
+              fontWeight: 700,
               color: "var(--text-primary)",
               letterSpacing: "-0.02em",
             }}

@@ -115,7 +115,7 @@ export default function SeoHubPage() {
   const domainDisplay = primaryWebsite?.domain || primaryWebsite?.root_url?.replace(/^https?:\/\//, "").replace(/\/.*$/, "") || "";
 
   return (
-    <div style={{ width: "100%", maxWidth: 1400, margin: "0 auto", padding: "2rem 1.5rem", boxSizing: "border-box" }}>
+    <div style={{ width: "100%", maxWidth: 1360, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
       {/* ── Main Header: "Website health" with site link on the right ── */}
       <header
         style={{
@@ -131,7 +131,7 @@ export default function SeoHubPage() {
           style={{
             margin: 0,
             fontSize: "1.75rem",
-            fontWeight: 800,
+            fontWeight: 700,
             color: "var(--text-primary)",
             letterSpacing: "-0.02em",
           }}

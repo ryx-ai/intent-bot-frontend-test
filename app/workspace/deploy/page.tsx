@@ -254,7 +254,7 @@ export default function DeployPage() {
   );
 
   return (
-    <div style={{ width: "100%", maxWidth: 1480, margin: "0 auto", padding: "2rem 1.75rem", boxSizing: "border-box" }}>
+    <div style={{ width: "100%", maxWidth: 1360, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
       <style>{`
         .dp-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
         .dp-preview { position: sticky; top: 24px; display: flex; flex-direction: column; }

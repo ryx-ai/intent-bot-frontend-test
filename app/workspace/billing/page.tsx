@@ -220,7 +220,7 @@ export default function BillingPage() {
 
   if (loading && !subStatus) {
     return (
-      <div style={{ width: "100%", maxWidth: 1400, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
+      <div style={{ width: "100%", maxWidth: 1360, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
         <p style={{ color: "var(--text-secondary)" }}>Loading billing & subscription details...</p>
       </div>
     );
@@ -270,7 +270,7 @@ export default function BillingPage() {
     <>
       <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
 
-      <div style={{ width: "100%", maxWidth: 1180, margin: "0 auto", padding: "2rem 1.75rem", boxSizing: "border-box" }}>
+      <div style={{ width: "100%", maxWidth: 1360, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
         <style>{`
           .bl-plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.25rem; align-items: stretch; }
           .bl-plan { transition: transform .18s ease, box-shadow .18s ease; }

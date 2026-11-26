@@ -521,7 +521,7 @@ export default function KnowledgeLakePage() {
   const manualWebUrls = webUrls.filter((u) => u.is_manual !== false);
 
   return (
-    <div style={{ width: "100%", maxWidth: 1480, margin: "0 auto", padding: "2rem 1.75rem", boxSizing: "border-box" }}>
+    <div style={{ width: "100%", maxWidth: 1360, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
       <style>{`
         @keyframes indeterminateMove {
           0% { left: -35%; width: 35%; }

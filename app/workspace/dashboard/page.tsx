@@ -502,7 +502,7 @@ export default function DashboardPage() {
   });
 
   return (
-    <div style={{ width: "100%", maxWidth: 1400, margin: "0 auto", padding: "2rem 1.5rem", boxSizing: "border-box" }}>
+    <div style={{ width: "100%", maxWidth: 1360, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
       <style>{`
         .summary-card {
           background-color: var(--bg-card);

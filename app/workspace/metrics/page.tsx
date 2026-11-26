@@ -731,9 +731,9 @@ export default function MetricsPage() {
       className="metrics-page-wrap"
       style={{
         width: "100%",
-        maxWidth: 1320,
+        maxWidth: 1360,
         margin: "0 auto",
-        padding: "2rem 1.75rem",
+        padding: "2rem",
         boxSizing: "border-box",
       }}
     >

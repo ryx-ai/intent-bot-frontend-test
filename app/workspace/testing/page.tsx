@@ -808,7 +808,7 @@ export default function TestingPage() {
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
           <h1
             style={{
-              fontSize: isDrawer ? "1.3rem" : "1.6rem",
+              fontSize: isDrawer ? "1.3rem" : "1.75rem",
               fontWeight: 700,
               color: C.textPrimary,
               margin: 0,
@@ -2458,10 +2458,10 @@ export default function TestingPage() {
     <div
       style={{
         width: "100%",
-        maxWidth: isChatExpanded ? 1480 : 1640,
+        maxWidth: 1360,
         boxSizing: "border-box",
         margin: "0 auto",
-        padding: "1.75rem 1.5rem 5rem 1.5rem",
+        padding: "2rem 2rem 5rem 2rem",
         backgroundColor: C.bg,
         minHeight: "100vh",
         transition: "max-width 0.35s ease",

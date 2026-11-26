@@ -144,7 +144,7 @@ export default function WorkspaceSettingsPage() {
 
   if (loading) {
     return (
-      <div style={{ width: "100%", maxWidth: 1400, margin: '0 auto', padding: '2rem', boxSizing: "border-box" }}>
+      <div style={{ width: "100%", maxWidth: 1360, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
         <p style={{ color: 'var(--text-secondary)' }}>Loading workspace settings...</p>
       </div>
     );
@@ -204,7 +204,7 @@ export default function WorkspaceSettingsPage() {
   };
 
   return (
-    <div style={{ width: "100%", maxWidth: 1080, margin: '0 auto', padding: '2rem 1.75rem', boxSizing: "border-box" }}>
+    <div style={{ width: "100%", maxWidth: 1360, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
       <style>{`
         .ws-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.25rem; align-items: stretch; }
         .ws-top { display: flex; align-items: center; justify-content: space-between; gap: 1.25rem; flex-wrap: wrap; }

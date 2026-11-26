@@ -11,6 +11,7 @@ import ChatColourPicker from "./ChatColourPicker";
 import ShopSuggestionBanner from "./ShopSuggestionBanner";
 import WebsiteConfirmBanner from "../_components/WebsiteConfirmBanner";
 import AssistantCollage, { type SettingKey } from "./AssistantCollage";
+import LiveSiteStatus from "../_components/SiteStatusChip";
 
 interface Plan {
   id: number;
@@ -155,77 +156,6 @@ const EXAMPLE_CHIPS = [
   "Reply in Malayalam",
 ];
 
-function timeAgo(iso: string): string {
-  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 2) return "just now";
-  if (mins < 60) return `${mins} min ago`;
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
-  const days = Math.round(hours / 24);
-  return `${days} day${days === 1 ? "" : "s"} ago`;
-}
-
-// Shows whether the chat box snippet is live on the owner's website.
-function SiteStatusChip({
-  status,
-}: {
-  status: { state: "connected" | "quiet" | "not_connected"; last_seen_at: string | null; origin: string | null };
-}) {
-  const host = status.origin ? status.origin.replace(/^https?:\/\//, "") : "";
-  const tone =
-    status.state === "connected"
-      ? { dot: "#10b981", label: `Live on ${host}`, sub: status.last_seen_at ? `seen ${timeAgo(status.last_seen_at)}` : "" }
-      : status.state === "quiet"
-        ? { dot: "#f59e0b", label: `Not seen on ${host} lately`, sub: status.last_seen_at ? `last ${timeAgo(status.last_seen_at)}` : "" }
-        : { dot: "#94a3b8", label: "Not on your website yet", sub: "" };
-  const showLink = status.state !== "connected";
-  return (
-    <span
-      title={
-        status.state === "connected"
-          ? "Your chat box loaded on your website recently."
-          : status.state === "quiet"
-            ? "Your chat box was installed, but hasn't loaded on your site for over a week. Check the snippet is still there."
-            : "We haven't seen your chat box load on a website yet. Add the snippet to your site to go live."
-      }
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 7,
-        padding: "5px 11px",
-        borderRadius: 999,
-        border: "1px solid var(--border)",
-        background: "var(--bg-card)",
-        fontSize: "0.78rem",
-        color: "var(--text-secondary)",
-        whiteSpace: "nowrap",
-        maxWidth: "100%",
-      }}
-    >
-      <span
-        aria-hidden
-        style={{
-          width: 8,
-          height: 8,
-          borderRadius: "50%",
-          background: tone.dot,
-          boxShadow: status.state === "connected" ? `0 0 0 3px color-mix(in srgb, ${tone.dot} 22%, transparent)` : "none",
-          flexShrink: 0,
-        }}
-      />
-      <span style={{ fontWeight: 600, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis" }}>
-        {tone.label}
-      </span>
-      {tone.sub && <span>· {tone.sub}</span>}
-      {showLink && (
-        <Link href="/workspace/deploy" style={{ fontWeight: 600, color: "var(--text-primary)", textDecoration: "none" }}>
-          · {status.state === "quiet" ? "Check snippet" : "Add to website"} ›
-        </Link>
-      )}
-    </span>
-  );
-}
-
 export default function TestingPage() {
   const [role, setRole] = useState("hybrid");
   const [themeColor, setThemeColor] = useState("#FF4D00");
@@ -310,30 +240,6 @@ export default function TestingPage() {
     return feats.includes(code);
   };
 
-  // Is the chat box snippet live on the owner's own website?
-  const [siteStatus, setSiteStatus] = useState<{
-    state: "connected" | "quiet" | "not_connected";
-    last_seen_at: string | null;
-    origin: string | null;
-  } | null>(null);
-  useEffect(() => {
-    let alive = true;
-    const load = () =>
-      api
-        .get<{ state: "connected" | "quiet" | "not_connected"; last_seen_at: string | null; origin: string | null }>(
-          "/api/config/widget-status",
-        )
-        .then((s) => {
-          if (alive && s) setSiteStatus(s);
-        })
-        .catch(() => {});
-    load();
-    const t = window.setInterval(load, 60_000);
-    return () => {
-      alive = false;
-      window.clearInterval(t);
-    };
-  }, []);
 
   // Collage view: which setting is open in the side panel
   const [openSetting, setOpenSetting] = useState<SettingKey | null>(null);
@@ -904,7 +810,7 @@ export default function TestingPage() {
           >
             Set up your assistant
           </h1>
-          {!isDrawer && siteStatus && <SiteStatusChip status={siteStatus} />}
+          {!isDrawer && <LiveSiteStatus />}
           {isDrawer && (
             <span
               style={{

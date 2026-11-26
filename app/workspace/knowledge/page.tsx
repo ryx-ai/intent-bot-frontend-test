@@ -538,11 +538,11 @@ export default function KnowledgeLakePage() {
         .mobile-only-menu {
           display: none;
         }
-        .kn-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+        .kn-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.25rem; align-items: stretch; }
         .kn-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1.25rem; }
         .kn-stat { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 1rem 1.15rem; display: flex; align-items: center; gap: .85rem; box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 6px 20px rgba(15,23,42,.03); }
         .kn-ico { width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-secondary); }
-        .kn-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 18px; padding: 1.5rem; box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 6px 20px rgba(15,23,42,.035); }
+        .kn-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 18px; padding: 1.5rem; box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 6px 20px rgba(15,23,42,.035); display: flex; flex-direction: column; }
         .kn-btn-dark { display: inline-flex; align-items: center; gap: .5rem; padding: .62rem 1.2rem; border-radius: 10px; border: none; background: #0f172a; color: #fff; font: inherit; font-weight: 600; font-size: .86rem; cursor: pointer; box-shadow: 0 4px 12px rgba(15,23,42,.18); transition: transform .15s, box-shadow .15s; }
         .kn-btn-dark:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(15,23,42,.22); }
         @media (max-width: 1080px) { .kn-grid { grid-template-columns: minmax(0, 1fr); } }
@@ -625,12 +625,11 @@ export default function KnowledgeLakePage() {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "0.85rem", flexWrap: "wrap" }}>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--text-secondary)" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 6 }}>
+              <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
                 {isUnlimited ? `${files.length} files used` : `${files.length} of ${maxKbFiles} used`}
                 <span
                   style={{
-                    marginLeft: 8,
                     fontSize: "0.7rem",
                     fontWeight: 600,
                     color: "var(--text-secondary)",
@@ -643,7 +642,7 @@ export default function KnowledgeLakePage() {
                 </span>
               </div>
               {!isUnlimited && maxKbFiles > 0 && (
-                <div style={{ height: 3, background: "var(--bg-hover)", borderRadius: 9999, overflow: "hidden", marginTop: 4, width: "100%", maxWidth: 120, marginLeft: "auto" }}>
+                <div style={{ height: 4, background: "var(--bg-hover)", borderRadius: 9999, overflow: "hidden", width: "100%" }}>
                   <div
                     style={{
                       height: "100%",
@@ -725,6 +724,10 @@ export default function KnowledgeLakePage() {
           /* Zero Files Empty State */
           <div
             style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
               border: dragOver ? "1.5px dashed var(--accent)" : "1.5px dashed var(--border)",
               borderRadius: 14,
               padding: "2.5rem 1.5rem",
@@ -945,16 +948,16 @@ export default function KnowledgeLakePage() {
             }}
           >
             <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem", marginBottom: "1.25rem" }}>
-              <div style={{ fontSize: "0.88rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "0.6rem" }}>
-                <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>1.</span>
+              <div style={{ fontSize: "0.88rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "0.7rem" }}>
+                <span aria-hidden style={{ width: 24, height: 24, flexShrink: 0, borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg-card)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: 700, color: "var(--text-primary)" }}>1</span>
                 <span>Add the chat to your website</span>
               </div>
-              <div style={{ fontSize: "0.88rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "0.6rem" }}>
-                <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>2.</span>
+              <div style={{ fontSize: "0.88rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "0.7rem" }}>
+                <span aria-hidden style={{ width: 24, height: 24, flexShrink: 0, borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg-card)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: 700, color: "var(--text-primary)" }}>2</span>
                 <span>We find your website by ourselves</span>
               </div>
-              <div style={{ fontSize: "0.88rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "0.6rem" }}>
-                <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>3.</span>
+              <div style={{ fontSize: "0.88rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "0.7rem" }}>
+                <span aria-hidden style={{ width: 24, height: 24, flexShrink: 0, borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg-card)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: 700, color: "var(--text-primary)" }}>3</span>
                 <span>Your assistant learns your pages</span>
               </div>
             </div>

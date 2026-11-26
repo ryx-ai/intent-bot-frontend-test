@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import LiveSiteStatus from "../_components/SiteStatusChip";
 import { api } from "@/lib/api";
 import ShopifyGuide from "./ShopifyGuide";
 import WebsiteConfirmBanner from "../_components/WebsiteConfirmBanner";
@@ -216,7 +217,7 @@ export default function DeployPage() {
   }
 
   const statusColor = health === "ok" ? "#10b981" : health === "down" ? "#ef4444" : "#f59e0b";
-  const statusText = health === "ok" ? "Live" : health === "down" ? "Can't reach the server" : "Checking…";
+  const statusText = health === "ok" ? "Ferry is online" : health === "down" ? "Can't reach the server" : "Checking…";
   const current = PLATFORMS.find((p) => p.key === platform) || PLATFORMS[0];
   const card: React.CSSProperties = {
     background: "var(--bg-card)",
@@ -322,6 +323,9 @@ export default function DeployPage() {
           <p style={{ margin: 0, fontSize: "0.95rem", color: "var(--text-secondary)" }}>
             Copy one line of code and paste it into your website. It takes about a minute.
           </p>
+          <div style={{ marginTop: "0.75rem" }}>
+            <LiveSiteStatus hideLink />
+          </div>
         </div>
         <span
           title={`${health === "down" ? "Cannot reach" : "Active at"} ${backendOrigin}`}

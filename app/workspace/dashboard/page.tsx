@@ -1149,20 +1149,23 @@ export default function DashboardPage() {
             }}
           >
             <div
+              aria-hidden
               style={{
-                width: 52,
-                height: 52,
-                borderRadius: "50%",
-                backgroundColor: "var(--accent-dim)",
-                color: "var(--accent)",
+                width: 56,
+                height: 56,
+                borderRadius: 16,
+                backgroundColor: "var(--text-primary)",
+                color: "var(--bg-card)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: "1.5rem",
                 marginBottom: "1.25rem",
+                boxShadow: "0 8px 20px rgba(15, 23, 42, 0.16)",
               }}
             >
-              💬
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />
+              </svg>
             </div>
             <h3
               style={{
@@ -1186,36 +1189,47 @@ export default function DashboardPage() {
               When visitors chat with your assistant on your website, you’ll see
               what they asked and who left their details here.
             </p>
-            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", justifyContent: "center" }}>
               <Link
                 href="/workspace/testing"
                 style={{
-                  padding: "0.6rem 1.15rem",
-                  backgroundColor: "var(--accent)",
-                  color: "#ffffff",
-                  borderRadius: 8,
-                  fontSize: "0.85rem",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "0.7rem 1.25rem",
+                  backgroundColor: "var(--text-primary)",
+                  color: "var(--bg-card)",
+                  borderRadius: 10,
+                  fontSize: "0.88rem",
                   fontWeight: 600,
                   textDecoration: "none",
-                  transition: "opacity 0.2s",
+                  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.12)",
                 }}
               >
                 Test your assistant
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
               </Link>
               <Link
                 href="/workspace/deploy"
                 style={{
-                  padding: "0.6rem 1.15rem",
-                  backgroundColor: "transparent",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "0.7rem 1.25rem",
+                  backgroundColor: "var(--bg-card)",
                   border: "1px solid var(--border)",
                   color: "var(--text-primary)",
-                  borderRadius: 8,
-                  fontSize: "0.85rem",
+                  borderRadius: 10,
+                  fontSize: "0.88rem",
                   fontWeight: 600,
                   textDecoration: "none",
-                  transition: "background-color 0.2s",
                 }}
               >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="m8 9-4 3 4 3M16 9l4 3-4 3M13.5 5l-3 14" />
+                </svg>
                 Add it to your website
               </Link>
             </div>

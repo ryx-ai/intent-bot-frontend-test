@@ -129,6 +129,7 @@ async function restoreConversationMessages(
       "Content-Type": "application/json",
       "X-Visitor-Token": token,
       "X-Tenant-Slug": slug,
+      "x-ryx-preview": "true",
     };
     const convRes = await fetch("/api/chat/conversations?limit=20", { headers });
     if (!convRes.ok) return null;
@@ -447,6 +448,7 @@ export function ChatbotPreview({
               headers: {
                 "Content-Type": "application/json",
                 "X-Tenant-Slug": tenantSlug,
+                "x-ryx-preview": "true",
                 "X-Visitor-Token": curToken,
               },
               body: JSON.stringify({}),
@@ -474,6 +476,7 @@ export function ChatbotPreview({
                 headers: {
                   "Content-Type": "application/json",
                   "X-Tenant-Slug": tenantSlug,
+                  "x-ryx-preview": "true",
                 },
                 body: JSON.stringify({}),
               });
@@ -501,6 +504,7 @@ export function ChatbotPreview({
             headers: {
               "Content-Type": "application/json",
               "X-Tenant-Slug": tenantSlug,
+              "x-ryx-preview": "true",
             },
             body: JSON.stringify({}),
           });
@@ -625,6 +629,7 @@ export function ChatbotPreview({
       };
       if (visitorToken) headers["X-Visitor-Token"] = visitorToken;
       if (tenantSlug) headers["X-Tenant-Slug"] = tenantSlug;
+      headers["x-ryx-preview"] = "true";
 
       const res = await fetch("/api/chat/conversations/new", {
         method: "POST",
@@ -740,7 +745,7 @@ export function ChatbotPreview({
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              ...(tenantSlug ? { "X-Tenant-Slug": tenantSlug } : {}),
+              ...(tenantSlug ? { "X-Tenant-Slug": tenantSlug, "x-ryx-preview": "true" } : {}),
               ...(currentTok ? { "X-Visitor-Token": currentTok } : {}),
             },
             body: JSON.stringify({}),
@@ -770,6 +775,7 @@ export function ChatbotPreview({
       };
       if (currentTok) headers["X-Visitor-Token"] = currentTok;
       if (tenantSlug) headers["X-Tenant-Slug"] = tenantSlug;
+      headers["x-ryx-preview"] = "true";
       if (useDraft) {
         headers["x-ryx-draft"] = "true";
         headers["x-ryx-preview"] = "true";

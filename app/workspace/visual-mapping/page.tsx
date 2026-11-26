@@ -83,7 +83,7 @@ export default function VisualMappingPage() {
   const groups = useMemo(() => {
     const map: Record<string, string[]> = {};
     for (const key of keys) {
-      const src = mappings[key]?.source || "Knowledge Lake Upload";
+      const src = mappings[key]?.source || "Knowledge upload";
       if (!map[src]) {
         map[src] = [];
       }
@@ -389,7 +389,7 @@ export default function VisualMappingPage() {
 
             <ol style={{ listStyle: "none", margin: "0 0 1.75rem", padding: 0, display: "grid", gap: "0.85rem" }}>
               {[
-                ["Upload a presentation", "Add a PDF in Knowledge Lake."],
+                ["Upload a presentation", "Add a PDF on the Knowledge page."],
                 ["We pick out the pictures", "Each slide is matched to its topic automatically."],
                 ["Customers see them in the chat", "Shown when someone asks about that topic."],
               ].map(([title, desc], i) => (
@@ -957,7 +957,7 @@ export default function VisualMappingPage() {
             <div>
               <span style={dialogLabelStyle}>Source</span>
               <span style={dialogMutedValueStyle}>
-                {mappings[deleteKeyword]?.source || "Knowledge Lake Upload"}
+                {mappings[deleteKeyword]?.source || "Knowledge upload"}
               </span>
             </div>
           </div>

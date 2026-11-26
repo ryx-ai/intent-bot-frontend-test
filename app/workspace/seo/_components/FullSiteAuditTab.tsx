@@ -599,57 +599,205 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
   // ── State A: No Authorized Website ─────────────────────────────────────────
 
   if (websites.length === 0) {
+    const steps = [
+      { n: "1", title: "Add your website", text: "On the Knowledge page, paste your website address." },
+      { n: "2", title: "Confirm it is yours", text: "We only check websites you confirm." },
+      { n: "3", title: "Run the check", text: "Come back here and get a plain list of fixes." },
+    ];
     return (
       <div
+        className="audit-intro"
         style={{
           backgroundColor: "var(--bg-card)",
           border: "1px solid var(--border)",
-          borderRadius: 14,
-          padding: "3rem 2rem",
-          textAlign: "center",
-          maxWidth: 580,
-          margin: "2rem auto",
+          borderRadius: 16,
+          boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.04)",
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1fr)",
+          overflow: "hidden",
         }}
       >
-        <div
-          style={{
-            width: 52,
-            height: 52,
-            borderRadius: "50%",
-            backgroundColor: "rgba(245, 158, 11, 0.12)",
-            color: "#F59E0B",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "1.75rem",
-            margin: "0 auto 1.25rem auto",
-          }}
-        >
-          🌐
+        <div style={{ padding: "2.5rem 2.5rem 2.25rem" }}>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              fontSize: "0.72rem",
+              fontWeight: 600,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: "var(--text-muted)",
+              marginBottom: "1rem",
+            }}
+          >
+            <span
+              aria-hidden
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 8,
+                border: "1px solid var(--border)",
+                background: "var(--bg-surface)",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "var(--text-primary)",
+              }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+              </svg>
+            </span>
+            Website check
+          </div>
+          <h2 style={{ fontSize: "1.5rem", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text-primary)", margin: "0 0 0.6rem 0", lineHeight: 1.25 }}>
+            Connect your website first
+          </h2>
+          <p style={{ fontSize: "0.92rem", color: "var(--text-secondary)", lineHeight: 1.65, margin: "0 0 1.6rem 0", maxWidth: 440 }}>
+            Once your website is connected, we can check it and tell you what to fix so more people find you on Google
+            and in AI search.
+          </p>
+
+          <ol style={{ listStyle: "none", padding: 0, margin: "0 0 1.85rem 0", display: "grid", gap: "0.85rem" }}>
+            {steps.map((st) => (
+              <li key={st.n} style={{ display: "flex", alignItems: "flex-start", gap: "0.8rem" }}>
+                <span
+                  aria-hidden
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: 8,
+                    flexShrink: 0,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    border: "1px solid var(--border)",
+                    background: "var(--bg-surface)",
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  {st.n}
+                </span>
+                <div>
+                  <div style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--text-primary)" }}>{st.title}</div>
+                  <div style={{ fontSize: "0.84rem", color: "var(--text-muted)", marginTop: 2 }}>{st.text}</div>
+                </div>
+              </li>
+            ))}
+          </ol>
+
+          <Link
+            href="/workspace/knowledge"
+            className="audit-start-btn"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "0.75rem 1.35rem",
+              borderRadius: 10,
+              backgroundColor: "var(--text-primary)",
+              color: "var(--bg-card)",
+              fontWeight: 600,
+              fontSize: "0.9rem",
+              textDecoration: "none",
+              boxShadow: "0 1px 2px rgba(15, 23, 42, 0.12)",
+            }}
+          >
+            Add my website
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </Link>
         </div>
-        <h2 style={{ fontSize: "1.25rem", fontWeight: 800, color: "var(--text-primary)", margin: "0 0 0.5rem 0" }}>
-          Connect your website first
-        </h2>
-        <p style={{ fontSize: "0.9rem", color: "var(--text-muted)", lineHeight: 1.5, margin: "0 0 1.5rem 0" }}>
-          Add and confirm your website in Knowledge Lake. Then come back here to check how healthy it is.
-        </p>
-        <Link
-          href="/workspace/knowledge"
+
+        {/* Right: what the report will look like */}
+        <div
+          aria-hidden
+          className="audit-intro-preview"
           style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "0.7rem 1.4rem",
-            borderRadius: 8,
-            backgroundColor: "var(--accent, #8A64E9)",
-            color: "#fff",
-            fontWeight: 700,
-            fontSize: "0.9rem",
-            textDecoration: "none",
+            background: "var(--bg-surface)",
+            borderLeft: "1px solid var(--border)",
+            padding: "2.25rem",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            gap: "0.9rem",
           }}
         >
-          Go to Knowledge Lake →
-        </Link>
+          <div style={{ fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>
+            Your report will look like this
+          </div>
+          <div
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border)",
+              borderRadius: 14,
+              padding: "1.1rem 1.2rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "1rem",
+            }}
+          >
+            <div
+              style={{
+                width: 58,
+                height: 58,
+                boxSizing: "border-box",
+                borderRadius: "50%",
+                border: "5px solid var(--border)",
+                borderTopColor: "var(--text-primary)",
+                borderRightColor: "var(--text-primary)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 700,
+                fontSize: "0.95rem",
+                color: "var(--text-muted)",
+                flexShrink: 0,
+              }}
+            >
+              --
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--text-primary)" }}>Health score</div>
+              <div style={{ height: 8, borderRadius: 4, background: "var(--border)", width: "70%", marginTop: 8 }} />
+            </div>
+          </div>
+          {["Titles and headings", "Page structure", "Images and speed", "Sharing previews"].map((label, i) => (
+            <div
+              key={label}
+              style={{
+                background: "var(--bg-card)",
+                border: "1px solid var(--border)",
+                borderRadius: 12,
+                padding: "0.75rem 1rem",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                opacity: 1 - i * 0.15,
+              }}
+            >
+              <span style={{ fontSize: "0.84rem", color: "var(--text-secondary)" }}>{label}</span>
+              <span style={{ height: 8, width: 56 - i * 8, borderRadius: 4, background: "var(--border)" }} />
+            </div>
+          ))}
+        </div>
+        <style>{`
+          .audit-start-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(15, 23, 42, 0.18) !important; }
+          @media (max-width: 860px) {
+            .audit-intro { grid-template-columns: 1fr !important; }
+            .audit-intro-preview { border-left: none !important; border-top: 1px solid var(--border); }
+          }
+          @media (max-width: 520px) {
+            .audit-intro > div:first-child { padding: 1.75rem 1.25rem !important; }
+            .audit-intro-preview { padding: 1.25rem !important; }
+          }
+        `}</style>
       </div>
     );
   }
@@ -703,7 +851,7 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  color: "var(--accent, #8A64E9)",
+                  color: "var(--text-primary)",
                 }}
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -739,8 +887,8 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
                       display: "inline-flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      background: "color-mix(in srgb, var(--accent, #8A64E9) 12%, transparent)",
-                      color: "var(--accent, #8A64E9)",
+                      background: "var(--bg-surface)",
+                      color: "var(--text-primary)",
                     }}
                   >
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
@@ -764,8 +912,8 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
                   padding: "0.75rem 1.35rem",
                   borderRadius: 10,
                   border: "none",
-                  backgroundColor: "var(--accent, #8A64E9)",
-                  color: "#fff",
+                  backgroundColor: "var(--text-primary)",
+                  color: "var(--bg-card)",
                   fontWeight: 600,
                   fontSize: "0.9rem",
                   fontFamily: "inherit",
@@ -820,7 +968,7 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
                     cy="27"
                     r="22"
                     fill="none"
-                    stroke="var(--accent, #8A64E9)"
+                    stroke="var(--text-primary)"
                     strokeWidth="5"
                     strokeLinecap="round"
                     strokeDasharray={`${2 * Math.PI * 22 * 0.72} ${2 * Math.PI * 22}`}
@@ -846,7 +994,7 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
                     <span style={{ color: "var(--text-muted)" }}>—</span>
                   </div>
                   <div style={{ height: 4, borderRadius: 999, background: "var(--border)", overflow: "hidden" }}>
-                    <div style={{ width: `${row.w}%`, height: "100%", borderRadius: 999, background: "color-mix(in srgb, var(--accent, #8A64E9) 35%, var(--border))" }} />
+                    <div style={{ width: `${row.w}%`, height: "100%", borderRadius: 999, background: "color-mix(in srgb, var(--text-primary) 30%, var(--border))" }} />
                   </div>
                 </div>
               ))}
@@ -854,7 +1002,7 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
           </div>
         </div>
         <style>{`
-          .audit-start-btn:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 6px 16px color-mix(in srgb, var(--accent, #8A64E9) 30%, transparent) !important; }
+          .audit-start-btn:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(15, 23, 42, 0.18) !important; }
           @media (max-width: 860px) {
             .audit-intro { grid-template-columns: 1fr !important; }
             .audit-intro-preview { border-left: none !important; border-top: 1px solid var(--border); }
@@ -890,7 +1038,7 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
               height: 56,
               borderRadius: "50%",
               backgroundColor: "color-mix(in srgb, var(--text-primary) 8%, transparent)",
-              color: "var(--accent, #8A64E9)",
+              color: "var(--text-primary)",
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
@@ -924,7 +1072,7 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
               style={{
                 width: "45%",
                 height: "100%",
-                backgroundColor: "var(--accent, #8A64E9)",
+                backgroundColor: "var(--text-primary)",
                 borderRadius: 3,
                 animation: "pulse 1.8s ease-in-out infinite",
               }}
@@ -996,8 +1144,8 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
               padding: "0.5rem 1.15rem",
               borderRadius: 8,
               border: "none",
-              backgroundColor: "var(--accent, #8A64E9)",
-              color: "#fff",
+              backgroundColor: "var(--text-primary)",
+              color: "var(--bg-card)",
               fontSize: "0.85rem",
               fontWeight: 700,
               cursor: isRunning ? "not-allowed" : "pointer",
@@ -1125,7 +1273,7 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
                 style={{
                   fontSize: "0.82rem",
                   fontWeight: 600,
-                  color: "var(--accent, #8A64E9)",
+                  color: "var(--text-primary)",
                   textDecoration: "none",
                   display: "inline-flex",
                   alignItems: "center",
@@ -1323,7 +1471,7 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
                       borderRadius: 9999,
                       border: isActive ? "1px solid color-mix(in srgb, var(--text-primary) 18%, transparent)" : "1px solid var(--border)",
                       backgroundColor: isActive ? "color-mix(in srgb, var(--text-primary) 8%, transparent)" : "var(--bg-card)",
-                      color: isActive ? "var(--accent, #8A64E9)" : "var(--text-muted)",
+                      color: isActive ? "var(--text-primary)" : "var(--text-muted)",
                       fontSize: "0.8rem",
                       fontWeight: isActive ? 700 : 500,
                       cursor: "pointer",
@@ -1528,7 +1676,7 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
                     borderRadius: 9999,
                     border: isActive ? "1px solid color-mix(in srgb, var(--text-primary) 18%, transparent)" : "1px solid var(--border)",
                     backgroundColor: isActive ? "color-mix(in srgb, var(--text-primary) 8%, transparent)" : "var(--bg-card)",
-                    color: isActive ? "var(--accent, #8A64E9)" : "var(--text-muted)",
+                    color: isActive ? "var(--text-primary)" : "var(--text-muted)",
                     fontSize: "0.8rem",
                     fontWeight: isActive ? 700 : 500,
                     cursor: "pointer",
@@ -1889,7 +2037,7 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
                           padding: "3px 10px",
                           borderRadius: 20,
                           backgroundColor: "color-mix(in srgb, var(--text-primary) 8%, transparent)",
-                          color: "var(--accent, #8A64E9)",
+                          color: "var(--text-primary)",
                         }}
                       >
                         Showing now
@@ -2025,8 +2173,8 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
                     padding: "0.55rem 1.25rem",
                     borderRadius: 8,
                     border: "none",
-                    backgroundColor: "var(--accent, #8A64E9)",
-                    color: "#fff",
+                    backgroundColor: "var(--text-primary)",
+                    color: "var(--bg-card)",
                     fontSize: "0.85rem",
                     fontWeight: 700,
                     cursor: "pointer",

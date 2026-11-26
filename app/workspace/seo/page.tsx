@@ -196,7 +196,7 @@ export default function SeoHubPage() {
                 fontWeight: isActive ? 600 : 500,
                 cursor: "pointer",
                 border: "none",
-                borderBottom: `2px solid ${isActive ? "var(--accent, #8A64E9)" : "transparent"}`,
+                borderBottom: `2px solid ${isActive ? "var(--text-primary)" : "transparent"}`,
                 backgroundColor: "transparent",
                 color: isActive ? "var(--text-primary)" : "var(--text-muted)",
                 transition: "color 0.15s ease, border-color 0.15s ease",

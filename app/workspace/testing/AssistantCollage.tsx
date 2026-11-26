@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { MATCH_WEBSITE_COLOR } from "./ChatColourPicker";
 
@@ -119,6 +120,7 @@ export default function AssistantCollage({
   maxRules,
   isSuperAdmin,
   onOpen,
+  locked,
 }: {
   roles: Role[];
   role: string;
@@ -130,8 +132,12 @@ export default function AssistantCollage({
   maxRules: number;
   isSuperAdmin: boolean;
   onOpen: (key: SettingKey) => void;
+  /** Settings the customer's plan does not include. */
+  locked?: { colour?: boolean; booking?: boolean };
 }) {
   const isShop = role === "shop" || role === "all";
+  const router = useRouter();
+  const toPlans = () => router.push("/workspace/billing");
   const [store, setStore] = useState<StoreSummary | null>(null);
   const [perf, setPerf] = useState<Performance | null>(null);
 
@@ -288,6 +294,20 @@ export default function AssistantCollage({
       )}
 
       {/* Chat colour */}
+      {locked?.colour ? (
+      <Tile label="Chat colour" action="Upgrade" onOpen={toPlans} style={{ gridColumn: isShop ? "span 3" : "span 6", background: "transparent", border: "1.5px dashed var(--border)", boxShadow: "none" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
+          <span style={{ fontSize: "0.95rem", fontWeight: 600, color: "var(--text-secondary)" }}>Standard colour</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: "0.72rem", fontWeight: 600, padding: "3px 9px", borderRadius: 999, border: "1px solid var(--border)", color: "var(--text-secondary)", background: "var(--bg-card)" }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+            Not in your plan
+          </span>
+        </div>
+        <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "auto", paddingTop: 12 }}>
+          Upgrade to use your own brand colour in the chat.
+        </span>
+      </Tile>
+      ) : (
       <Tile label="Chat colour" action="Change" onOpen={() => onOpen("colour")} style={{ gridColumn: isShop ? "span 3" : "span 6" }}>
         <div style={{ fontSize: "0.95rem", fontWeight: 600, marginTop: 8 }}>{matchSite ? "Matches your website" : "Your brand colour"}</div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: "auto", paddingTop: 12 }}>
@@ -306,6 +326,7 @@ export default function AssistantCollage({
           </span>
         </div>
       </Tile>
+      )}
 
       {/* Rules */}
       <Tile
@@ -368,7 +389,23 @@ export default function AssistantCollage({
       )}
 
       {/* Booking link (and admin options) */}
-      {showBooking && (
+      {showBooking && role !== "shop" && locked?.booking && (
+        <Tile
+          label="Booking link"
+          action="Upgrade"
+          onOpen={toPlans}
+          style={{ gridColumn: "span 2", background: "transparent", border: "1.5px dashed var(--border)", boxShadow: "none" }}
+        >
+          <div style={{ marginTop: "auto" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: "0.72rem", fontWeight: 600, padding: "3px 9px", borderRadius: 999, border: "1px solid var(--border)", color: "var(--text-secondary)", background: "var(--bg-card)" }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+            Not in your plan
+          </span></div>
+          <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 8 }}>
+            Upgrade to let visitors book a call from the chat
+          </span>
+        </Tile>
+      )}
+      {showBooking && !(role !== "shop" && locked?.booking) && (
         <Tile
           label={role === "shop" ? "Advanced" : "Booking link"}
           action={role === "shop" ? "Open" : calendarLink ? "Edit" : "Add"}

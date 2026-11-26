@@ -195,7 +195,7 @@ export function SinglePageScanTab({ initialSeo, defaultUrl, isConfigured }: Sing
             Enter a URL or Connect Website
           </h3>
           <p style={{ fontSize: "0.88rem", maxWidth: 500, margin: "0.5rem auto 1.5rem auto", lineHeight: 1.5 }}>
-            Type any URL above to perform a live scan, or configure your primary website in Knowledge Lake.
+            Type any URL above to perform a live scan, or add your main website on the Knowledge page.
           </p>
           <Link
             href="/workspace/knowledge"
@@ -212,7 +212,7 @@ export function SinglePageScanTab({ initialSeo, defaultUrl, isConfigured }: Sing
               gap: "0.5rem",
             }}
           >
-            Configure in Knowledge Lake →
+            Go to Knowledge →
           </Link>
         </div>
       ) : seo ? (

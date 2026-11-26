@@ -236,6 +236,22 @@ export default function TenantsAdminPage() {
     loadStats();
   }, [loadStats]);
 
+  // Fit the list to the screen: as many rows as fit, the rest via Next/Prev.
+  useEffect(() => {
+    const fit = () => {
+      const ROW = 57; // compact row height
+      const CHROME = 470; // header + cards + toolbar + table head + pagination + padding
+      const rows = Math.max(3, Math.min(20, Math.floor((window.innerHeight - CHROME) / ROW)));
+      setPageSize((prev) => {
+        if (prev !== rows) setPage(1);
+        return rows;
+      });
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, []);
+
   useEffect(() => {
     loadTenants();
   }, [loadTenants]);
@@ -273,296 +289,231 @@ export default function TenantsAdminPage() {
     <div
       style={{
         width: "100%",
-        padding: "2rem",
+        padding: "1.5rem 2rem",
         boxSizing: "border-box",
         maxWidth: 1400,
         margin: "0 auto",
         display: "flex",
         flexDirection: "column",
-        gap: "1.5rem",
+        gap: "1.1rem",
         color: "var(--text-primary)",
       }}
     >
+      <style>{`
+        .tn-row { transition: background .15s; }
+        .tn-row:hover { background: var(--bg-surface); }
+        .tn-row:hover .tn-act { opacity: 1; }
+
+        .tn-btn { font-family: inherit; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+        .tn-ghost:hover { background: var(--bg-hover); }
+        .tn-danger:hover { background: color-mix(in srgb, #ef4444 10%, transparent); border-color: color-mix(in srgb, #ef4444 45%, transparent); }
+        .tn-stat { transition: border-color .15s, box-shadow .15s, transform .15s; }
+        .tn-stat:hover { transform: translateY(-1px); box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 8px 22px rgba(15,23,42,.06); }
+        .tn-search:focus-within { border-color: var(--text-muted); }
+        @media (max-width: 760px) { .tn-hide-sm { display: none; } }
+      `}</style>
+
       {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          flexWrap: "wrap",
-          gap: "1rem",
-        }}
-      >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: "1rem" }}>
         <div>
-          <h1
-            style={{
-              fontSize: "1.75rem",
-              fontWeight: 700,
-              color: "var(--text-primary)",
-              margin: 0,
-              letterSpacing: "-0.02em",
-            }}
-          >
-            Tenant Management
+          <h1 style={{ fontSize: "1.6rem", fontWeight: 700, color: "var(--text-primary)", margin: 0, letterSpacing: "-0.025em" }}>
+            Tenants
           </h1>
-          <p
-            style={{
-              margin: "0.35rem 0 0 0",
-              fontSize: "0.9rem",
-              color: "var(--text-muted)",
-            }}
-          >
-            Super Admin dashboard for controlling client organizations, system access, and tenant status.
+          <p style={{ margin: "0.35rem 0 0", fontSize: "0.9rem", color: "var(--text-muted)" }}>
+            Every customer workspace on the platform, with its plan and status.
           </p>
         </div>
-        {/* <button
-          onClick={() => setIsCreateOpen(true)}
-          style={{
-            background: "var(--accent)",
-            color: "#ffffff",
-            border: "none",
-            borderRadius: 8,
-            padding: "0.65rem 1.25rem",
-            fontSize: "0.875rem",
-            fontWeight: 600,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            boxShadow: "var(--shadow-sm)",
-          }}
-        >
-          <span>+ Create New Tenant</span>
-        </button> */}
       </div>
 
       {/* Action Alerts */}
-      {actionSuccess && (
+      {(actionSuccess || error) && (
         <div
           style={{
-            padding: "0.85rem 1rem",
-            borderRadius: 8,
-            backgroundColor: "#ecfdf5",
-            border: "1px solid #a7f3d0",
-            color: "#065f46",
+            padding: "0.8rem 1rem",
+            borderRadius: 12,
+            border: "1px solid var(--border)",
+            background: "var(--bg-card)",
+            color: "var(--text-primary)",
             fontSize: "0.875rem",
             display: "flex",
-            justifyContent: "space-between",
             alignItems: "center",
+            gap: 10,
+            boxShadow: "0 1px 2px rgba(15,23,42,.04)",
           }}
         >
-          <span>{actionSuccess}</span>
+          <span aria-hidden style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: error ? "#ef4444" : "#10b981" }} />
+          <span style={{ flex: 1 }}>{error || actionSuccess}</span>
           <button
-            onClick={() => setActionSuccess("")}
-            style={{ background: "none", border: "none", color: "#065f46", fontWeight: 700, cursor: "pointer" }}
-          >
-            ✕
-          </button>
-        </div>
-      )}
-      {error && (
-        <div
-          style={{
-            padding: "0.85rem 1rem",
-            borderRadius: 8,
-            backgroundColor: "#fef2f2",
-            border: "1px solid #fecaca",
-            color: "#991b1b",
-            fontSize: "0.875rem",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <span>{error}</span>
-          <button
-            onClick={() => setError("")}
-            style={{ background: "none", border: "none", color: "#991b1b", fontWeight: 700, cursor: "pointer" }}
+            className="tn-btn tn-ghost"
+            onClick={() => (error ? setError("") : setActionSuccess(""))}
+            aria-label="Dismiss"
+            style={{ background: "none", border: "none", color: "var(--text-muted)", borderRadius: 6, padding: "2px 6px", fontSize: "0.9rem" }}
           >
             ✕
           </button>
         </div>
       )}
 
-      {/* Metrics Cards */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: "1rem",
-        }}
-      >
-        <div
-          style={{
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: 12,
-            padding: "1.25rem",
-            boxShadow: "var(--shadow-sm)",
-          }}
-        >
-          <div style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", letterSpacing: "0.05em" }}>
-            Total Tenants
-          </div>
-          <div style={{ fontSize: "2rem", fontWeight: 800, color: "var(--text-primary)", marginTop: "0.25rem" }}>
-            {stats.total}
-          </div>
-        </div>
-
-        <div
-          style={{
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: 12,
-            padding: "1.25rem",
-            boxShadow: "var(--shadow-sm)",
-          }}
-        >
-          <div style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "#10b981", letterSpacing: "0.05em" }}>
-            Active Subscriptions
-          </div>
-          <div style={{ fontSize: "2rem", fontWeight: 800, color: "#10b981", marginTop: "0.25rem" }}>
-            {stats.active}
-          </div>
-        </div>
-
-        <div
-          style={{
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: 12,
-            padding: "1.25rem",
-            boxShadow: "var(--shadow-sm)",
-          }}
-        >
-          <div style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "#d97706", letterSpacing: "0.05em" }}>
-            In Trial
-          </div>
-          <div style={{ fontSize: "2rem", fontWeight: 800, color: "#d97706", marginTop: "0.25rem" }}>
-            {stats.trial}
-          </div>
-        </div>
-
-        <div
-          style={{
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: 12,
-            padding: "1.25rem",
-            boxShadow: "var(--shadow-sm)",
-          }}
-        >
-          <div style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "#ef4444", letterSpacing: "0.05em" }}>
-            Expired / Suspended
-          </div>
-          <div style={{ fontSize: "2rem", fontWeight: 800, color: "#ef4444", marginTop: "0.25rem" }}>
-            {stats.expired}
-          </div>
-        </div>
+      {/* Metrics Cards (click to filter) */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "0.9rem" }}>
+        {[
+          { key: "all", label: "All tenants", value: stats.total, dot: "#0f172a", hint: "Total workspaces" },
+          { key: "active", label: "Paying", value: stats.active, dot: "#10b981", hint: "Active subscriptions" },
+          { key: "trial", label: "In trial", value: stats.trial, dot: "#f59e0b", hint: "Free trial running" },
+          { key: "expired", label: "Expired or suspended", value: stats.expired, dot: "#ef4444", hint: "Need attention" },
+        ].map((c) => {
+          const on = filterStatus === c.key;
+          const pct = stats.total > 0 && c.key !== "all" ? Math.round((c.value / stats.total) * 100) : null;
+          return (
+            <button
+              key={c.key}
+              className="tn-btn tn-stat"
+              onClick={() => {
+                setFilterStatus(c.key);
+                setPage(1);
+              }}
+              style={{
+                textAlign: "left",
+                background: "var(--bg-card)",
+                border: on ? "1px solid var(--text-primary)" : "1px solid var(--border)",
+                borderRadius: 16,
+                padding: "0.85rem 1.1rem",
+                boxShadow: "0 1px 2px rgba(15,23,42,.04)",
+                color: "var(--text-primary)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)" }}>
+                <span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: c.key === "all" ? "var(--text-primary)" : c.dot }} />
+                {c.label}
+              </div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: "0.55rem" }}>
+                <span style={{ fontSize: "1.9rem", fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1 }}>{c.value}</span>
+                {pct !== null && <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{pct}%</span>}
+              </div>
+              <div style={{ fontSize: "0.74rem", color: "var(--text-muted)", marginTop: "0.3rem" }}>{c.hint}</div>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Filter and Search Bar */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: "1rem",
-          backgroundColor: "var(--bg-card)",
-          padding: "0.75rem 1rem",
-          borderRadius: 12,
-          border: "1px solid var(--border)",
-          boxShadow: "var(--shadow-sm)",
-        }}
-      >
-        <div style={{ flex: 1, minWidth: 260 }}>
-          <input
-            type="text"
-            placeholder="Search tenant name, slug, email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "0.6rem 0.85rem",
-              fontSize: "0.875rem",
-              borderRadius: 8,
-              border: "1px solid var(--border)",
-              backgroundColor: "var(--bg)",
-              color: "var(--text-primary)",
-              outline: "none",
-            }}
-          />
-        </div>
-
-        <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
-          {["all", "active", "trial", "expired", "suspended"].map((status) => {
-            const isActive = filterStatus === status;
-            return (
-              <button
-                key={status}
-                onClick={() => {
-                  setFilterStatus(status);
-                  setPage(1);
-                }}
-                style={{
-                  padding: "0.4rem 0.85rem",
-                  fontSize: "0.8rem",
-                  fontWeight: 600,
-                  borderRadius: 6,
-                  textTransform: "capitalize",
-                  border: "none",
-                  cursor: "pointer",
-                  backgroundColor: isActive ? "var(--accent)" : "var(--border)",
-                  color: isActive ? "#ffffff" : "var(--text-secondary)",
-                  transition: "all 0.2s",
-                }}
-              >
-                {status}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Tenants Table */}
+      {/* Table card with toolbar */}
       <div
         style={{
           backgroundColor: "var(--bg-card)",
-          borderRadius: 12,
+          borderRadius: 16,
           border: "1px solid var(--border)",
           overflow: "hidden",
-          boxShadow: "var(--shadow-sm)",
+          boxShadow: "0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.04)",
         }}
       >
+        {/* Toolbar */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "0.75rem",
+            padding: "0.9rem 1rem",
+            borderBottom: "1px solid var(--border)",
+          }}
+        >
+          <label
+            className="tn-search"
+            style={{
+              flex: 1,
+              minWidth: 200,
+              maxWidth: 420,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "0 0.8rem",
+              height: 38,
+              borderRadius: 10,
+              border: "1px solid var(--border)",
+              background: "var(--bg-card)",
+              transition: "border-color .15s",
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" aria-hidden>
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search by name, slug or email"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ flex: 1, border: "none", outline: "none", background: "transparent", color: "var(--text-primary)", fontSize: "0.86rem", fontFamily: "inherit" }}
+            />
+            {search && (
+              <button className="tn-btn" onClick={() => setSearch("")} aria-label="Clear search" style={{ border: "none", background: "none", color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                ✕
+              </button>
+            )}
+          </label>
+
+          <div style={{ display: "flex", gap: 2, padding: 3, borderRadius: 10, background: "var(--bg-surface)", border: "1px solid var(--border)", maxWidth: "100%", overflowX: "auto" }}>
+            {["all", "active", "trial", "expired", "suspended"].map((status) => {
+              const isActive = filterStatus === status;
+              return (
+                <button
+                  key={status}
+                  className="tn-btn"
+                  onClick={() => {
+                    setFilterStatus(status);
+                    setPage(1);
+                  }}
+                  style={{
+                    padding: "0.35rem 0.8rem",
+                    fontSize: "0.8rem",
+                    fontWeight: isActive ? 650 : 500,
+                    borderRadius: 7,
+                    textTransform: "capitalize",
+                    whiteSpace: "nowrap",
+                    border: "none",
+                    backgroundColor: isActive ? "var(--bg-card)" : "transparent",
+                    color: isActive ? "var(--text-primary)" : "var(--text-muted)",
+                    boxShadow: isActive ? "0 1px 2px rgba(15,23,42,.08), 0 0 0 1px var(--border)" : "none",
+                  }}
+                >
+                  {status}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {loading ? (
-          <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>
-            Loading tenants...
+          <div style={{ padding: "1rem 1.25rem", display: "flex", flexDirection: "column", gap: 10 }}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} style={{ height: 44, borderRadius: 10, background: "var(--bg-surface)", opacity: 1 - i * 0.25 }} />
+            ))}
           </div>
         ) : tenants.length === 0 ? (
-          <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>
-            No tenants found matching your filter criteria.
+          <div style={{ padding: "3.5rem 1rem", textAlign: "center" }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, margin: "0 auto 0.8rem", background: "var(--bg-surface)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.5-3.5" />
+              </svg>
+            </div>
+            <div style={{ fontWeight: 600, fontSize: "0.92rem" }}>No tenants found</div>
+            <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", marginTop: 4 }}>Try another search or filter.</div>
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.875rem" }}>
               <thead>
-                <tr
-                  style={{
-                    backgroundColor: "var(--bg-sidebar)",
-                    borderBottom: "1px solid var(--border)",
-                    color: "var(--text-muted)",
-                    fontSize: "0.75rem",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
-                  <th style={{ padding: "0.85rem 1.25rem", fontWeight: 700 }}>Organization</th>
-                  <th style={{ padding: "0.85rem 1.25rem", fontWeight: 700 }}>Slug</th>
-                  <th style={{ padding: "0.85rem 1.25rem", fontWeight: 700 }}>Owner Contact</th>
-                  <th style={{ padding: "0.85rem 1.25rem", fontWeight: 700 }}>Plan Tier</th>
-                  <th style={{ padding: "0.85rem 1.25rem", fontWeight: 700 }}>Status</th>
-                  <th style={{ padding: "0.85rem 1.25rem", fontWeight: 700, textAlign: "right" }}>Actions</th>
+                <tr style={{ color: "var(--text-muted)", fontSize: "0.74rem" }}>
+                  <th style={{ padding: "0.75rem 1.25rem", fontWeight: 600 }}>Tenant</th>
+                  <th className="tn-hide-sm" style={{ padding: "0.75rem 1.25rem", fontWeight: 600 }}>Owner</th>
+                  <th style={{ padding: "0.75rem 1.25rem", fontWeight: 600 }}>Plan</th>
+                  <th style={{ padding: "0.75rem 1.25rem", fontWeight: 600 }}>Status</th>
+                  <th className="tn-hide-sm" style={{ padding: "0.75rem 1.25rem", fontWeight: 600 }}>Joined</th>
+                  <th style={{ padding: "0.75rem 1.25rem", fontWeight: 600, textAlign: "right" }}>
+                    <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -575,99 +526,139 @@ export default function TenantsAdminPage() {
                     : t.subscription_status === "active"
                     ? "active"
                     : "trial";
+                  const tone =
+                    statusKey === "active"
+                      ? { dot: "#10b981", text: "color-mix(in srgb, #10b981 70%, var(--text-primary))", label: "Active" }
+                      : statusKey === "trial"
+                      ? { dot: "#f59e0b", text: "color-mix(in srgb, #d97706 75%, var(--text-primary))", label: "Trial" }
+                      : statusKey === "suspended"
+                      ? { dot: "#64748b", text: "var(--text-secondary)", label: "Suspended" }
+                      : { dot: "#ef4444", text: "color-mix(in srgb, #ef4444 75%, var(--text-primary))", label: "Expired" };
+                  const initials =
+                    (t.name || t.slug || "?")
+                      .split(/\s+/)
+                      .filter(Boolean)
+                      .slice(0, 2)
+                      .map((w) => w[0]?.toUpperCase())
+                      .join("") || "?";
+                  const joined = t.created_at
+                    ? new Date(t.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+                    : "—";
 
                   return (
-                    <tr
-                      key={t.id}
-                      style={{
-                        borderBottom: "1px solid var(--border)",
-                        transition: "background 0.15s",
-                      }}
-                    >
-                      <td style={{ padding: "1rem 1.25rem", fontWeight: 600, color: "var(--text-primary)" }}>
-                        {t.name}
+                    <tr key={t.id} className="tn-row" style={{ borderTop: "1px solid var(--border)" }}>
+                      <td style={{ padding: "0.55rem 1.25rem" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                          <span
+                            aria-hidden
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 10,
+                              flexShrink: 0,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: "0.78rem",
+                              fontWeight: 700,
+                              background: "var(--bg-surface)",
+                              border: "1px solid var(--border)",
+                              color: "var(--text-secondary)",
+                            }}
+                          >
+                            {initials}
+                          </span>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {t.name}
+                            </div>
+                            <div style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "0.74rem", color: "var(--text-muted)", marginTop: 2 }}>
+                              {t.slug}
+                            </div>
+                          </div>
+                        </div>
                       </td>
-                      <td style={{ padding: "1rem 1.25rem", fontFamily: "monospace", fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                        {t.slug}
+                      <td className="tn-hide-sm" style={{ padding: "0.55rem 1.25rem", color: "var(--text-secondary)", fontSize: "0.85rem" }}>
+                        {t.owner_email || <span style={{ color: "var(--text-muted)" }}>No owner</span>}
                       </td>
-                      <td style={{ padding: "1rem 1.25rem", color: "var(--text-secondary)" }}>
-                        {t.owner_email || "N/A"}
-                      </td>
-                      <td style={{ padding: "1rem 1.25rem", fontWeight: 500, color: "var(--text-primary)" }}>
-                        {t.plan_name || (statusKey === "trial" ? "Trial Plan" : "Free Plan")}
-                      </td>
-                      <td style={{ padding: "1rem 1.25rem" }}>
+                      <td style={{ padding: "0.55rem 1.25rem" }}>
                         <span
                           style={{
                             display: "inline-block",
-                            padding: "0.2rem 0.65rem",
-                            borderRadius: 20,
-                            fontSize: "0.75rem",
-                            fontWeight: 700,
-                            textTransform: "capitalize",
-                            backgroundColor:
-                              statusKey === "active"
-                                ? "#ecfdf5"
-                                : statusKey === "trial"
-                                ? "#fffbeb"
-                                : statusKey === "suspended"
-                                ? "#faf5ff"
-                                : "#fef2f2",
-                            color:
-                              statusKey === "active"
-                                ? "#047857"
-                                : statusKey === "trial"
-                                ? "#b45309"
-                                : statusKey === "suspended"
-                                ? "#7e22ce"
-                                : "#b91c1c",
-                            border:
-                              statusKey === "active"
-                                ? "1px solid #a7f3d0"
-                                : statusKey === "trial"
-                                ? "1px solid #fde68a"
-                                : statusKey === "suspended"
-                                ? "1px solid #e9d5ff"
-                                : "1px solid #fecaca",
+                            padding: "0.18rem 0.6rem",
+                            borderRadius: 7,
+                            fontSize: "0.78rem",
+                            fontWeight: 600,
+                            border: "1px solid var(--border)",
+                            color: "var(--text-primary)",
+                            whiteSpace: "nowrap",
                           }}
                         >
-                          {statusKey}
+                          {(t.plan_name || (statusKey === "trial" ? "Trial Plan" : "Free Plan")).replace(/\s*Plan$/i, "")}
                         </span>
                       </td>
-                      <td style={{ padding: "1rem 1.25rem", textAlign: "right" }}>
-                        <div style={{ display: "inline-flex", gap: "0.5rem", justifyContent: "flex-end", alignItems: "center" }}>
+                      <td style={{ padding: "0.55rem 1.25rem" }}>
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: "0.2rem 0.6rem 0.2rem 0.5rem",
+                            borderRadius: 999,
+                            fontSize: "0.76rem",
+                            fontWeight: 600,
+                            color: tone.text,
+                            background: `color-mix(in srgb, ${tone.dot} 11%, transparent)`,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          <span aria-hidden style={{ width: 6, height: 6, borderRadius: "50%", background: tone.dot }} />
+                          {tone.label}
+                        </span>
+                      </td>
+                      <td className="tn-hide-sm" style={{ padding: "0.55rem 1.25rem", color: "var(--text-muted)", fontSize: "0.82rem", whiteSpace: "nowrap" }}>
+                        {joined}
+                      </td>
+                      <td style={{ padding: "0.55rem 1.25rem", textAlign: "right" }}>
+                        <div className="tn-act" style={{ display: "inline-flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>
                           <button
+                            className="tn-btn tn-ghost"
                             onClick={() => setSuspendTarget(t)}
                             style={{
-                              padding: "0.35rem 0.75rem",
-                              fontSize: "0.75rem",
+                              padding: "0.38rem 0.75rem",
+                              fontSize: "0.78rem",
                               fontWeight: 600,
-                              borderRadius: 6,
+                              borderRadius: 8,
                               border: "1px solid var(--border)",
-                              backgroundColor: "var(--bg)",
+                              backgroundColor: "var(--bg-card)",
                               color: "var(--text-primary)",
-                              cursor: "pointer",
                             }}
                           >
                             {statusKey === "suspended" ? "Unsuspend" : "Suspend"}
                           </button>
                           <button
+                            className="tn-btn tn-danger"
                             onClick={() => {
                               setDeleteTarget(t);
                               setDeleteSlugInput("");
                             }}
+                            aria-label={`Delete ${t.name}`}
+                            title="Delete tenant"
                             style={{
-                              padding: "0.35rem 0.75rem",
-                              fontSize: "0.75rem",
-                              fontWeight: 600,
-                              borderRadius: 6,
-                              border: "1px solid #ef4444",
-                              backgroundColor: "rgba(239, 68, 68, 0.1)",
-                              color: "#ef4444",
-                              cursor: "pointer",
+                              width: 32,
+                              height: 31,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              borderRadius: 8,
+                              border: "1px solid var(--border)",
+                              backgroundColor: "var(--bg-card)",
+                              color: "#dc2626",
                             }}
                           >
-                            Delete
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                              <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />
+                            </svg>
                           </button>
                         </div>
                       </td>
@@ -679,7 +670,7 @@ export default function TenantsAdminPage() {
           </div>
         )}
 
-        {/* Pagination Toolbar */}
+        {/* Pagination */}
         {!loading && pagination.total_items > 0 && (
           <div
             style={{
@@ -688,121 +679,82 @@ export default function TenantsAdminPage() {
               alignItems: "center",
               flexWrap: "wrap",
               gap: "1rem",
-              padding: "0.85rem 1.25rem",
+              padding: "0.8rem 1.25rem",
               borderTop: "1px solid var(--border)",
-              fontSize: "0.85rem",
+              fontSize: "0.82rem",
               color: "var(--text-muted)",
             }}
           >
             <div>
-              Showing{" "}
               <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
-                {Math.min((page - 1) * pageSize + 1, pagination.total_items)}
+                {Math.min((page - 1) * pageSize + 1, pagination.total_items)}–{Math.min(page * pageSize, pagination.total_items)}
               </span>{" "}
-              to{" "}
-              <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
-                {Math.min(page * pageSize, pagination.total_items)}
-              </span>{" "}
-              of{" "}
-              <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
-                {pagination.total_items}
-              </span>{" "}
-              organizations
+              of <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{pagination.total_items}</span> tenants
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
-              {/* Per Page Selector */}
-              <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                <span>Per page:</span>
-                <select
-                  value={pageSize}
-                  onChange={(e) => {
-                    setPageSize(Number(e.target.value));
-                    setPage(1);
-                  }}
-                  style={{
-                    padding: "0.25rem 0.5rem",
-                    borderRadius: 6,
-                    border: "1px solid var(--border)",
-                    backgroundColor: "var(--bg)",
-                    color: "var(--text-primary)",
-                    fontSize: "0.8rem",
-                    cursor: "pointer",
-                  }}
-                >
-                  {[5, 10, 25, 50].map((size) => (
-                    <option key={size} value={size}>
-                      {size}
-                    </option>
-                  ))}
-                </select>
-              </div>
 
-              {/* Page Controls */}
-              <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <button
+                  className="tn-btn tn-ghost"
                   disabled={page <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  aria-label="Previous page"
                   style={{
-                    padding: "0.3rem 0.65rem",
-                    borderRadius: 6,
+                    width: 30,
+                    height: 30,
+                    borderRadius: 8,
                     border: "1px solid var(--border)",
-                    backgroundColor: page <= 1 ? "transparent" : "var(--bg)",
-                    color: page <= 1 ? "var(--text-muted)" : "var(--text-primary)",
+                    background: "var(--bg-card)",
+                    color: "var(--text-primary)",
+                    opacity: page <= 1 ? 0.35 : 1,
                     cursor: page <= 1 ? "not-allowed" : "pointer",
-                    opacity: page <= 1 ? 0.4 : 1,
-                    fontSize: "0.8rem",
-                    fontWeight: 600,
                   }}
                 >
-                  Prev
+                  ‹
                 </button>
-
                 {getPagePills(page, pagination.total_pages).map((p, idx) =>
                   typeof p === "number" ? (
                     <button
                       key={idx}
+                      className="tn-btn"
                       onClick={() => setPage(p)}
                       style={{
-                        minWidth: 32,
+                        minWidth: 30,
                         height: 30,
-                        borderRadius: 6,
+                        borderRadius: 8,
                         border: "none",
-                        backgroundColor: p === page ? "var(--accent)" : "transparent",
-                        color: p === page ? "#ffffff" : "var(--text-primary)",
-                        fontWeight: p === page ? 700 : 500,
-                        cursor: "pointer",
+                        backgroundColor: p === page ? "var(--text-primary)" : "transparent",
+                        color: p === page ? "var(--bg-card)" : "var(--text-secondary)",
+                        fontWeight: p === page ? 650 : 500,
                         fontSize: "0.8rem",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
                       }}
                     >
                       {p}
                     </button>
                   ) : (
-                    <span key={idx} style={{ padding: "0 0.3rem", color: "var(--text-muted)" }}>
-                      ...
+                    <span key={idx} style={{ padding: "0 0.25rem" }}>
+                      …
                     </span>
                   )
                 )}
-
                 <button
+                  className="tn-btn tn-ghost"
                   disabled={page >= pagination.total_pages}
                   onClick={() => setPage((p) => Math.min(pagination.total_pages, p + 1))}
+                  aria-label="Next page"
                   style={{
-                    padding: "0.3rem 0.65rem",
-                    borderRadius: 6,
+                    width: 30,
+                    height: 30,
+                    borderRadius: 8,
                     border: "1px solid var(--border)",
-                    backgroundColor: page >= pagination.total_pages ? "transparent" : "var(--bg)",
-                    color: page >= pagination.total_pages ? "var(--text-muted)" : "var(--text-primary)",
+                    background: "var(--bg-card)",
+                    color: "var(--text-primary)",
+                    opacity: page >= pagination.total_pages ? 0.35 : 1,
                     cursor: page >= pagination.total_pages ? "not-allowed" : "pointer",
-                    opacity: page >= pagination.total_pages ? 0.4 : 1,
-                    fontSize: "0.8rem",
-                    fontWeight: 600,
                   }}
                 >
-                  Next
+                  ›
                 </button>
               </div>
             </div>

@@ -27,20 +27,20 @@ interface PreviewResponse {
 }
 
 const REQUIRED_TOKENS = [
-  { tag: "[ACTION:SHOW_CALENDAR]", label: "Calendar Tag", desc: "Required for appointment scheduling" },
-  { tag: "[ACTION:SAVE_LEAD", label: "Lead Tag", desc: "Required for lead capture" },
-  { tag: "{{DYNAMIC_ROLE}}", label: "Dynamic Role", desc: "Runtime role injection token" },
-  { tag: "{{DYNAMIC_CALENDAR_LINK}}", label: "Calendar Link", desc: "Runtime booking link token" },
-  { tag: "{{DYNAMIC_ROLE_BEHAVIOR}}", label: "Role Behavior", desc: "Runtime intent routing token" },
-  { tag: "{{DYNAMIC_ANALYTICS}}", label: "Analytics Tag", desc: "Runtime conversation tracking token" },
+  { tag: "[ACTION:SHOW_CALENDAR]", label: "Show calendar", desc: "Lets the assistant open the booking calendar" },
+  { tag: "[ACTION:SAVE_LEAD", label: "Save lead", desc: "Lets the assistant save a visitor's details" },
+  { tag: "{{DYNAMIC_ROLE}}", label: "Assistant type", desc: "Sales, Support, Shop… as chosen by the customer" },
+  { tag: "{{DYNAMIC_CALENDAR_LINK}}", label: "Booking link", desc: "The customer's own booking link" },
+  { tag: "{{DYNAMIC_ROLE_BEHAVIOR}}", label: "Type behaviour", desc: "How that assistant type should act" },
+  { tag: "{{DYNAMIC_ANALYTICS}}", label: "Tracking", desc: "What to note about each chat (lead score, budget…)" },
 ];
 
 const OPTIONAL_INJECTION_TOKENS = [
-  { tag: "{{COMPANY_NAME}}", label: "Company Name", desc: "Tenant organization name" },
-  { tag: "{{COMPANY_POSSESSIVE}}", label: "Possessive Name", desc: "e.g. Acme's" },
-  { tag: "{{KNOWLEDGE_BASE_CONTEXT}}", label: "Knowledge Context", desc: "Synthesized documents & site data" },
-  { tag: "{{TENANT_CUSTOM_RULES}}", label: "Tenant Rules", desc: "Tenant custom instructions" },
-  { tag: "{{DYNAMIC_IMAGE_KEYS}}", label: "Image Keys", desc: "Visual mapping keywords" },
+  { tag: "{{COMPANY_NAME}}", label: "Business name", desc: "e.g. Snow Gear Shop" },
+  { tag: "{{COMPANY_POSSESSIVE}}", label: "Business name's", desc: "e.g. Snow Gear Shop's" },
+  { tag: "{{KNOWLEDGE_BASE_CONTEXT}}", label: "Knowledge", desc: "The customer's files and website pages" },
+  { tag: "{{TENANT_CUSTOM_RULES}}", label: "Customer rules", desc: "Rules the customer added themselves" },
+  { tag: "{{DYNAMIC_IMAGE_KEYS}}", label: "Pictures", desc: "Names of the customer's pictures" },
 ];
 
 export default function CorePromptAdminPage() {
@@ -247,7 +247,7 @@ export default function CorePromptAdminPage() {
               width: 32,
               height: 32,
               border: "3px solid color-mix(in srgb, var(--text-primary) 11%, transparent)",
-              borderTopColor: "var(--accent, #8A64E9)",
+              borderTopColor: "var(--text-primary)",
               borderRadius: "50%",
               animation: "spin 1s linear infinite",
             }}
@@ -265,13 +265,13 @@ export default function CorePromptAdminPage() {
     <div
       style={{
         width: "100%",
-        padding: "2rem",
+        padding: "1.5rem 2rem",
         boxSizing: "border-box",
         maxWidth: 1400,
         margin: "0 auto",
         display: "flex",
         flexDirection: "column",
-        gap: "1.5rem",
+        gap: "1rem",
         color: "var(--text-primary)",
         fontFamily: "'Inter', sans-serif",
       }}
@@ -292,12 +292,12 @@ export default function CorePromptAdminPage() {
               fontSize: "0.75rem",
               fontWeight: 700,
               letterSpacing: "0.08em",
-              color: "var(--accent, #8A64E9)",
+              color: "var(--text-muted)",
               textTransform: "uppercase",
-              marginBottom: "0.25rem",
+              marginBottom: "0.3rem",
             }}
           >
-            Super Admin / Platform Configuration
+            Platform
           </div>
           <h1
             style={{
@@ -308,20 +308,33 @@ export default function CorePromptAdminPage() {
               letterSpacing: "-0.02em",
             }}
           >
-            Core System Prompt
+            Core prompt
           </h1>
           <p
             style={{
-              margin: "0.35rem 0 0 0",
+              margin: "0.3rem 0 0 0",
               fontSize: "0.9rem",
               color: "var(--text-secondary)",
               maxWidth: 820,
               lineHeight: 1.5,
             }}
           >
-            Manage the platform-global Core System Prompt template. This template defines root platform instructions,
-            security guardrails, action tags, and intent routing inherited by all platform-managed tenant agents.
+            The master instructions every customer&apos;s assistant follows. Saving here changes every assistant on the platform.
           </p>
+          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: "0.7rem", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "0.2rem 0.65rem", borderRadius: 999, border: "1px solid var(--border)", background: "var(--bg-card)", fontWeight: 600, color: "var(--text-primary)" }}>
+              <span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: isCustomized ? "#f59e0b" : "#10b981" }} />
+              {isCustomized ? "Customised" : "Platform default"}
+            </span>
+            <span style={{ padding: "0.2rem 0.65rem", borderRadius: 999, border: "1px solid var(--border)", background: "var(--bg-card)", fontWeight: 600, color: "var(--text-primary)" }}>
+              v{config?.version ?? 1}
+            </span>
+            <span>
+              {config?.updated_at
+                ? `Last changed ${new Date(config.updated_at).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}${config?.updated_by_email ? ` by ${config.updated_by_email}` : ""}`
+                : "Never changed"}
+            </span>
+          </div>
         </div>
 
         {/* Action Buttons Top Bar */}
@@ -336,14 +349,14 @@ export default function CorePromptAdminPage() {
                 borderRadius: "8px",
                 fontSize: "0.85rem",
                 fontWeight: 600,
-                border: "1px solid rgba(239, 68, 68, 0.35)",
-                backgroundColor: "rgba(239, 68, 68, 0.08)",
+                border: "1px solid var(--border)",
+                backgroundColor: "var(--bg-card)",
                 color: "var(--error, #EF4444)",
                 cursor: "pointer",
                 transition: "all 0.15s ease",
               }}
             >
-              Reset to Platform Default
+              Reset to default
             </button>
           )}
 
@@ -353,17 +366,17 @@ export default function CorePromptAdminPage() {
             disabled={previewing || saving}
             style={{
               padding: "0.6rem 1.1rem",
-              borderRadius: "8px",
+              borderRadius: "10px",
               fontSize: "0.85rem",
               fontWeight: 600,
-              border: "1px solid var(--border-color, rgba(255,255,255,0.12))",
-              backgroundColor: "var(--card-bg, #1A1D2D)",
+              border: "1px solid var(--border)",
+              backgroundColor: "var(--bg-card)",
               color: "var(--text-primary)",
               cursor: "pointer",
               transition: "all 0.15s ease",
             }}
           >
-            {previewing ? "Compiling Preview..." : "Preview Output"}
+            {previewing ? "Building preview..." : "Preview"}
           </button>
 
           <button
@@ -372,19 +385,19 @@ export default function CorePromptAdminPage() {
             disabled={saving || resetting}
             style={{
               padding: "0.6rem 1.3rem",
-              borderRadius: "8px",
+              borderRadius: "10px",
               fontSize: "0.85rem",
               fontWeight: 600,
               border: "none",
-              backgroundColor: "var(--accent, #8A64E9)",
-              color: "#FFFFFF",
+              backgroundColor: "var(--text-primary)",
+              color: "var(--bg-card)",
               cursor: saving ? "not-allowed" : "pointer",
               opacity: saving ? 0.7 : 1,
               transition: "all 0.15s ease",
               boxShadow: "0 2px 8px color-mix(in srgb, var(--text-primary) 16%, transparent)",
             }}
           >
-            {saving ? "Saving Changes..." : isDirty ? "Save Changes *" : "Save Changes"}
+            {saving ? "Saving..." : isDirty ? "Save changes •" : "Save changes"}
           </button>
         </div>
       </div>
@@ -451,233 +464,144 @@ export default function CorePromptAdminPage() {
         </div>
       )}
 
-      {/* KPI Status Cards */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-          gap: "1rem",
-        }}
-      >
-        {/* Status Card */}
+      <style>{`
+        .cp-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 1rem; height: calc(100vh - 205px); min-height: 420px; }
+        .cp-grid > * { min-height: 0; height: 100%; }
+        .cp-token { width: 100%; text-align: left; font-family: inherit; cursor: pointer; transition: background .15s, border-color .15s; }
+        .cp-token:hover { background: var(--bg-surface); border-color: var(--text-muted); }
+        .cp-text { flex: 1; min-height: 0; }
+        @media (max-width: 1000px) {
+          .cp-grid { grid-template-columns: 1fr; height: auto; }
+          .cp-grid > * { height: auto; }
+          .cp-text { flex: none; height: 60vh; }
+        }
+      `}</style>
+
+      <div className="cp-grid">
+        {/* Editor */}
         <div
           style={{
-            padding: "1.25rem",
-            borderRadius: "12px",
-            backgroundColor: "var(--card-bg, #1A1D2D)",
-            border: "1px solid var(--border-color, rgba(255,255,255,0.08))",
+            borderRadius: "16px",
+            backgroundColor: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            overflow: "hidden",
             display: "flex",
             flexDirection: "column",
-            gap: "0.5rem",
+            minWidth: 0,
+            boxShadow: "0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.04)",
           }}
         >
-          <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 500 }}>
-            Template Mode
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <span
-              style={{
-                display: "inline-block",
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                backgroundColor: isCustomized ? "#F59E0B" : "#10B981",
-              }}
-            />
-            <span
-              style={{
-                fontSize: "1.1rem",
-                fontWeight: 700,
-                color: isCustomized ? "#F59E0B" : "var(--text-primary)",
-              }}
-            >
-              {isCustomized ? "Customized by Super Admin" : "Platform Default"}
+          <div
+            style={{
+              padding: "0.7rem 1.1rem",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <span style={{ fontSize: "0.88rem", fontWeight: 650, color: "var(--text-primary)" }}>Instructions</span>
+            <span style={{ fontSize: "0.76rem", color: "var(--text-muted)" }}>
+              {templateText.length.toLocaleString()} characters · {templateText.split("\n").length} lines
             </span>
           </div>
-          <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-            {isCustomized
-              ? "Tenant prompts inherit this customized core template."
-              : "Tenant prompts inherit standard platform system instructions."}
-          </div>
+          <textarea
+            ref={textareaRef}
+            className="cp-text"
+            value={templateText}
+            onChange={(e) => setTemplateText(e.target.value)}
+            spellCheck={false}
+            style={{
+              width: "100%",
+              padding: "1rem 1.1rem",
+              boxSizing: "border-box",
+              backgroundColor: "var(--bg-card)",
+              border: "none",
+              color: "var(--text-primary)",
+              fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+              fontSize: "0.84rem",
+              lineHeight: 1.65,
+              resize: "none",
+              outline: "none",
+            }}
+          />
         </div>
 
-        {/* Version Card */}
-        <div
+        {/* Side panel: placeholders + note */}
+        <aside
           style={{
-            padding: "1.25rem",
-            borderRadius: "12px",
-            backgroundColor: "var(--card-bg, #1A1D2D)",
-            border: "1px solid var(--border-color, rgba(255,255,255,0.08))",
+            borderRadius: "16px",
+            backgroundColor: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            boxShadow: "0 1px 2px rgba(15,23,42,.04)",
             display: "flex",
             flexDirection: "column",
-            gap: "0.5rem",
+            overflow: "hidden",
           }}
         >
-          <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 500 }}>
-            Configuration Version
+          <div style={{ padding: "0.8rem 1rem 0.6rem", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ fontSize: "0.88rem", fontWeight: 650 }}>Placeholders</div>
+            <div style={{ fontSize: "0.76rem", color: "var(--text-muted)", marginTop: 2 }}>
+              Click to insert where your cursor is. Each is filled in per customer.
+            </div>
           </div>
-          <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--text-primary)" }}>
-            v{config?.version ?? 1}
+          <div style={{ flex: 1, overflowY: "auto", padding: "0.7rem 0.75rem", display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--text-muted)", padding: "0.2rem 0.25rem" }}>
+              Must stay in
+            </div>
+            {REQUIRED_TOKENS.map((t) => {
+              const present = templateText.includes(t.tag);
+              return (
+                <button
+                  key={t.tag}
+                  type="button"
+                  className="cp-token"
+                  onClick={() => handleInsertToken(t.tag)}
+                  title={t.tag}
+                  style={{ padding: "0.5rem 0.65rem", borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg-card)", color: "var(--text-primary)" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                    <span style={{ fontSize: "0.82rem", fontWeight: 600 }}>{t.label}</span>
+                    <span
+                      style={{
+                        fontSize: "0.66rem",
+                        fontWeight: 650,
+                        padding: "1px 7px",
+                        borderRadius: 999,
+                        color: present ? "color-mix(in srgb, #10b981 70%, var(--text-primary))" : "color-mix(in srgb, #ef4444 75%, var(--text-primary))",
+                        background: present ? "color-mix(in srgb, #10b981 12%, transparent)" : "color-mix(in srgb, #ef4444 12%, transparent)",
+                      }}
+                    >
+                      {present ? "In use" : "Missing"}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "0.74rem", color: "var(--text-muted)", marginTop: 2 }}>{t.desc}</div>
+                </button>
+              );
+            })}
+            <div style={{ fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--text-muted)", padding: "0.6rem 0.25rem 0.2rem" }}>
+              Optional
+            </div>
+            {OPTIONAL_INJECTION_TOKENS.map((t) => (
+              <button
+                key={t.tag}
+                type="button"
+                className="cp-token"
+                onClick={() => handleInsertToken(t.tag)}
+                title={t.tag}
+                style={{ padding: "0.5rem 0.65rem", borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg-card)", color: "var(--text-primary)" }}
+              >
+                <div style={{ fontSize: "0.82rem", fontWeight: 600 }}>{t.label}</div>
+                <div style={{ fontSize: "0.74rem", color: "var(--text-muted)", marginTop: 2 }}>{t.desc}</div>
+              </button>
+            ))}
           </div>
-          <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-            Incremented automatically whenever modifications are published.
+          <div style={{ padding: "0.75rem 1rem", borderTop: "1px solid var(--border)", background: "var(--bg-surface)", fontSize: "0.76rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+            <strong style={{ color: "var(--text-primary)" }}>Applies to everyone.</strong> Each assistant picks up changes the
+            next time it is rebuilt. Rules set for one customer are kept.
           </div>
-        </div>
-
-        {/* Audit Card */}
-        <div
-          style={{
-            padding: "1.25rem",
-            borderRadius: "12px",
-            backgroundColor: "var(--card-bg, #1A1D2D)",
-            border: "1px solid var(--border-color, rgba(255,255,255,0.08))",
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.5rem",
-          }}
-        >
-          <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 500 }}>
-            Audit Information
-          </div>
-          <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "var(--text-primary)" }}>
-            {config?.updated_by_email ? config.updated_by_email : "Platform Default System"}
-          </div>
-          <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-            {config?.updated_at
-              ? `Modified: ${new Date(config.updated_at).toLocaleString()}`
-              : "Active since platform initialization"}
-          </div>
-        </div>
-      </div>
-
-      {/* Information Notice */}
-      <div
-        style={{
-          padding: "1rem 1.25rem",
-          borderRadius: "10px",
-          backgroundColor: "color-mix(in srgb, var(--text-primary) 4%, transparent)",
-          border: "1px solid color-mix(in srgb, var(--text-primary) 11%, transparent)",
-          display: "flex",
-          gap: "0.75rem",
-          alignItems: "flex-start",
-        }}
-      >
-        <span style={{ color: "var(--accent, #8A64E9)", fontSize: "1.2rem", lineHeight: 1 }}>ℹ</span>
-        <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
-          <strong style={{ color: "var(--text-primary)" }}>Dynamic Platform Inheritance: </strong>
-          Changes saved here apply globally across the platform. When tenant agents are rebuilt (during rule updates or knowledge indexing),
-          they dynamically inherit this template. Tenant-specific customizations previously configured by Super Admin on individual tenant bots remain protected.
-        </div>
-      </div>
-
-      {/* Placeholders Bar */}
-      <div
-        style={{
-          padding: "1rem",
-          borderRadius: "10px",
-          backgroundColor: "var(--card-bg, #1A1D2D)",
-          border: "1px solid var(--border-color, rgba(255,255,255,0.08))",
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.75rem",
-        }}
-      >
-        <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)" }}>
-          Available Placeholders & Runtime Protocol Tokens:
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-          {REQUIRED_TOKENS.map((t) => (
-            <button
-              key={t.tag}
-              type="button"
-              onClick={() => handleInsertToken(t.tag)}
-              title={`${t.label}: ${t.desc}`}
-              style={{
-                fontSize: "0.75rem",
-                padding: "0.3rem 0.6rem",
-                borderRadius: "6px",
-                border: "1px solid color-mix(in srgb, var(--text-primary) 16%, transparent)",
-                backgroundColor: "color-mix(in srgb, var(--text-primary) 6%, transparent)",
-                color: "var(--accent, #8A64E9)",
-                cursor: "pointer",
-                fontFamily: "monospace",
-              }}
-            >
-              + {t.tag}
-            </button>
-          ))}
-          {OPTIONAL_INJECTION_TOKENS.map((t) => (
-            <button
-              key={t.tag}
-              type="button"
-              onClick={() => handleInsertToken(t.tag)}
-              title={`${t.label}: ${t.desc}`}
-              style={{
-                fontSize: "0.75rem",
-                padding: "0.3rem 0.6rem",
-                borderRadius: "6px",
-                border: "1px solid var(--border-color, rgba(255,255,255,0.12))",
-                backgroundColor: "rgba(255,255,255,0.04)",
-                color: "var(--text-secondary)",
-                cursor: "pointer",
-                fontFamily: "monospace",
-              }}
-            >
-              + {t.tag}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Editor Container */}
-      <div
-        style={{
-          borderRadius: "12px",
-          backgroundColor: "var(--card-bg, #1A1D2D)",
-          border: "1px solid var(--border-color, rgba(255,255,255,0.08))",
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        <div
-          style={{
-            padding: "0.75rem 1.25rem",
-            backgroundColor: "rgba(0,0,0,0.15)",
-            borderBottom: "1px solid var(--border-color, rgba(255,255,255,0.06))",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-secondary)" }}>
-            Template Editor
-          </span>
-          <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontFamily: "monospace" }}>
-            {templateText.length} characters | {templateText.split("\n").length} lines
-          </span>
-        </div>
-
-        <textarea
-          ref={textareaRef}
-          value={templateText}
-          onChange={(e) => setTemplateText(e.target.value)}
-          spellCheck={false}
-          style={{
-            width: "100%",
-            height: "560px",
-            padding: "1.25rem",
-            boxSizing: "border-box",
-            backgroundColor: "var(--input-bg, #10121E)",
-            border: "none",
-            color: "var(--text-primary, #E2E8F0)",
-            fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-            fontSize: "0.875rem",
-            lineHeight: 1.6,
-            resize: "vertical",
-            outline: "none",
-          }}
-        />
+        </aside>
       </div>
 
       {/* Preview Modal */}
@@ -689,7 +613,7 @@ export default function CorePromptAdminPage() {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.75)",
+            backgroundColor: "rgba(15, 23, 42, 0.45)",
             backdropFilter: "blur(4px)",
             zIndex: 9999,
             display: "flex",
@@ -704,20 +628,20 @@ export default function CorePromptAdminPage() {
               width: "100%",
               maxWidth: 960,
               maxHeight: "90vh",
-              backgroundColor: "var(--card-bg, #1A1D2D)",
+              backgroundColor: "var(--bg-card)",
               borderRadius: "14px",
-              border: "1px solid var(--border-color, rgba(255,255,255,0.1))",
+              border: "1px solid var(--border)",
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
-              boxShadow: "0 20px 40px rgba(0,0,0,0.5)",
+              boxShadow: "0 24px 60px rgba(15,23,42,0.25)",
             }}
           >
             {/* Modal Header */}
             <div
               style={{
                 padding: "1.25rem 1.5rem",
-                borderBottom: "1px solid var(--border-color, rgba(255,255,255,0.08))",
+                borderBottom: "1px solid var(--border)",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
@@ -725,10 +649,10 @@ export default function CorePromptAdminPage() {
             >
               <div>
                 <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>
-                  Sample Compiled System Prompt Preview
+                  Preview
                 </h3>
                 <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-                  Simulated dynamic tenant compilation with sample organization data.
+                  What an assistant receives, filled in for a sample business.
                 </p>
               </div>
               <button
@@ -751,7 +675,7 @@ export default function CorePromptAdminPage() {
             <div
               style={{
                 padding: "0.85rem 1.5rem",
-                backgroundColor: "rgba(0,0,0,0.15)",
+                backgroundColor: "var(--bg-surface)",
                 display: "flex",
                 gap: "1.5rem",
                 alignItems: "center",
@@ -760,7 +684,7 @@ export default function CorePromptAdminPage() {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ color: "var(--text-secondary)" }}>Sample Tenant:</span>
+                <span style={{ color: "var(--text-secondary)" }}>Business</span>
                 <input
                   type="text"
                   value={sampleCompany}
@@ -768,8 +692,8 @@ export default function CorePromptAdminPage() {
                   style={{
                     padding: "0.35rem 0.65rem",
                     borderRadius: "6px",
-                    border: "1px solid var(--border-color, rgba(255,255,255,0.15))",
-                    backgroundColor: "var(--input-bg, #10121E)",
+                    border: "1px solid var(--border)",
+                    backgroundColor: "var(--bg-surface)",
                     color: "var(--text-primary)",
                     fontSize: "0.85rem",
                   }}
@@ -777,15 +701,15 @@ export default function CorePromptAdminPage() {
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ color: "var(--text-secondary)" }}>Sample Role:</span>
+                <span style={{ color: "var(--text-secondary)" }}>Assistant type</span>
                 <select
                   value={sampleRole}
                   onChange={(e) => setSampleRole(e.target.value)}
                   style={{
                     padding: "0.35rem 0.65rem",
                     borderRadius: "6px",
-                    border: "1px solid var(--border-color, rgba(255,255,255,0.15))",
-                    backgroundColor: "var(--input-bg, #10121E)",
+                    border: "1px solid var(--border)",
+                    backgroundColor: "var(--bg-surface)",
                     color: "var(--text-primary)",
                     fontSize: "0.85rem",
                   }}
@@ -802,16 +726,16 @@ export default function CorePromptAdminPage() {
                 onClick={handlePreview}
                 style={{
                   padding: "0.35rem 0.85rem",
-                  borderRadius: "6px",
+                  borderRadius: "8px",
                   border: "none",
-                  backgroundColor: "var(--accent, #8A64E9)",
-                  color: "#FFFFFF",
+                  backgroundColor: "var(--text-primary)",
+                  color: "var(--bg-card)",
                   fontSize: "0.8rem",
                   fontWeight: 600,
                   cursor: "pointer",
                 }}
               >
-                Re-compile
+                Refresh
               </button>
             </div>
 
@@ -822,9 +746,9 @@ export default function CorePromptAdminPage() {
                   margin: 0,
                   padding: "1.25rem",
                   borderRadius: "8px",
-                  backgroundColor: "var(--input-bg, #10121E)",
-                  border: "1px solid var(--border-color, rgba(255,255,255,0.06))",
-                  color: "var(--text-primary, #E2E8F0)",
+                  backgroundColor: "var(--bg-surface)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text-primary)",
                   fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
                   fontSize: "0.825rem",
                   lineHeight: 1.55,
@@ -840,7 +764,7 @@ export default function CorePromptAdminPage() {
             <div
               style={{
                 padding: "1rem 1.5rem",
-                borderTop: "1px solid var(--border-color, rgba(255,255,255,0.08))",
+                borderTop: "1px solid var(--border)",
                 display: "flex",
                 justifyContent: "flex-end",
               }}
@@ -851,7 +775,7 @@ export default function CorePromptAdminPage() {
                 style={{
                   padding: "0.55rem 1.25rem",
                   borderRadius: "8px",
-                  border: "1px solid var(--border-color, rgba(255,255,255,0.15))",
+                  border: "1px solid var(--border)",
                   backgroundColor: "transparent",
                   color: "var(--text-primary)",
                   fontSize: "0.85rem",
@@ -859,7 +783,7 @@ export default function CorePromptAdminPage() {
                   cursor: "pointer",
                 }}
               >
-                Close Preview
+                Close
               </button>
             </div>
           </div>

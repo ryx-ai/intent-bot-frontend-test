@@ -5,7 +5,7 @@ import { useState } from "react";
 type Props = {
   copied: boolean;
   onCopy: () => void;
-  onClose: () => void;
+  onClose?: () => void;
 };
 
 const chip: React.CSSProperties = {
@@ -42,9 +42,9 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
           width: 26,
           height: 26,
           borderRadius: "50%",
-          background: "rgba(149, 191, 71, 0.15)",
-          border: "1px solid rgba(149, 191, 71, 0.45)",
-          color: "#95bf47",
+          background: "var(--bg-card)",
+          border: "1px solid var(--border)",
+          color: "var(--text-primary)",
           fontSize: "0.75rem",
           fontWeight: 700,
           display: "flex",
@@ -74,9 +74,9 @@ function EditorSketch() {
         marginLeft: opts.indent ? 12 : 0,
         borderRadius: 5,
         fontSize: 11,
-        color: opts.add ? "#95bf47" : opts.active ? "var(--text-primary)" : "var(--text-muted)",
-        background: opts.active ? "rgba(149, 191, 71, 0.12)" : "transparent",
-        border: opts.active ? "1px dashed rgba(149, 191, 71, 0.6)" : "1px solid transparent",
+        color: opts.add ? "var(--text-primary)" : opts.active ? "var(--text-primary)" : "var(--text-muted)",
+        background: opts.active ? "var(--bg-card)" : "transparent",
+        border: opts.active ? "1px dashed #94a3b8" : "1px solid transparent",
         fontWeight: opts.active || opts.add ? 700 : 500,
       }}
     >
@@ -112,9 +112,9 @@ function EditorSketch() {
             fontSize: 11,
             fontWeight: 700,
             borderRadius: 5,
-            background: "var(--accent-dim)",
-            border: "1px solid var(--accent-glow)",
-            color: "var(--accent)",
+            background: "#0f172a",
+            border: "1px solid #0f172a",
+            color: "#fff",
             display: "inline-block",
           }}
         >
@@ -133,16 +133,15 @@ function EditorSketch() {
             width: 34,
             height: 34,
             borderRadius: "50%",
-            background: "var(--accent)",
-            color: "white",
+            background: "#fff",
+            color: "#0f172a",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 14,
-            boxShadow: "0 4px 14px rgba(107, 76, 255, 0.45)",
+            boxShadow: "0 0 0 2px #0f172a, 0 4px 14px rgba(15,23,42,.2)",
           }}
         >
-          ✦
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
         </div>
       </div>
     </div>
@@ -151,20 +150,17 @@ function EditorSketch() {
 
 export default function ShopifyGuide({ copied, onCopy, onClose }: Props) {
   const [showFallback, setShowFallback] = useState(false);
+  const [showSketch, setShowSketch] = useState(false);
+  // On the Deploy page the code is copied in the step above, so the guide is shorter.
+  const compact = !onClose;
+  const n = (i: number) => (compact ? i - 1 : i);
 
   return (
-    <div
-      style={{
-        marginTop: "1.25rem",
-        border: "1px solid rgba(149, 191, 71, 0.35)",
-        background: "rgba(149, 191, 71, 0.04)",
-        borderRadius: 12,
-        padding: "1.25rem 1.25rem 1.4rem",
-      }}
-    >
+    <div>
+      {onClose && (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: "1rem" }}>
         <div>
-          <div style={{ fontSize: "1rem", fontWeight: 800, color: "var(--text-primary)" }}>🟧 Add your agent to Shopify</div>
+          <div style={{ fontSize: "1rem", fontWeight: 800, color: "var(--text-primary)" }}>Add your agent to Shopify</div>
           <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: 2 }}>
             About 2 minutes. No coding, and you can undo it any time.
           </div>
@@ -185,16 +181,18 @@ export default function ShopifyGuide({ copied, onCopy, onClose }: Props) {
           Close
         </button>
       </div>
+      )}
 
-      <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "1.1rem" }}>
+      <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: compact ? "0.85rem" : "1.1rem" }}>
+        {!compact && (
         <Step n={1} title="Copy your code">
           <button
             onClick={onCopy}
             style={{
-              background: copied ? "rgba(16, 185, 129, 0.15)" : "var(--accent)",
-              border: copied ? "1px solid rgba(16, 185, 129, 0.4)" : "1px solid var(--accent)",
-              color: copied ? "#10b981" : "white",
-              borderRadius: 8,
+              background: copied ? "rgba(16, 185, 129, 0.1)" : "#0f172a",
+              border: copied ? "1px solid rgba(16, 185, 129, 0.4)" : "1px solid #0f172a",
+              color: copied ? "#059669" : "white",
+              borderRadius: 10,
               padding: "7px 16px",
               fontSize: "0.82rem",
               fontWeight: 700,
@@ -204,42 +202,57 @@ export default function ShopifyGuide({ copied, onCopy, onClose }: Props) {
             {copied ? "✓ Copied" : "Copy my code"}
           </button>
         </Step>
+        )}
 
-        <Step n={2} title="Open your theme editor">
+        <Step n={n(2)} title="Open your theme editor">
           In your Shopify admin, go to{" "}
           <Path items={["Online Store", "Themes", "Customize"]} />
         </Step>
 
-        <Step n={3} title="Add a Custom Liquid section to the footer">
+        <Step n={n(3)} title="Add a Custom Liquid section to the footer">
           <div style={{ marginBottom: 10 }}>
             In the left menu, find <span style={chip}>Footer</span>, then click{" "}
             <Path items={["Add section", "Custom Liquid"]} />
           </div>
-          <EditorSketch />
-          <div style={{ marginTop: 8, fontSize: "0.76rem", color: "var(--text-muted)" }}>
-            The footer is on every page, so the chat button will appear across your whole store.
-          </div>
+          {compact && !showSketch ? (
+            <button
+              type="button"
+              onClick={() => setShowSketch(true)}
+              style={{ background: "none", border: "none", padding: 0, color: "var(--text-secondary)", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3 }}
+            >
+              See where to click
+            </button>
+          ) : (
+            <>
+              <EditorSketch />
+              <div style={{ marginTop: 8, fontSize: "0.76rem", color: "var(--text-muted)" }}>
+                The footer is on every page, so the chat button will appear across your whole store.
+              </div>
+            </>
+          )}
         </Step>
 
-        <Step n={4} title="Paste the code and save">
+        <Step n={n(4)} title="Paste the code and save">
           Click into the <span style={chip}>Liquid code</span> box on the right, paste (Ctrl+V or ⌘V), then click{" "}
           <span style={chip}>Save</span> at the top right.
         </Step>
 
+        {!compact && (
         <Step n={5} title="Check it works">
           Open your store in a new tab. The chat button should appear in the bottom-right corner. If your store
           still has a password page, log in past it first.
         </Step>
+        )}
       </ol>
 
-      <div style={{ marginTop: "1.25rem", borderTop: "1px solid var(--border)", paddingTop: "0.9rem" }}>
+      <div style={{ marginTop: compact ? "0.9rem" : "1.25rem", borderTop: "1px solid var(--border)", paddingTop: compact ? "0.7rem" : "0.9rem" }}>
         <button
           onClick={() => setShowFallback((v) => !v)}
           style={{
             background: "transparent",
             border: "none",
             padding: 0,
-            color: "var(--accent)",
+            color: "var(--text-secondary)",
             fontSize: "0.82rem",
             fontWeight: 600,
             cursor: "pointer",
@@ -257,16 +270,18 @@ export default function ShopifyGuide({ copied, onCopy, onClose }: Props) {
               Open <span style={chip}>layout/theme.liquid</span>.
             </li>
             <li>
-              Find the line <code style={{ color: "var(--accent)" }}>&lt;/body&gt;</code> near the bottom (Ctrl+F helps),
+              Find the line <code style={{ color: "var(--text-primary)", fontWeight: 600 }}>&lt;/body&gt;</code> near the bottom (Ctrl+F helps),
               paste your code on the line just above it, then click <span style={chip}>Save</span>.
             </li>
           </ol>
         )}
       </div>
 
+      {!compact && (
       <div style={{ marginTop: "0.9rem", fontSize: "0.78rem", color: "var(--text-muted)" }}>
         To remove the agent later, delete the Custom Liquid section (or the pasted line) and save.
       </div>
+      )}
     </div>
   );
 }

@@ -330,7 +330,7 @@ function ResetPasswordContent() {
           border: "none",
           cursor: loading ? "not-allowed" : "pointer",
           opacity: loading ? 0.7 : 1,
-          boxShadow: "0 4px 14px rgba(79, 70, 229, 0.3)",
+          boxShadow: "0 4px 14px color-mix(in srgb, var(--text-primary) 16%, transparent)",
           transition: "all 0.2s ease",
         }}
       >
@@ -377,7 +377,7 @@ export default function ResetPasswordPage() {
           width: "600px",
           height: "600px",
           background:
-            "radial-gradient(circle, rgba(79, 70, 229, 0.08) 0%, rgba(248,250,252,0) 70%)",
+            "radial-gradient(circle, color-mix(in srgb, var(--text-primary) 4%, transparent) 0%, rgba(248,250,252,0) 70%)",
           pointerEvents: "none",
         }}
       />

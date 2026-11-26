@@ -126,72 +126,104 @@ export function getPlainResultLabel(outcome?: string | null): string {
   return outcome.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+// Quiet, neutral chip: the tier colour lives only in a small dot / meter,
+// never in a tinted box, so long lists stay calm and readable.
+const TIER_COLOR: Record<"hot" | "warm" | "cold", string> = {
+  hot: "#10b981",
+  warm: "#f59e0b",
+  cold: "#94a3b8",
+};
+
 export function getLeadScoreTier(scoreStr?: string | null): {
   label: string;
   tier: "hot" | "warm" | "cold";
+  num: number | null;
+  name: string;
+  color: string;
   style: React.CSSProperties;
 } {
-  const baseStyle: React.CSSProperties = {
+  const style: React.CSSProperties = {
     display: "inline-flex",
     alignItems: "center",
-    gap: "0.35rem",
-    padding: "0.25rem 0.65rem",
-    borderRadius: "6px",
-    fontSize: "0.82rem",
+    gap: "0.4rem",
+    padding: "0.2rem 0.6rem",
+    borderRadius: 999,
+    fontSize: "0.72rem",
     fontWeight: 600,
+    letterSpacing: "0.02em",
     whiteSpace: "nowrap",
+    background: "var(--bg-card)",
+    color: "var(--text-secondary)",
+    border: "1px solid var(--border)",
   };
 
   const num = parseInt(scoreStr || "", 10);
   if (isNaN(num)) {
-    return {
-      label: "--",
-      tier: "cold",
-      style: {
-        ...baseStyle,
-        background: "var(--bg-hover)",
-        color: "var(--text-muted)",
-        border: "1px solid var(--border)",
-      },
-    };
+    return { label: "--", tier: "cold", num: null, name: "", color: "var(--border)", style };
   }
+  const tier = num >= 75 ? "hot" : num >= 40 ? "warm" : "cold";
+  const name = tier === "hot" ? "Hot" : tier === "warm" ? "Warm" : "Cold";
+  return { label: `${num} · ${name}`, tier, num, name, color: TIER_COLOR[tier], style };
+}
 
-  if (num >= 75) {
-    return {
-      label: `${num} · Hot`,
-      tier: "hot",
-      style: {
-        ...baseStyle,
-        background: "rgba(16, 185, 129, 0.14)",
-        color: "var(--success)",
-        border: "1px solid rgba(16, 185, 129, 0.3)",
-      },
-    };
+/** Lead score as a number, a slim meter and a quiet tier word. */
+function LeadScoreMeter({ scoreStr }: { scoreStr?: string | null }) {
+  const t = getLeadScoreTier(scoreStr);
+  if (t.num === null) {
+    return <span style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>—</span>;
   }
-
-  if (num >= 40) {
-    return {
-      label: `${num} · Warm`,
-      tier: "warm",
-      style: {
-        ...baseStyle,
-        background: "rgba(245, 158, 11, 0.14)",
-        color: "var(--warning)",
-        border: "1px solid rgba(245, 158, 11, 0.3)",
-      },
-    };
-  }
-
-  return {
-    label: `${num} · Cold`,
-    tier: "cold",
-    style: {
-      ...baseStyle,
-      background: "rgba(99, 102, 241, 0.12)",
-      color: "var(--accent)",
-      border: "1px solid rgba(99, 102, 241, 0.25)",
-    },
-  };
+  const pct = Math.max(4, Math.min(100, t.num));
+  return (
+    <span
+      title={`Lead score ${t.num} of 100 (${t.name})`}
+      style={{ display: "inline-flex", alignItems: "center", gap: "0.6rem", whiteSpace: "nowrap" }}
+    >
+      <span
+        style={{
+          fontSize: "0.9rem",
+          fontWeight: 650,
+          color: "var(--text-primary)",
+          fontVariantNumeric: "tabular-nums",
+          minWidth: "1.4rem",
+          textAlign: "right",
+        }}
+      >
+        {t.num}
+      </span>
+      <span
+        aria-hidden
+        style={{
+          position: "relative",
+          width: 44,
+          height: 4,
+          borderRadius: 999,
+          background: "var(--border)",
+          overflow: "hidden",
+        }}
+      >
+        <span
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: `${pct}%`,
+            borderRadius: 999,
+            background: t.color,
+          }}
+        />
+      </span>
+      <span
+        style={{
+          fontSize: "0.75rem",
+          fontWeight: 500,
+          color: "var(--text-secondary)",
+          minWidth: "2.2rem",
+          textAlign: "left",
+        }}
+      >
+        {t.name}
+      </span>
+    </span>
+  );
 }
 
 export function formatInterestLevel(val?: string | null): string {
@@ -272,7 +304,7 @@ export default function DashboardPage() {
             finalValues[m.id] = qualifyingRow
               ? (qualifyingRow[m.id] as string)
               : (last && (last[m.id] as string)) || "just_chat";
-          } else if (m.id.includes("score")) {
+          } else if (m.id === "lead_score") {
             const numLast = parseInt((last?.[m.id] as string) || "0", 10);
             const numQual = qualifyingRow
               ? parseInt((qualifyingRow[m.id] as string) || "0", 10)
@@ -283,7 +315,13 @@ export default function DashboardPage() {
             );
             finalValues[m.id] = String(bestScore);
           } else {
-            finalValues[m.id] = (last && (last[m.id] as string)) || "unknown";
+            // The latest value the assistant actually noted in this chat
+            // (a visitor may mention it early and never again).
+            const noted = [...sorted]
+              .reverse()
+              .map((r) => String((r[m.id] as string) ?? "").trim())
+              .find((v) => v && !["unknown", "none", "null", "n/a", "0"].includes(v.toLowerCase()));
+            finalValues[m.id] = noted || "unknown";
           }
         });
 
@@ -468,35 +506,23 @@ export default function DashboardPage() {
       <style>{`
         .summary-card {
           background-color: var(--bg-card);
-          border: 1px solid var(--border);
-          border-radius: 12px;
-          padding: 1.25rem 1.5rem;
-          box-shadow: var(--shadow-sm);
-          transition: transform 0.18s ease, border-color 0.18s ease;
+          border: 1px solid var(--border) !important;
+          border-radius: 16px;
+          padding: 1.35rem 1.5rem;
+          box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 20px rgba(15, 23, 42, 0.035);
+          transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
         }
         .summary-card.clickable {
           cursor: pointer;
         }
-        .summary-card-conv {
-          border-top: 3px solid #6366f1 !important;
-        }
-        .summary-card-conv:hover,
-        .summary-card-conv.active-filter {
-          border-color: rgba(99, 102, 241, 0.6);
-          border-top-color: #6366f1 !important;
+        .summary-card.clickable:hover {
           transform: translateY(-1px);
+          box-shadow: 0 2px 4px rgba(15, 23, 42, 0.05), 0 10px 28px rgba(15, 23, 42, 0.06);
         }
-        .summary-card-leads {
-          border-top: 3px solid #10b981 !important;
-        }
-        .summary-card-leads:hover,
-        .summary-card-leads.active-filter {
-          border-color: rgba(16, 185, 129, 0.6);
-          border-top-color: #10b981 !important;
-          transform: translateY(-1px);
-        }
-        .summary-card-score {
-          border-top: 3px solid #f59e0b !important;
+        /* Selected filter: a slightly firmer neutral edge, no colour tint. */
+        .summary-card.active-filter {
+          border-color: color-mix(in srgb, var(--text-primary) 22%, var(--border)) !important;
+          box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.06);
         }
 
         @media (max-width: 767px) {
@@ -578,209 +604,151 @@ export default function DashboardPage() {
           Conversations
         </h1>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-          {/* Export Dropdown */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          {/* Export menu */}
           <div style={{ position: "relative" }}>
             <button
+              type="button"
+              className="ryx-hbtn"
               onClick={() => setExportMenuOpen((prev) => !prev)}
               disabled={sessions.length === 0 || exportingFormat !== null}
-              title="Export chat history and transcripts"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.45rem",
-                padding: "0.5rem 0.95rem",
-                background: "transparent",
-                border: "1px solid var(--border)",
-                borderRadius: 8,
-                color: "var(--text-secondary)",
-                fontSize: "0.85rem",
-                fontWeight: 500,
-                cursor:
-                  sessions.length === 0 || exportingFormat !== null
-                    ? "not-allowed"
-                    : "pointer",
-                opacity:
-                  sessions.length === 0 || exportingFormat !== null ? 0.6 : 1,
-                transition: "all 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                if (sessions.length > 0 && exportingFormat === null) {
-                  e.currentTarget.style.borderColor = "var(--accent)";
-                  e.currentTarget.style.color = "var(--text-primary)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "var(--border)";
-                e.currentTarget.style.color = "var(--text-secondary)";
-              }}
+              aria-haspopup="menu"
+              aria-expanded={exportMenuOpen}
+              title="Download your conversations"
             >
-              <span>⬇</span>
-              <span>
-                {exportingFormat
-                  ? `Exporting ${exportingFormat.toUpperCase()}…`
-                  : "Export"}
-              </span>
-              <span style={{ fontSize: "0.65rem", opacity: 0.7 }}>▼</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
+              </svg>
+              <span>{exportingFormat ? `Exporting ${exportingFormat.toUpperCase()}…` : "Export"}</span>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+                style={{ opacity: 0.6, transition: "transform .2s ease", transform: exportMenuOpen ? "rotate(180deg)" : "none" }}
+              >
+                <path d="M6 9l6 6 6-6" />
+              </svg>
             </button>
 
             {exportMenuOpen && (
               <>
-                <div
-                  onClick={() => setExportMenuOpen(false)}
-                  style={{
-                    position: "fixed",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    zIndex: 40,
-                  }}
-                />
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "calc(100% + 6px)",
-                    right: 0,
-                    backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 8,
-                    boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
-                    padding: "0.35rem",
-                    minWidth: 200,
-                    zIndex: 50,
-                  }}
-                >
-                  <button
-                    onClick={() => handleGlobalExport("csv")}
-                    disabled={exportingFormat !== null}
-                    style={{
-                      width: "100%",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "flex-start",
-                      padding: "0.5rem 0.75rem",
-                      background: "transparent",
-                      border: "none",
-                      borderRadius: 6,
-                      color: "var(--text-primary)",
-                      fontSize: "0.83rem",
-                      textAlign: "left",
-                      cursor: "pointer",
-                      transition: "background 0.15s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "var(--bg-hover)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "transparent";
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontWeight: 600,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.35rem",
-                      }}
-                    >
-                      <span>📄</span> Export as CSV
-                    </div>
-                    <span
-                      style={{
-                        fontSize: "0.72rem",
-                        color: "var(--text-muted)",
-                        marginTop: "0.15rem",
-                      }}
-                    >
-                      Spreadsheet with full transcripts
+                <div onClick={() => setExportMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+                <div role="menu" className="ryx-menu">
+                  <div style={{ padding: "0.55rem 0.7rem 0.45rem", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <span style={{ fontSize: "0.68rem", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>
+                      Download
                     </span>
-                  </button>
-
-                  <button
-                    onClick={() => handleGlobalExport("json")}
-                    disabled={exportingFormat !== null}
-                    style={{
-                      width: "100%",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "flex-start",
-                      padding: "0.5rem 0.75rem",
-                      background: "transparent",
-                      border: "none",
-                      borderRadius: 6,
-                      color: "var(--text-primary)",
-                      fontSize: "0.83rem",
-                      textAlign: "left",
-                      cursor: "pointer",
-                      transition: "background 0.15s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "var(--bg-hover)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "transparent";
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontWeight: 600,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.35rem",
-                      }}
-                    >
-                      <span>⚙️</span> Export as JSON
-                    </div>
-                    <span
-                      style={{
-                        fontSize: "0.72rem",
-                        color: "var(--text-muted)",
-                        marginTop: "0.15rem",
-                      }}
-                    >
-                      Structured format for CRM & APIs
+                    <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+                      {sessions.length} {sessions.length === 1 ? "conversation" : "conversations"}
                     </span>
-                  </button>
+                  </div>
+                  {(
+                    [
+                      {
+                        fmt: "csv" as const,
+                        title: "Spreadsheet",
+                        desc: "Open in Excel or Google Sheets. Includes full chats.",
+                        tint: "#10b981",
+                        icon: <path d="M4 4h16v16H4zM4 10h16M4 15h16M10 4v16" />,
+                      },
+                      {
+                        fmt: "json" as const,
+                        title: "Developer file",
+                        desc: "Structured data for a CRM or an API.",
+                        tint: "#0ea5e9",
+                        icon: <path d="M9 4c-2 0-3 1-3 3v2c0 1-1 2-2 2 1 0 2 1 2 2v2c0 2 1 3 3 3M15 4c2 0 3 1 3 3v2c0 1 1 2 2 2-1 0-2 1-2 2v2c0 2-1 3-3 3" />,
+                      },
+                    ]
+                  ).map((o) => (
+                    <button
+                      key={o.fmt}
+                      type="button"
+                      role="menuitem"
+                      className="ryx-mitem"
+                      onClick={() => handleGlobalExport(o.fmt)}
+                      disabled={exportingFormat !== null}
+                    >
+                      <span
+                        aria-hidden
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 10,
+                          flexShrink: 0,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: o.tint,
+                          background: `color-mix(in srgb, ${o.tint} 10%, var(--bg-card))`,
+                          border: `1px solid color-mix(in srgb, ${o.tint} 22%, var(--border))`,
+                        }}
+                      >
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                          {o.icon}
+                        </svg>
+                      </span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600, fontSize: "0.86rem", color: "var(--text-primary)" }}>
+                          {o.title}
+                          <span
+                            style={{
+                              fontSize: "0.64rem",
+                              fontWeight: 600,
+                              letterSpacing: "0.04em",
+                              color: "var(--text-muted)",
+                              border: "1px solid var(--border)",
+                              borderRadius: 6,
+                              padding: "1px 6px",
+                            }}
+                          >
+                            .{o.fmt}
+                          </span>
+                        </span>
+                        <span style={{ display: "block", fontSize: "0.75rem", color: "var(--text-muted)", marginTop: 2, lineHeight: 1.4 }}>
+                          {o.desc}
+                        </span>
+                      </span>
+                      <svg className="ryx-mitem-go" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M12 4v11M7 10l5 5 5-5" />
+                      </svg>
+                    </button>
+                  ))}
                 </div>
               </>
             )}
           </div>
 
-          {/* Refresh Button */}
-          <button
-            onClick={() => loadData(true)}
-            disabled={loading}
-            title="Refresh analytics"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.4rem",
-              padding: "0.5rem 1rem",
-              background: "transparent",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              color: "var(--text-secondary)",
-              fontSize: "0.85rem",
-              fontWeight: 500,
-              cursor: loading ? "not-allowed" : "pointer",
-              opacity: loading ? 0.6 : 1,
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-              if (!loading) {
-                e.currentTarget.style.borderColor = "var(--accent)";
-                e.currentTarget.style.color = "var(--accent)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "var(--border)";
-              e.currentTarget.style.color = "var(--text-secondary)";
-            }}
-          >
-            <span>↻</span>
+          {/* Refresh */}
+          <button type="button" className="ryx-hbtn" onClick={() => loadData(true)} disabled={loading} title="Refresh">
+            <svg className={loading ? "ryx-hspin" : undefined} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M21 12a9 9 0 1 1-3-6.7L21 8" />
+              <path d="M21 3v5h-5" />
+            </svg>
             <span>{loading ? "Refreshing…" : "Refresh"}</span>
           </button>
+
+          <style>{`
+            .ryx-hbtn { display: inline-flex; align-items: center; gap: .5rem; padding: .55rem .95rem; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); font: inherit; font-size: .85rem; font-weight: 500; cursor: pointer; box-shadow: 0 1px 2px rgba(15,23,42,.05); transition: border-color .15s, box-shadow .15s, background .15s; }
+            .ryx-hbtn:hover:not(:disabled) { border-color: #cbd5e1; box-shadow: 0 2px 6px rgba(15,23,42,.08); }
+            .ryx-hbtn:disabled { opacity: .55; cursor: not-allowed; }
+            .ryx-hbtn[aria-expanded="true"] { border-color: #cbd5e1; background: var(--bg-surface); }
+            .ryx-hspin { animation: ryxHSpin 1s linear infinite; }
+            @keyframes ryxHSpin { to { transform: rotate(360deg); } }
+            .ryx-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 50; width: 320px; padding: .35rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 2px 6px rgba(15,23,42,.06), 0 18px 44px rgba(15,23,42,.14); transform-origin: top right; animation: ryxMenuIn .14s ease-out; }
+            @keyframes ryxMenuIn { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: none; } }
+            .ryx-mitem { width: 100%; display: flex; align-items: center; gap: .75rem; padding: .65rem .7rem; border: none; border-radius: 10px; background: transparent; text-align: left; cursor: pointer; font: inherit; transition: background .15s; }
+            .ryx-mitem:hover:not(:disabled) { background: var(--bg-surface); }
+            .ryx-mitem:disabled { opacity: .6; cursor: default; }
+            .ryx-mitem-go { color: var(--text-muted); opacity: 0; transform: translateY(-2px); transition: opacity .15s, transform .15s; flex-shrink: 0; }
+            .ryx-mitem:hover .ryx-mitem-go { opacity: 1; transform: none; }
+            @media (max-width: 480px) { .ryx-menu { width: min(320px, calc(100vw - 32px)); } }
+          `}</style>
         </div>
       </div>
 
@@ -822,12 +790,22 @@ export default function DashboardPage() {
             </div>
             <span
               className="summary-card-badge"
+              aria-hidden
               style={{
-                fontSize: "0.85rem",
-                opacity: 0.85,
+                width: 30,
+                height: 30,
+                borderRadius: 9,
+                border: "1px solid var(--border)",
+                background: "var(--bg-surface)",
+                color: "var(--text-secondary)",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
-              💬
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />
+              </svg>
             </span>
           </div>
           <div
@@ -894,25 +872,28 @@ export default function DashboardPage() {
             <span
               className="summary-card-badge"
               style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.4rem",
                 fontSize: "0.72rem",
                 fontWeight: 600,
-                padding: "0.15rem 0.5rem",
-                borderRadius: 12,
-                background:
-                  leadsAndBookingsCount > 0
-                    ? "rgba(16, 185, 129, 0.15)"
-                    : "var(--bg-hover)",
-                color:
-                  leadsAndBookingsCount > 0
-                    ? "var(--success)"
-                    : "var(--text-muted)",
-                border: `1px solid ${
-                  leadsAndBookingsCount > 0
-                    ? "rgba(16, 185, 129, 0.3)"
-                    : "var(--border)"
-                }`,
+                padding: "0.2rem 0.6rem",
+                borderRadius: 999,
+                background: "var(--bg-card)",
+                color: "var(--text-secondary)",
+                border: "1px solid var(--border)",
+                fontVariantNumeric: "tabular-nums",
               }}
             >
+              <span
+                aria-hidden
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: leadsAndBookingsCount > 0 ? "#10b981" : "#cbd5e1",
+                }}
+              />
               {conversionRate}% rate
             </span>
           </div>
@@ -974,13 +955,13 @@ export default function DashboardPage() {
             {avgScoreTier && avgScore !== "--" && (
               <span
                 className="summary-card-badge"
-                style={{
-                  ...avgScoreTier.style,
-                  fontSize: "0.7rem",
-                  padding: "0.15rem 0.5rem",
-                }}
+                style={avgScoreTier.style}
               >
-                {avgScoreTier.tier.toUpperCase()}
+                <span
+                  aria-hidden
+                  style={{ width: 6, height: 6, borderRadius: "50%", background: avgScoreTier.color }}
+                />
+                {avgScoreTier.name}
               </span>
             )}
           </div>
@@ -994,7 +975,14 @@ export default function DashboardPage() {
               marginBottom: "0.4rem",
             }}
           >
-            {avgScore !== "--" ? `${avgScore} / 100` : "--"}
+            {avgScore !== "--" ? (
+              <>
+                {avgScore}
+                <span style={{ fontSize: "1.1rem", fontWeight: 500, color: "var(--text-muted)", marginLeft: 3 }}>/100</span>
+              </>
+            ) : (
+              "--"
+            )}
           </div>
           <div
             className="summary-card-subtext"
@@ -1010,37 +998,34 @@ export default function DashboardPage() {
                 className="summary-card-track"
                 style={{
                   display: "flex",
-                  height: 4,
+                  height: 6,
                   width: "100%",
-                  borderRadius: 2,
-                  overflow: "hidden",
-                  backgroundColor: "var(--bg-surface)",
-                  margin: "0.35rem 0",
-                  gap: 1,
+                  margin: "0.5rem 0 0.45rem",
+                  gap: 3,
                 }}
                 title={`${hotLeadsCount} Hot · ${warmLeadsCount} Warm · ${coldLeadsCount} Cold`}
               >
                 {hotLeadsCount > 0 && (
                   <div
                     style={{
-                      width: `${(hotLeadsCount / totalConversations) * 100}%`,
-                      backgroundColor: "var(--success)",
+                      flexGrow: hotLeadsCount, flexBasis: 0, minWidth: 6, borderRadius: 999,
+                      backgroundColor: TIER_COLOR.hot,
                     }}
                   />
                 )}
                 {warmLeadsCount > 0 && (
                   <div
                     style={{
-                      width: `${(warmLeadsCount / totalConversations) * 100}%`,
-                      backgroundColor: "var(--warning)",
+                      flexGrow: warmLeadsCount, flexBasis: 0, minWidth: 6, borderRadius: 999,
+                      backgroundColor: TIER_COLOR.warm,
                     }}
                   />
                 )}
                 {coldLeadsCount > 0 && (
                   <div
                     style={{
-                      width: `${(coldLeadsCount / totalConversations) * 100}%`,
-                      backgroundColor: "var(--accent)",
+                      flexGrow: coldLeadsCount, flexBasis: 0, minWidth: 6, borderRadius: 999,
+                      backgroundColor: TIER_COLOR.cold,
                     }}
                   />
                 )}
@@ -1077,10 +1062,9 @@ export default function DashboardPage() {
           style={{
             display: "inline-flex",
             alignItems: "center",
-            gap: "0.5rem",
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
+            gap: "0.25rem",
+            background: "color-mix(in srgb, var(--text-primary) 5%, transparent)",
+            borderRadius: 10,
             padding: "0.25rem",
           }}
         >
@@ -1103,14 +1087,18 @@ export default function DashboardPage() {
                 key={t.key}
                 onClick={() => setFilter(t.key)}
                 style={{
-                  padding: "0.35rem 0.75rem",
+                  padding: "0.4rem 0.85rem",
                   fontSize: "0.82rem",
                   fontWeight: isActive ? 600 : 500,
-                  borderRadius: 6,
+                  fontFamily: "inherit",
+                  borderRadius: 8,
                   border: "none",
                   cursor: "pointer",
-                  color: isActive ? "var(--accent)" : "var(--text-secondary)",
-                  background: isActive ? "var(--accent-dim)" : "transparent",
+                  color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
+                  background: isActive ? "var(--bg-card)" : "transparent",
+                  boxShadow: isActive
+                    ? "0 1px 2px rgba(15, 23, 42, 0.08), 0 1px 1px rgba(15, 23, 42, 0.04)"
+                    : "none",
                   transition: "all 0.15s ease",
                 }}
               >
@@ -1308,9 +1296,6 @@ export default function DashboardPage() {
                     conversionMetric?.id || "conversion_outcome"
                   ];
                 const resultLabel = getPlainResultLabel(rawOutcome);
-                const scoreTier = getLeadScoreTier(
-                  session.finalValues[scoreMetric?.id || "lead_score"]
-                );
 
                 const transcript = transcriptCache[session.id];
                 const isLoadingTranscript =
@@ -1325,7 +1310,7 @@ export default function DashboardPage() {
                       style={{
                         cursor: "pointer",
                         backgroundColor: isExpanded
-                          ? "var(--bg-hover)"
+                          ? "var(--bg-surface)"
                           : "transparent",
                         borderBottom: "1px solid var(--border)",
                         transition: "background-color 0.15s ease",
@@ -1336,7 +1321,7 @@ export default function DashboardPage() {
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.backgroundColor = isExpanded
-                          ? "var(--bg-hover)"
+                          ? "var(--bg-surface)"
                           : "transparent";
                       }}
                     >
@@ -1403,7 +1388,9 @@ export default function DashboardPage() {
                             gap: "0.75rem",
                           }}
                         >
-                          <span style={scoreTier.style}>{scoreTier.label}</span>
+                          <LeadScoreMeter
+                            scoreStr={session.finalValues[scoreMetric?.id || "lead_score"]}
+                          />
                           <span
                             style={{
                               fontSize: "0.75rem",
@@ -1430,11 +1417,12 @@ export default function DashboardPage() {
                           <div
                             className="drawer-grid"
                             style={{
-                              padding: "1.5rem",
+                              padding: "1.25rem 1.5rem 1.5rem",
                               display: "grid",
                               gridTemplateColumns:
                                 "repeat(auto-fit, minmax(320px, 1fr))",
-                              gap: "1.5rem",
+                              gap: "1.25rem",
+                              alignItems: "stretch",
                             }}
                           >
                             {/* Left Panel: Chat Transcript */}
@@ -1442,10 +1430,12 @@ export default function DashboardPage() {
                               style={{
                                 backgroundColor: "var(--bg-card)",
                                 border: "1px solid var(--border)",
-                                borderRadius: 10,
-                                padding: "1.25rem",
+                                borderRadius: 16,
+                                padding: "1.15rem 1.25rem 1.25rem",
                                 display: "flex",
                                 flexDirection: "column",
+                                boxShadow: "0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.04)",
+                                minWidth: 0,
                               }}
                             >
                               <div
@@ -1453,19 +1443,19 @@ export default function DashboardPage() {
                                   display: "flex",
                                   justifyContent: "space-between",
                                   alignItems: "center",
-                                  marginBottom: "1rem",
-                                  paddingBottom: "0.6rem",
+                                  marginBottom: "0.9rem",
+                                  paddingBottom: "0.75rem",
                                   borderBottom: "1px solid var(--border)",
                                 }}
                               >
                                 <span
                                   style={{
-                                    fontSize: "0.85rem",
-                                    fontWeight: 700,
+                                    fontSize: "0.92rem",
+                                    fontWeight: 650,
                                     color: "var(--text-primary)",
                                   }}
                                 >
-                                  What the visitor wrote
+                                  Conversation
                                 </span>
                                 <div
                                   style={{
@@ -1476,8 +1466,12 @@ export default function DashboardPage() {
                                 >
                                   <span
                                     style={{
-                                      fontSize: "0.75rem",
-                                      color: "var(--text-muted)",
+                                      fontSize: "0.72rem",
+                                      fontWeight: 600,
+                                      color: "var(--text-secondary)",
+                                      border: "1px solid var(--border)",
+                                      borderRadius: 999,
+                                      padding: "2px 9px",
                                     }}
                                   >
                                     {session.messageCount}{" "}
@@ -1496,12 +1490,13 @@ export default function DashboardPage() {
                                         display: "inline-flex",
                                         alignItems: "center",
                                         gap: "0.3rem",
-                                        padding: "0.2rem 0.55rem",
-                                        fontSize: "0.72rem",
+                                        padding: "0.3rem 0.7rem",
+                                        fontSize: "0.74rem",
                                         fontWeight: 600,
-                                        background: "var(--bg-hover)",
+                                        fontFamily: "inherit",
+                                        background: "var(--bg-card)",
                                         border: "1px solid var(--border)",
-                                        borderRadius: 6,
+                                        borderRadius: 8,
                                         color: "var(--text-secondary)",
                                         cursor: "pointer",
                                         transition: "all 0.15s ease",
@@ -1510,7 +1505,7 @@ export default function DashboardPage() {
                                         e.currentTarget.style.color =
                                           "var(--text-primary)";
                                         e.currentTarget.style.borderColor =
-                                          "var(--accent)";
+                                          "#cbd5e1";
                                       }}
                                       onMouseLeave={(e) => {
                                         e.currentTarget.style.color =
@@ -1519,8 +1514,8 @@ export default function DashboardPage() {
                                           "var(--border)";
                                       }}
                                     >
-                                      <span>⬇</span>
-                                      <span>Export .txt</span>
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>
+                                      <span>Download</span>
                                     </button>
                                   )}
                                 </div>
@@ -1544,55 +1539,76 @@ export default function DashboardPage() {
                                   style={{
                                     display: "flex",
                                     flexDirection: "column",
-                                    gap: "0.75rem",
-                                    maxHeight: 380,
+                                    gap: "0.9rem",
+                                    maxHeight: 400,
                                     overflowY: "auto",
                                     paddingRight: "0.35rem",
                                   }}
                                 >
                                   {transcript.messages.map((m) => {
                                     const isVisitor = m.role === "visitor";
+                                    const avatar = (
+                                      <span
+                                        aria-hidden
+                                        style={{
+                                          width: 26,
+                                          height: 26,
+                                          borderRadius: "50%",
+                                          flexShrink: 0,
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          fontSize: "0.66rem",
+                                          fontWeight: 700,
+                                          background: isVisitor ? "var(--bg-hover)" : "#0f172a",
+                                          color: isVisitor ? "var(--text-secondary)" : "#fff",
+                                        }}
+                                      >
+                                        {isVisitor ? (
+                                          "V"
+                                        ) : (
+                                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
+                                        )}
+                                      </span>
+                                    );
                                     return (
                                       <div
                                         key={m.id}
                                         style={{
                                           display: "flex",
-                                          flexDirection: "column",
-                                          alignItems: isVisitor
-                                            ? "flex-start"
-                                            : "flex-end",
+                                          gap: 8,
+                                          alignItems: "flex-end",
+                                          flexDirection: isVisitor ? "row" : "row-reverse",
                                         }}
                                       >
-                                        <div
-                                          style={{
-                                            maxWidth: "85%",
-                                            borderRadius: 8,
-                                            padding: "0.65rem 0.85rem",
-                                            fontSize: "0.88rem",
-                                            lineHeight: 1.45,
-                                            backgroundColor: isVisitor
-                                              ? "var(--bg-hover)"
-                                              : "var(--accent-dim)",
-                                            color: "var(--text-primary)",
-                                            border: `1px solid ${
-                                              isVisitor
-                                                ? "var(--border)"
-                                                : "var(--accent-glow)"
-                                            }`,
-                                          }}
-                                        >
-                                          {m.content}
-                                        </div>
-                                        <div
-                                          style={{
-                                            fontSize: "0.72rem",
-                                            color: "var(--text-muted)",
-                                            marginTop: "0.2rem",
-                                            padding: "0 0.25rem",
-                                          }}
-                                        >
-                                          {isVisitor ? "Visitor · " : "Assistant · "}
-                                          {formatTimeOnly(m.timestamp)}
+                                        {avatar}
+                                        <div style={{ display: "flex", flexDirection: "column", alignItems: isVisitor ? "flex-start" : "flex-end", maxWidth: "80%", minWidth: 0 }}>
+                                          <div
+                                            style={{
+                                              borderRadius: isVisitor ? "14px 14px 14px 4px" : "14px 14px 4px 14px",
+                                              padding: "0.6rem 0.85rem",
+                                              fontSize: "0.86rem",
+                                              lineHeight: 1.5,
+                                              backgroundColor: isVisitor ? "var(--bg-surface)" : "var(--bg-card)",
+                                              color: "var(--text-primary)",
+                                              border: "1px solid var(--border)",
+                                              boxShadow: isVisitor ? "none" : "0 1px 2px rgba(15,23,42,.05)",
+                                              overflowWrap: "anywhere",
+                                            }}
+                                          >
+                                            {m.content}
+                                          </div>
+                                          <div
+                                            style={{
+                                              fontSize: "0.7rem",
+                                              color: "var(--text-muted)",
+                                              marginTop: "0.25rem",
+                                              padding: "0 0.25rem",
+                                            }}
+                                          >
+                                            {isVisitor ? "Visitor · " : "Assistant · "}
+                                            {formatTimeOnly(m.timestamp)}
+                                          </div>
                                         </div>
                                       </div>
                                     );
@@ -1635,197 +1651,102 @@ export default function DashboardPage() {
                               style={{
                                 backgroundColor: "var(--bg-card)",
                                 border: "1px solid var(--border)",
-                                borderRadius: 10,
-                                padding: "1.25rem",
+                                borderRadius: 16,
+                                padding: "1.15rem 1.25rem 1.25rem",
                                 display: "flex",
                                 flexDirection: "column",
+                                boxShadow: "0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.04)",
+                                minWidth: 0,
                               }}
                             >
                               <div
                                 style={{
-                                  fontSize: "0.85rem",
-                                  fontWeight: 700,
+                                  fontSize: "0.92rem",
+                                  fontWeight: 650,
                                   color: "var(--text-primary)",
-                                  marginBottom: "1rem",
-                                  paddingBottom: "0.6rem",
+                                  marginBottom: "0.9rem",
+                                  paddingBottom: "0.75rem",
                                   borderBottom: "1px solid var(--border)",
                                 }}
                               >
                                 About this visitor
                               </div>
 
+                              {/* This chat at a glance */}
                               <div
                                 style={{
                                   display: "grid",
                                   gridTemplateColumns: "1fr 1fr",
-                                  gap: "1rem",
+                                  gap: "0.6rem",
+                                  marginBottom: "0.9rem",
                                 }}
                               >
-                                {/* Interest level */}
-                                <div>
-                                  <div
-                                    style={{
-                                      fontSize: "0.75rem",
-                                      color: "var(--text-muted)",
-                                      marginBottom: "0.2rem",
-                                    }}
-                                  >
-                                    Interest level
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: "0.88rem",
-                                      fontWeight: 600,
-                                      color: "var(--text-primary)",
-                                    }}
-                                  >
-                                    {formatInterestLevel(
-                                      session.finalValues["lead_stage"]
-                                    )}
+                                <div style={{ padding: "0.75rem 0.85rem", borderRadius: 12, background: "var(--bg-surface)" }}>
+                                  <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: 4 }}>Result</div>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: "0.88rem", fontWeight: 600, color: "var(--text-primary)" }}>
+                                    <span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: isLeadOrBooking(rawOutcome) ? "#10b981" : "#cbd5e1" }} />
+                                    {resultLabel}
                                   </div>
                                 </div>
-
-                                {/* Looking for / Use case */}
-                                <div>
-                                  <div
-                                    style={{
-                                      fontSize: "0.75rem",
-                                      color: "var(--text-muted)",
-                                      marginBottom: "0.2rem",
-                                    }}
-                                  >
-                                    Looking for
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: "0.88rem",
-                                      fontWeight: 600,
-                                      color: "var(--text-primary)",
-                                    }}
-                                  >
-                                    {session.finalValues["use_case"] &&
-                                    session.finalValues["use_case"] !== "unknown"
-                                      ? session.finalValues["use_case"].replace(
-                                          /_/g,
-                                          " "
-                                        )
-                                      : "Not available"}
-                                  </div>
+                                <div style={{ padding: "0.75rem 0.85rem", borderRadius: 12, background: "var(--bg-surface)" }}>
+                                  <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: 4 }}>Lead score</div>
+                                  <LeadScoreMeter scoreStr={session.finalValues[scoreMetric?.id || "lead_score"]} />
                                 </div>
-
-                                {/* Budget */}
-                                <div>
-                                  <div
-                                    style={{
-                                      fontSize: "0.75rem",
-                                      color: "var(--text-muted)",
-                                      marginBottom: "0.2rem",
-                                    }}
-                                  >
-                                    Budget
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: "0.88rem",
-                                      fontWeight: 600,
-                                      color: "var(--text-primary)",
-                                    }}
-                                  >
-                                    {session.finalValues["customer_budget"] &&
-                                    session.finalValues["customer_budget"] !==
-                                      "unknown" &&
-                                    session.finalValues["customer_budget"] !== "0"
-                                      ? session.finalValues["customer_budget"]
-                                      : "Not available"}
-                                  </div>
-                                </div>
-
-                                {/* SEO score */}
-                                <div>
-                                  <div
-                                    style={{
-                                      fontSize: "0.75rem",
-                                      color: "var(--text-muted)",
-                                      marginBottom: "0.2rem",
-                                    }}
-                                  >
-                                    SEO score
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: "0.88rem",
-                                      fontWeight: 600,
-                                      color: "var(--text-primary)",
-                                    }}
-                                  >
-                                    {session.finalValues["seo_score"] &&
-                                    session.finalValues["seo_score"] !== "unknown"
-                                      ? session.finalValues["seo_score"]
-                                      : "Not available"}
-                                  </div>
-                                </div>
-
-                                {/* Chat ID */}
-                                <div style={{ gridColumn: "span 2" }}>
-                                  <div
-                                    style={{
-                                      fontSize: "0.75rem",
-                                      color: "var(--text-muted)",
-                                      marginBottom: "0.2rem",
-                                    }}
-                                  >
-                                    Chat ID
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: "0.82rem",
-                                      fontFamily: "monospace",
-                                      color: "var(--text-secondary)",
-                                    }}
-                                  >
-                                    {session.id}
-                                  </div>
-                                </div>
-
-                                {/* Additional custom metrics */}
-                                {metrics
-                                  .filter(
-                                    (m) =>
-                                      ![
-                                        "conversion_outcome",
-                                        "lead_stage",
-                                        "use_case",
-                                        "lead_score",
-                                        "customer_budget",
-                                        "seo_score",
-                                      ].includes(m.id)
-                                  )
-                                  .map((m) => (
-                                    <div key={m.id}>
-                                      <div
-                                        style={{
-                                          fontSize: "0.75rem",
-                                          color: "var(--text-muted)",
-                                          marginBottom: "0.2rem",
-                                        }}
-                                      >
-                                        {m.name}
-                                      </div>
-                                      <div
-                                        style={{
-                                          fontSize: "0.88rem",
-                                          fontWeight: 600,
-                                          color: "var(--text-primary)",
-                                        }}
-                                      >
-                                        {session.finalValues[m.id] &&
-                                        session.finalValues[m.id] !== "unknown"
-                                          ? session.finalValues[m.id]
-                                          : "Not available"}
-                                      </div>
-                                    </div>
-                                  ))}
                               </div>
+
+                              {(() => {
+                                // Exactly the owner's list: their names, their order, only items set to "Shown".
+                                // Result and lead score already have their own columns in the table.
+                                const items = metrics.filter(
+                                  (m) => m.id !== "conversion_outcome" && m.id !== "lead_score"
+                                );
+                                const valueOf = (id: string) => {
+                                  const raw = (session.finalValues[id] || "").trim();
+                                  if (!raw || ["unknown", "none", "null", "n/a"].includes(raw.toLowerCase())) return "";
+                                  if (id === "lead_stage") return formatInterestLevel(raw);
+                                  return raw.replace(/_/g, " ");
+                                };
+                                if (items.length === 0) {
+                                  return (
+                                    <div style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
+                                      Nothing else is tracked yet. Add items in AI Core Metrics.
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem" }}>
+                                    {items.map((m) => {
+                                      const v = valueOf(m.id);
+                                      return (
+                                        <div
+                                          key={m.id}
+                                          style={{
+                                            minWidth: 0,
+                                            padding: "0.7rem 0.85rem",
+                                            borderRadius: 12,
+                                            border: v ? "1px solid var(--border)" : "1px dashed var(--border)",
+                                          }}
+                                        >
+                                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.2rem" }}>
+                                            {m.name}
+                                          </div>
+                                          <div
+                                            title={v || undefined}
+                                            style={{
+                                              fontSize: "0.88rem",
+                                              fontWeight: v ? 600 : 400,
+                                              color: v ? "var(--text-primary)" : "var(--text-muted)",
+                                              overflowWrap: "anywhere",
+                                            }}
+                                          >
+                                            {v || "Not mentioned"}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </div>
                         </td>

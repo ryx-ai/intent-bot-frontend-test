@@ -31,6 +31,16 @@ export default function VisualMappingPage() {
   const [toast, setToast] = useState("");
   const [deleteKeyword, setDeleteKeyword] = useState<string | null>(null);
   const [deletingKeyword, setDeletingKeyword] = useState("");
+  // Picture opened in the large view
+  const [viewKey, setViewKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (!viewKey) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setViewKey(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [viewKey]);
 
   const fetchMappings = useCallback(async () => {
     try {
@@ -183,6 +193,15 @@ export default function VisualMappingPage() {
       }}
     >
       <style>{`
+        .vm-empty { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); background: var(--bg-card); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.04); }
+        .vm-empty-preview { display: flex; align-items: center; justify-content: center; padding: 2.25rem; background: var(--bg-surface); border-left: 1px solid var(--border); }
+        .vm-btn-dark { display: inline-flex; align-items: center; gap: .5rem; padding: .65rem 1.2rem; border-radius: 10px; background: #0f172a; color: #fff; font-size: .88rem; font-weight: 600; text-decoration: none; box-shadow: 0 4px 12px rgba(15,23,42,.18); transition: transform .15s, box-shadow .15s; }
+        .vm-btn-dark:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(15,23,42,.22); }
+        @media (max-width: 900px) {
+          .vm-empty { grid-template-columns: minmax(0, 1fr); }
+          .vm-empty-preview { border-left: none; border-top: 1px solid var(--border); }
+        }
+        @media (max-width: 520px) { .vm-empty > div:first-child { padding: 1.75rem 1.25rem !important; } }
         @keyframes vm-spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
@@ -192,9 +211,20 @@ export default function VisualMappingPage() {
         }
         .visual-mapping-grid {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 1.5rem;
+          grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+          gap: 1.25rem;
         }
+        .vm-card { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+        .vm-card:hover { transform: translateY(-3px); border-color: #cbd5e1 !important; box-shadow: 0 16px 34px rgba(15,23,42,.10) !important; }
+        .vm-thumb { cursor: zoom-in; }
+        .vm-thumb img { transition: transform .3s ease; }
+        .vm-thumb:hover img { transform: scale(1.03); }
+        .vm-thumb-view { position: absolute; right: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; background: rgba(15,23,42,.82); color: #fff; font-size: .72rem; font-weight: 600; opacity: 0; transform: translateY(3px); transition: opacity .18s, transform .18s; }
+        .vm-thumb:hover .vm-thumb-view { opacity: 1; transform: none; }
+        .vm-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all .15s; flex-shrink: 0; }
+        .vm-icon-btn:hover:not(:disabled) { border-color: #cbd5e1; color: var(--text-primary); }
+        .vm-icon-btn.danger:hover:not(:disabled) { color: var(--error); border-color: rgba(239,68,68,.35); background: rgba(239,68,68,.06); }
+        .vm-icon-btn:disabled { opacity: .4; cursor: not-allowed; }
         @media (max-width: 1100px) {
           .visual-mapping-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -271,12 +301,13 @@ export default function VisualMappingPage() {
             alignItems: "center",
             gap: 8,
             padding: "0.55rem 1.1rem",
-            background: "var(--bg-surface)",
+            background: "var(--bg-card)",
             border: "1px solid var(--border)",
-            borderRadius: 8,
+            borderRadius: 10,
             color: "var(--text-primary)",
             fontSize: "0.85rem",
-            fontWeight: 600,
+            fontWeight: 500,
+            boxShadow: "0 1px 2px rgba(15,23,42,.05)",
             cursor: loading ? "not-allowed" : "pointer",
             opacity: loading ? 0.6 : 1,
             transition: "border-color 0.15s, background-color 0.15s",
@@ -284,14 +315,14 @@ export default function VisualMappingPage() {
           }}
           onMouseEnter={(e) => {
             if (!loading) {
-              e.currentTarget.style.borderColor = "var(--accent)";
+              e.currentTarget.style.borderColor = "#cbd5e1";
               e.currentTarget.style.backgroundColor = "var(--bg-hover)";
             }
           }}
           onMouseLeave={(e) => {
             if (!loading) {
               e.currentTarget.style.borderColor = "var(--border)";
-              e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+              e.currentTarget.style.backgroundColor = "var(--bg-card)";
             }
           }}
         >
@@ -326,88 +357,120 @@ export default function VisualMappingPage() {
         </div>
       ) : keys.length === 0 ? (
         /* Empty State */
-        <div
-          style={{
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: 12,
-            padding: "4rem 2rem",
-            textAlign: "center",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <div
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 10,
-              backgroundColor: "var(--accent-dim)",
-              color: "var(--accent)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              marginBottom: "1.25rem",
-            }}
-          >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
+        <div className="vm-empty">
+          <div style={{ padding: "2.5rem 2.5rem 2.25rem", display: "flex", flexDirection: "column" }}>
+            <span
+              aria-hidden
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 14,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "linear-gradient(145deg,#1e293b,#0f172a)",
+                color: "#fff",
+                boxShadow: "0 8px 20px rgba(15,23,42,.18)",
+                marginBottom: "1.25rem",
+              }}
             >
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <circle cx="8.5" cy="8.5" r="1.5" />
-              <polyline points="21 15 16 10 5 21" />
-            </svg>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>
+            </span>
+            <h3 style={{ margin: "0 0 0.5rem", fontSize: "1.4rem", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text-primary)" }}>
+              No pictures yet
+            </h3>
+            <p style={{ margin: "0 0 1.5rem", color: "var(--text-secondary)", fontSize: "0.92rem", lineHeight: 1.6, maxWidth: 440 }}>
+              Your assistant can show slides from your presentations right in the chat, when a customer asks about that topic.
+            </p>
+
+            <ol style={{ listStyle: "none", margin: "0 0 1.75rem", padding: 0, display: "grid", gap: "0.85rem" }}>
+              {[
+                ["Upload a presentation", "Add a PDF in Knowledge Lake."],
+                ["We pick out the pictures", "Each slide is matched to its topic automatically."],
+                ["Customers see them in the chat", "Shown when someone asks about that topic."],
+              ].map(([title, desc], i) => (
+                <li key={title} style={{ display: "flex", gap: "0.85rem", alignItems: "flex-start" }}>
+                  <span
+                    style={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: "50%",
+                      flexShrink: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "0.75rem",
+                      fontWeight: 700,
+                      color: "var(--text-primary)",
+                      border: "1px solid var(--border)",
+                      background: "var(--bg-card)",
+                    }}
+                  >
+                    {i + 1}
+                  </span>
+                  <span>
+                    <span style={{ display: "block", fontSize: "0.9rem", fontWeight: 600, color: "var(--text-primary)" }}>{title}</span>
+                    <span style={{ display: "block", fontSize: "0.8rem", color: "var(--text-muted)", marginTop: 2 }}>{desc}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+
+            <div>
+              <Link href="/workspace/knowledge" className="vm-btn-dark">
+                Upload a presentation
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </Link>
+            </div>
           </div>
-          <h3
-            style={{
-              margin: "0 0 0.5rem 0",
-              fontSize: "1.2rem",
-              fontWeight: 700,
-              color: "var(--text-primary)",
-            }}
-          >
-            No pictures yet
-          </h3>
-          <p
-            style={{
-              margin: "0 0 1.5rem 0",
-              color: "var(--text-secondary)",
-              fontSize: "0.92rem",
-              lineHeight: 1.55,
-              maxWidth: 460,
-            }}
-          >
-            Upload a presentation (PDF) in Knowledge Lake. We&apos;ll pick out its pictures so your assistant can show them when customers ask.
-          </p>
-          <Link
-            href="/workspace/knowledge"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "0.65rem 1.35rem",
-              borderRadius: 8,
-              backgroundColor: "var(--accent)",
-              color: "#ffffff",
-              fontSize: "0.88rem",
-              fontWeight: 600,
-              textDecoration: "none",
-              transition: "opacity 0.15s ease",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
-            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-          >
-            Go to Knowledge Lake
-          </Link>
+
+          {/* Preview: what a customer sees */}
+          <div className="vm-empty-preview" aria-hidden>
+            <div style={{ width: "100%", maxWidth: 360 }}>
+              <div style={{ fontSize: "0.68rem", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 10 }}>
+                What customers see
+              </div>
+              <div
+                style={{
+                  background: "var(--bg-card)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 18,
+                  boxShadow: "0 18px 40px rgba(15,23,42,.10)",
+                  padding: 16,
+                  display: "grid",
+                  gap: 10,
+                }}
+              >
+                <div style={{ justifySelf: "end", background: "#0f172a", color: "#fff", fontSize: "0.8rem", padding: "8px 12px", borderRadius: "14px 14px 4px 14px" }}>
+                  How does your pricing work?
+                </div>
+                <div style={{ justifySelf: "start", background: "var(--bg-surface)", color: "var(--text-primary)", fontSize: "0.8rem", padding: "8px 12px", borderRadius: "14px 14px 14px 4px", maxWidth: "85%" }}>
+                  Here are our plans 👇
+                </div>
+                <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid var(--border)" }}>
+                  <div style={{ aspectRatio: "16 / 9", background: "linear-gradient(135deg,#e2e8f0,#f8fafc)", padding: 14, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, alignContent: "center" }}>
+                    {[0.55, 0.8, 0.65].map((h, i) => (
+                      <div key={i} style={{ background: "#fff", borderRadius: 8, padding: 8, boxShadow: "0 2px 6px rgba(15,23,42,.06)" }}>
+                        <div style={{ height: 6, width: "60%", borderRadius: 4, background: "#cbd5e1" }} />
+                        <div style={{ height: 14, width: "45%", borderRadius: 4, background: "#0f172a", marginTop: 8, opacity: h }} />
+                        <div style={{ height: 4, width: "80%", borderRadius: 4, background: "#e2e8f0", marginTop: 8 }} />
+                        <div style={{ height: 4, width: "70%", borderRadius: 4, background: "#e2e8f0", marginTop: 4 }} />
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ padding: "8px 10px", fontSize: "0.72rem", color: "var(--text-muted)", borderTop: "1px solid var(--border)" }}>
+                    Slide 4 · Pricing
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       ) : (
         /* Grouped cards */
@@ -473,47 +536,69 @@ export default function VisualMappingPage() {
                     return (
                       <div
                         key={keyword}
+                        className="vm-card"
                         style={{
                           backgroundColor: "var(--bg-card)",
                           border: "1px solid var(--border)",
-                          borderRadius: 12,
-                          overflow: "hidden",
-                          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
+                          borderRadius: 18,
+                          padding: 8,
+                          boxShadow: "0 1px 2px rgba(15,23,42,.04)",
                           display: "flex",
                           flexDirection: "column",
                         }}
                       >
                         {/* Image preview at top */}
                         <div
+                          className="vm-thumb"
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`View ${formatTopicLabel(keyword)}`}
+                          onClick={() => setViewKey(keyword)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setViewKey(keyword);
+                            }
+                          }}
                           style={{
+                            position: "relative",
                             width: "100%",
-                            aspectRatio: "16/9",
-                            backgroundColor: "var(--bg-surface)",
-                            borderBottom: "1px solid var(--border)",
+                            aspectRatio: "4/3",
+                            borderRadius: 12,
+                            background: "linear-gradient(180deg,#f8fafc,#eef2f6)",
                             overflow: "hidden",
+                            padding: 12,
+                            boxSizing: "border-box",
                           }}
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={resolveImageUrl(data.path)}
                             alt={formatTopicLabel(keyword)}
+                            loading="lazy"
                             style={{
                               width: "100%",
                               height: "100%",
-                              objectFit: "cover",
+                              objectFit: "contain",
                               display: "block",
+                              borderRadius: 4,
+                              filter: "drop-shadow(0 6px 14px rgba(15,23,42,.14))",
                             }}
                             onError={(e) => {
                               (e.target as HTMLImageElement).src =
                                 "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNGI1NTYzIiBzdHJva2Utd2lkdGg9IjIiPjxyZWN0IHg9IjMiIHk9IjMiIHdpZHRoPSIxOCIgaGVpZ2h0PSIxOCIgcng9IjIiLz48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSIvPjxwb2x5bGluZSBwb2ludHM9IjIxIDE1IDE2IDEwIDUgMjEiLz48L3N2Zz4=";
                             }}
                           />
+                          <span className="vm-thumb-view" aria-hidden>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" /></svg>
+                            View
+                          </span>
                         </div>
 
                         {/* Card body */}
                         <div
                           style={{
-                            padding: "1.25rem 1.25rem 1rem 1.25rem",
+                            padding: "0.9rem 0.6rem 0.4rem",
                             display: "flex",
                             flexDirection: "column",
                             flex: 1,
@@ -523,14 +608,15 @@ export default function VisualMappingPage() {
                           <div>
                             <p
                               style={{
-                                margin: "0 0 0.4rem 0",
-                                fontSize: "0.78rem",
+                                margin: "0 0 0.35rem 0",
+                                fontSize: "0.66rem",
                                 color: "var(--text-muted)",
-                                fontWeight: 500,
-                                letterSpacing: "0.01em",
+                                fontWeight: 600,
+                                letterSpacing: "0.08em",
+                                textTransform: "uppercase",
                               }}
                             >
-                              Shows when customers ask about
+                              Shown when asked about
                             </p>
 
                             {isEditing ? (
@@ -571,7 +657,7 @@ export default function VisualMappingPage() {
                                     borderRadius: 6,
                                     border: editError
                                       ? "1px solid var(--error)"
-                                      : "1px solid var(--accent)",
+                                      : "1px solid var(--text-primary)",
                                     background: "var(--bg-surface)",
                                     color: "var(--text-primary)",
                                     fontSize: "0.88rem",
@@ -604,7 +690,7 @@ export default function VisualMappingPage() {
                                       padding: "0.4rem 0.85rem",
                                       borderRadius: 6,
                                       border: "none",
-                                      background: "var(--accent)",
+                                      background: "#0f172a",
                                       color: "#ffffff",
                                       fontSize: "0.8rem",
                                       fontWeight: 600,
@@ -644,8 +730,8 @@ export default function VisualMappingPage() {
                               >
                                 <span
                                   style={{
-                                    fontSize: "1.05rem",
-                                    fontWeight: 600,
+                                    fontSize: "0.98rem",
+                                    fontWeight: 650,
                                     color: "var(--text-primary)",
                                     lineHeight: 1.3,
                                     overflowWrap: "anywhere",
@@ -674,9 +760,9 @@ export default function VisualMappingPage() {
                                   }}
                                   onMouseEnter={(e) => {
                                     e.currentTarget.style.borderColor =
-                                      "var(--accent)";
+                                      "#cbd5e1";
                                     e.currentTarget.style.color =
-                                      "var(--accent)";
+                                      "var(--text-primary)";
                                   }}
                                   onMouseLeave={(e) => {
                                     e.currentTarget.style.borderColor =
@@ -703,11 +789,16 @@ export default function VisualMappingPage() {
                             )}
 
                             <p
+                              title={data.description || undefined}
                               style={{
-                                margin: "0.75rem 0 0 0",
-                                fontSize: "0.85rem",
-                                color: "var(--text-secondary)",
-                                lineHeight: 1.55,
+                                margin: "0.5rem 0 0 0",
+                                fontSize: "0.8rem",
+                                color: "var(--text-muted)",
+                                lineHeight: 1.5,
+                                display: "-webkit-box",
+                                WebkitLineClamp: 3,
+                                WebkitBoxOrient: "vertical",
+                                overflow: "hidden",
                               }}
                             >
                               {data.description || "Auto-generated visual asset"}
@@ -719,8 +810,8 @@ export default function VisualMappingPage() {
                             style={{
                               display: "flex",
                               justifyContent: "flex-end",
-                              marginTop: "1.25rem",
-                              paddingTop: "0.25rem",
+                              marginTop: "0.6rem",
+                              paddingTop: 0,
                             }}
                           >
                             <button
@@ -733,11 +824,11 @@ export default function VisualMappingPage() {
                                 gap: 5,
                                 background: "transparent",
                                 border: "none",
-                                color: "var(--error)",
+                                color: "var(--text-muted)",
                                 fontSize: "0.82rem",
-                                fontWeight: 600,
+                                fontWeight: 500,
                                 cursor: isEditing ? "not-allowed" : "pointer",
-                                opacity: isEditing ? 0.35 : 0.9,
+                                opacity: isEditing ? 0.35 : 1,
                                 padding: "0.45rem 0.65rem",
                                 borderRadius: 6,
                                 minHeight: "34px",
@@ -745,14 +836,14 @@ export default function VisualMappingPage() {
                               }}
                               onMouseEnter={(e) => {
                                 if (!isEditing) {
-                                  e.currentTarget.style.opacity = "1";
+                                  e.currentTarget.style.color = "var(--error)";
                                   e.currentTarget.style.backgroundColor =
                                     "rgba(239, 68, 68, 0.08)";
                                 }
                               }}
                               onMouseLeave={(e) => {
                                 if (!isEditing) {
-                                  e.currentTarget.style.opacity = "0.9";
+                                  e.currentTarget.style.color = "var(--text-muted)";
                                   e.currentTarget.style.backgroundColor =
                                     "transparent";
                                 }
@@ -786,6 +877,64 @@ export default function VisualMappingPage() {
       )}
 
       {/* Confirmation Dialog */}
+      {/* Large view of one picture */}
+      {viewKey && mappings[viewKey] && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={formatTopicLabel(viewKey)}
+          onClick={() => setViewKey(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1300,
+            background: "rgba(15,23,42,.72)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--bg-card)",
+              borderRadius: 18,
+              overflow: "hidden",
+              maxWidth: "min(1100px, 100%)",
+              maxHeight: "calc(100vh - 48px)",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 24px 64px rgba(0,0,0,.35)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "0.9rem 1.1rem", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: "0.66rem", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>Shown when asked about</div>
+                <div style={{ fontSize: "1rem", fontWeight: 650, color: "var(--text-primary)" }}>{formatTopicLabel(viewKey)}</div>
+              </div>
+              <button type="button" className="vm-icon-btn" aria-label="Close" onClick={() => setViewKey(null)}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+              </button>
+            </div>
+            <div style={{ background: "#f1f5f9", padding: 16, overflow: "auto", display: "flex", justifyContent: "center" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={resolveImageUrl(mappings[viewKey].path)}
+                alt={formatTopicLabel(viewKey)}
+                style={{ maxWidth: "100%", maxHeight: "calc(100vh - 220px)", objectFit: "contain", borderRadius: 6, boxShadow: "0 8px 24px rgba(15,23,42,.18)", background: "#fff" }}
+              />
+            </div>
+            {mappings[viewKey].description && (
+              <p style={{ margin: 0, padding: "0.85rem 1.1rem 1rem", fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: 1.55, maxWidth: 900 }}>
+                {mappings[viewKey].description}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       <ConfirmDialog
         open={deleteKeyword !== null}
         tone="danger"
@@ -864,7 +1013,7 @@ const dialogLabelStyle: React.CSSProperties = {
 
 const dialogValueStyle: React.CSSProperties = {
   display: "block",
-  color: "var(--accent)",
+  color: "var(--text-primary)",
   fontFamily: "inherit",
   fontSize: "0.9rem",
   fontWeight: 600,

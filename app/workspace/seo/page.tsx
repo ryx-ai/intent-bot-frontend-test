@@ -146,18 +146,27 @@ export default function SeoHubPage() {
             target="_blank"
             rel="noopener noreferrer"
             style={{
-              fontSize: "0.9rem",
-              fontWeight: 600,
+              fontSize: "0.82rem",
+              fontWeight: 500,
               color: "var(--text-secondary)",
               textDecoration: "none",
               display: "inline-flex",
               alignItems: "center",
-              gap: 4,
+              gap: 7,
+              padding: "0.42rem 0.8rem",
+              borderRadius: 999,
+              border: "1px solid var(--border)",
+              background: "var(--bg-card)",
             }}
           >
-            <span>🌐</span>
+            <span
+              aria-hidden
+              style={{ width: 7, height: 7, borderRadius: "50%", background: "#10b981", boxShadow: "0 0 0 3px rgba(16,185,129,0.15)" }}
+            />
             <span>{domainDisplay}</span>
-            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>↗</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ color: "var(--text-muted)" }}>
+              <path d="M7 17L17 7M9 7h8v8" />
+            </svg>
           </a>
         )}
       </header>
@@ -166,10 +175,9 @@ export default function SeoHubPage() {
       <div
         style={{
           display: "flex",
-          gap: "0.5rem",
+          gap: "1.75rem",
           marginBottom: "1.75rem",
           borderBottom: "1px solid var(--border)",
-          paddingBottom: "0.5rem",
         }}
       >
         {[
@@ -182,15 +190,16 @@ export default function SeoHubPage() {
               key={tab.id}
               onClick={() => handleTabChange(tab.id)}
               style={{
-                padding: "0.5rem 1.15rem",
-                borderRadius: 8,
+                padding: "0.4rem 0 0.8rem",
+                marginBottom: -1,
                 fontSize: "0.9rem",
-                fontWeight: isActive ? 700 : 500,
+                fontWeight: isActive ? 600 : 500,
                 cursor: "pointer",
-                border: isActive ? "1px solid rgba(138, 100, 233, 0.4)" : "1px solid transparent",
-                backgroundColor: isActive ? "rgba(138, 100, 233, 0.12)" : "transparent",
-                color: isActive ? "var(--accent, #8A64E9)" : "var(--text-muted)",
-                transition: "all 0.15s ease",
+                border: "none",
+                borderBottom: `2px solid ${isActive ? "var(--accent, #8A64E9)" : "transparent"}`,
+                backgroundColor: "transparent",
+                color: isActive ? "var(--text-primary)" : "var(--text-muted)",
+                transition: "color 0.15s ease, border-color 0.15s ease",
                 fontFamily: "inherit",
               }}
             >

@@ -69,8 +69,9 @@ export default function ChatColourPicker({
     alignItems: "flex-start",
     padding: "14px 16px",
     borderRadius: 14,
-    border: `1.5px solid ${selected ? C.accent : C.border}`,
-    background: selected ? C.accentDim : C.surface,
+    border: `1.5px solid ${selected ? "var(--text-primary)" : C.border}`,
+    background: "var(--bg-card)",
+    boxShadow: selected ? "0 1px 3px rgba(15, 23, 42, 0.10)" : "none",
     cursor: "pointer",
     textAlign: "left",
     fontFamily: "inherit",
@@ -85,8 +86,8 @@ export default function ChatColourPicker({
     width: 18,
     height: 18,
     borderRadius: "50%",
-    border: `2px solid ${selected ? C.accent : C.muted}`,
-    boxShadow: selected ? `inset 0 0 0 3px var(--bg-card), inset 0 0 0 9px ${"var(--accent)"}` : "none",
+    border: `2px solid ${selected ? "var(--text-primary)" : C.muted}`,
+    boxShadow: selected ? "inset 0 0 0 3px var(--bg-card), inset 0 0 0 9px var(--text-primary)" : "none",
   });
 
   return (

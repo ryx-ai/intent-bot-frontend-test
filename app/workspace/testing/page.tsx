@@ -10,6 +10,7 @@ import ShopProductsCard from "./ShopProductsCard";
 import ChatColourPicker from "./ChatColourPicker";
 import ShopSuggestionBanner from "./ShopSuggestionBanner";
 import WebsiteConfirmBanner from "../_components/WebsiteConfirmBanner";
+import AssistantCollage, { type SettingKey } from "./AssistantCollage";
 
 interface Plan {
   id: number;
@@ -227,6 +228,17 @@ export default function TestingPage() {
 
   // Bumped after saving so preview or directives refresh cleanly
   const [widgetKey, setWidgetKey] = useState(0);
+
+  // Collage view: which setting is open in the side panel
+  const [openSetting, setOpenSetting] = useState<SettingKey | null>(null);
+  useEffect(() => {
+    if (!openSetting) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenSetting(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openSetting]);
 
   const isSuperAdmin = userRole === "super_admin";
 
@@ -748,8 +760,14 @@ export default function TestingPage() {
     );
   }
 
-  // Reusable Assistant Configuration Form Component
-  const renderConfigurationForms = (isDrawer = false) => (
+  // Reusable Assistant Configuration Form Component.
+  //  - page (idle):        header + banners + the collage of tiles
+  //  - side panel:         only the one setting a tile opened (`only`)
+  //  - expanded-chat side: every setting stacked (the full list)
+  const renderConfigurationForms = (isDrawer = false, only?: SettingKey) => {
+    const collage = !isDrawer && !only;
+    const show = (k: SettingKey) => !collage && (!only || only === k);
+    return (
     <div
       style={{
         display: "flex",
@@ -757,6 +775,7 @@ export default function TestingPage() {
         gap: "1.25rem",
       }}
     >
+      {!only && (<>
       {/* Header Row */}
       <div
         style={{
@@ -851,7 +870,9 @@ export default function TestingPage() {
       {/* The assistant was seen on a website: the owner confirms it first */}
       <WebsiteConfirmBanner />
 
-      {/* Products found automatically on the owner's website: offer Shop mode */}
+      {/* Products found automatically on the owner's website: offer Shop mode
+          (not when the saved role already shows products). */}
+      {savedRole !== "shop" && savedRole !== "all" && (
       <ShopSuggestionBanner
         onAccepted={() => {
           setRole("shop");
@@ -861,8 +882,30 @@ export default function TestingPage() {
           setTimeout(() => setToast(""), 3000);
         }}
       />
+      )}
+      </>)}
+
+      {/* Everything at a glance: each tile opens its setting in the side panel */}
+      {collage && (
+        <AssistantCollage
+          roles={ROLES}
+          role={role}
+          onRoleChange={(key) => {
+            setRole(key);
+            setDirty(true);
+          }}
+          themeColor={themeColor}
+          supportContact={supportContact}
+          calendarLink={calendarLink}
+          rules={rules}
+          maxRules={maxRules}
+          isSuperAdmin={isSuperAdmin}
+          onOpen={setOpenSetting}
+        />
+      )}
 
       {/* Card 1: Role Selection & Chat Colour */}
+      {(show("role") || show("colour")) && (
       <section
         style={{
           backgroundColor: C.bgCard,
@@ -875,6 +918,7 @@ export default function TestingPage() {
         }}
       >
         {/* Assistant Role */}
+        {show("role") && (
         <div>
           <label
             style={{
@@ -912,13 +956,14 @@ export default function TestingPage() {
                     borderRadius: 8,
                     padding: "0.65rem 0.5rem",
                     textAlign: "center",
-                    backgroundColor: active ? C.accentDim : C.bgSurface,
+                    backgroundColor: C.bgCard,
                     border: active
-                      ? `1.5px solid ${C.accent}`
+                      ? `1.5px solid ${C.textPrimary}`
                       : `1px solid ${C.border}`,
-                    color: active ? C.accent : C.textPrimary,
+                    boxShadow: active ? "0 1px 3px rgba(15, 23, 42, 0.10)" : "none",
+                    color: active ? C.textPrimary : C.textSecondary,
                     fontSize: "0.82rem",
-                    fontWeight: active ? 700 : 500,
+                    fontWeight: active ? 600 : 500,
                     transition: "all 0.15s ease",
                     fontFamily: "inherit",
                     whiteSpace: "nowrap",
@@ -945,11 +990,13 @@ export default function TestingPage() {
             {selectedRole.desc}
           </p>
         </div>
+        )}
 
         {/* Divider */}
-        <div style={{ height: 1, backgroundColor: C.border }} />
+        {show("role") && show("colour") && <div style={{ height: 1, backgroundColor: C.border }} />}
 
         {/* Chat colour: match the website, or choose a colour */}
+        {show("colour") && (
         <ChatColourPicker
           value={themeColor}
           onChange={(hex) => {
@@ -957,10 +1004,12 @@ export default function TestingPage() {
             setDirty(true);
           }}
         />
+        )}
       </section>
+      )}
 
       {/* Shop mode: how visitors reach a person */}
-      {(role === "shop" || role === "all") && (
+      {show("support") && (role === "shop" || role === "all") && (
         <section
           style={{
             backgroundColor: C.bgCard,
@@ -1010,9 +1059,10 @@ export default function TestingPage() {
       )}
 
       {/* Shop mode: import the store's products */}
-      {(role === "shop" || role === "all") && <ShopProductsCard />}
+      {show("products") && (role === "shop" || role === "all") && <ShopProductsCard wide={only === "products"} />}
 
       {/* Card 2: Tell us what to change (Natural Language Custom Rules) */}
+      {show("rules") && (
       <section
         style={{
           backgroundColor: C.bgCard,
@@ -1095,8 +1145,14 @@ export default function TestingPage() {
               onClick={() => handleAddRule()}
               disabled={addingRule || !ruleInstructionInput.trim() || rules.length >= maxRules}
               style={{
-                backgroundColor: C.accent,
-                color: "#ffffff",
+                backgroundColor:
+                  addingRule || !ruleInstructionInput.trim() || rules.length >= maxRules
+                    ? C.bgHover
+                    : C.accent,
+                color:
+                  addingRule || !ruleInstructionInput.trim() || rules.length >= maxRules
+                    ? C.textMuted
+                    : "#ffffff",
                 border: "none",
                 borderRadius: 8,
                 padding: "0.65rem 1.35rem",
@@ -1106,10 +1162,6 @@ export default function TestingPage() {
                   addingRule || !ruleInstructionInput.trim() || rules.length >= maxRules
                     ? "default"
                     : "pointer",
-                opacity:
-                  addingRule || !ruleInstructionInput.trim() || rules.length >= maxRules
-                    ? 0.6
-                    : 1,
                 transition: "all 0.15s ease",
                 fontFamily: "inherit",
                 whiteSpace: "nowrap",
@@ -1616,8 +1668,11 @@ export default function TestingPage() {
           </div>
         )}
       </section>
+      )}
 
-      {/* Card 3: Booking Link & More Options (booking parts not used by shops) */}
+      {/* Card 3: Booking Link & More Options (booking parts not used by shops).
+          A shop with nothing else to show here gets no empty box. */}
+      {show("booking") && (role !== "shop" || isSuperAdmin) && (
       <section
         style={{
           backgroundColor: C.bgCard,
@@ -1699,7 +1754,7 @@ export default function TestingPage() {
               background: "none",
               border: "none",
               padding: 0,
-              color: C.accent,
+              color: C.textPrimary,
               fontSize: "0.82rem",
               fontWeight: 600,
               cursor: "pointer",
@@ -2217,14 +2272,169 @@ export default function TestingPage() {
           </div>
         )}
       </section>
+      )}
     </div>
-  );
+    );
+  };
+
+  const SETTING_TITLES: Record<SettingKey, string> = {
+    role: "What it does",
+    colour: "Chat colour",
+    support: "Support contact",
+    products: "Products",
+    rules: "Rules",
+    booking: role === "shop" ? "Advanced" : "Booking link",
+  };
+
+  const SETTING_HINTS: Record<SettingKey, string> = {
+    role: "The job your assistant does on your website",
+    colour: "How the chat looks on your website",
+    support: "Shared when a visitor needs a person",
+    products: "What your assistant can recommend to shoppers",
+    rules: "Plain-word rules for how your assistant replies",
+    booking: role === "shop" ? "Platform and prompt options" : "Where visitors book a call with you",
+  };
+
+  // One setting, opened from a collage tile, in a pop-up in the centre
+  const renderSettingPanel = () =>
+    openSetting && (
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={SETTING_TITLES[openSetting]}
+        style={{ position: "fixed", inset: 0, zIndex: 1200, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}
+      >
+        <div
+          onClick={() => setOpenSetting(null)}
+          style={{ position: "absolute", inset: 0, background: "rgba(15, 23, 42, 0.32)", backdropFilter: "blur(2px)" }}
+        />
+        <div
+          className="ryx-setting-panel"
+          style={{
+            position: "relative",
+            width: openSetting === "products" ? "min(1200px, 100%)" : "min(760px, 100%)",
+            maxHeight: "min(860px, calc(100vh - 48px))",
+            background: C.bg,
+            borderRadius: 20,
+            overflow: "hidden",
+            border: `1px solid ${C.border}`,
+            boxShadow: "0 24px 64px rgba(15, 23, 42, 0.24)",
+            display: "flex",
+            flexDirection: "column",
+            animation: "ryxPop .18s ease-out",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "1.15rem 1.5rem",
+              borderBottom: `1px solid ${C.border}`,
+              background: C.bgCard,
+            }}
+          >
+            <div>
+              <h2 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 650, letterSpacing: "-0.01em", color: C.textPrimary }}>
+                {SETTING_TITLES[openSetting]}
+              </h2>
+              <p style={{ margin: "3px 0 0", fontSize: "0.8rem", color: C.textMuted }}>{SETTING_HINTS[openSetting]}</p>
+            </div>
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={() => setOpenSetting(null)}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                border: `1px solid ${C.border}`,
+                background: C.bgCard,
+                color: C.textSecondary,
+                cursor: "pointer",
+                fontSize: "0.95rem",
+              }}
+            >
+              ✕
+            </button>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem 1.4rem" }}>
+            {renderConfigurationForms(false, openSetting)}
+          </div>
+          <style>{`@keyframes ryxPop { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }`}</style>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              gap: "0.6rem",
+              padding: "0.9rem 1.4rem",
+              borderTop: `1px solid ${C.border}`,
+              background: C.bgCard,
+            }}
+          >
+            {dirty ? (
+              <span style={{ marginRight: "auto", fontSize: "0.8rem", fontWeight: 600, color: C.warning }}>
+                Unsaved changes
+              </span>
+            ) : openSetting === "products" ? (
+              <span style={{ marginRight: "auto", display: "inline-flex", alignItems: "center", gap: 7, fontSize: "0.78rem", color: C.textMuted }}>
+                <span aria-hidden style={{ width: 6, height: 6, borderRadius: "50%", background: "#10b981" }} />
+                Products refresh automatically every day
+              </span>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setOpenSetting(null)}
+              style={{
+                padding: "0.62rem 1.35rem",
+                borderRadius: 10,
+                border: dirty ? `1px solid ${C.border}` : "1px solid #0f172a",
+                background: dirty ? C.bgCard : "#0f172a",
+                color: dirty ? C.textPrimary : "#fff",
+                boxShadow: dirty ? "none" : "0 4px 12px rgba(15,23,42,.18)",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              Done
+            </button>
+            {dirty && (
+              <button
+                type="button"
+                disabled={saving}
+                onClick={async () => {
+                  await save();
+                  setOpenSetting(null);
+                }}
+                style={{
+                  padding: "0.6rem 1.15rem",
+                  borderRadius: 9,
+                  border: "none",
+                  background: C.accent,
+                  color: "#fff",
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  cursor: saving ? "default" : "pointer",
+                  opacity: saving ? 0.7 : 1,
+                  fontFamily: "inherit",
+                }}
+              >
+                {saving ? "Saving…" : "Save"}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
 
   return (
     <div
       style={{
         width: "100%",
-        maxWidth: isChatExpanded ? 1480 : 1380,
+        maxWidth: isChatExpanded ? 1480 : 1640,
         boxSizing: "border-box",
         margin: "0 auto",
         padding: "1.75rem 1.5rem 5rem 1.5rem",
@@ -2606,6 +2816,8 @@ export default function TestingPage() {
       </div>
 
       {/* Mobile Fullscreen Test Chat Modal */}
+      {renderSettingPanel()}
+
       {mobileChatOpen && (
         <div
           role="dialog"

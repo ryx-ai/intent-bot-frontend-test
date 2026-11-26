@@ -52,7 +52,7 @@ const toneStyles: Record<
   },
   neutral: {
     color: "var(--accent)",
-    borderColor: "rgba(79, 70, 229, 0.35)",
+    borderColor: "color-mix(in srgb, var(--text-primary) 18%, transparent)",
     background: "var(--accent-light)",
     buttonBackground: "var(--accent)",
     icon: "i",

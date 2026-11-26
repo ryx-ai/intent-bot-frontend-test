@@ -73,7 +73,7 @@ declare global {
 function errorMessage(err: unknown, fallback: string) {
   if (!(err instanceof ApiError)) return "Network error. Check your connection.";
   if (err.status === 401) return "Please log in again.";
-  if (err.status === 400 || err.status === 409) return err.detail || fallback;
+  if (err.status === 400 || err.status === 409 || err.status === 503) return err.detail || fallback;
   if (err.status >= 500) return "Server error. Please try again later.";
   return fallback;
 }
@@ -82,6 +82,23 @@ function formatPrice(priceInr: number, billingCycle: string) {
   if (priceInr === 0) return "Free";
   const cycleSuffix = billingCycle === "yearly" ? "/yr" : billingCycle === "monthly" ? "/mo" : "";
   return `₹${priceInr.toLocaleString()}${cycleSuffix}`;
+}
+
+// Plain names for the feature codes stored with each plan. Codes already shown
+// as a limit above (files, website chat) are left out so nothing repeats.
+const FEATURE_LABELS: Record<string, string | null> = {
+  kb_upload: null,
+  embed_widget: null,
+  agent_config: "Set up how your assistant behaves",
+  custom_branding: "Your own colours and branding",
+  cal_booking: "Calendar booking in the chat",
+  analytics_export: "Download chats and reports",
+  priority_support: "Priority support",
+};
+function featureLabel(code: string): string | null {
+  if (code in FEATURE_LABELS) return FEATURE_LABELS[code];
+  const t = code.replace(/_/g, " ").trim();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : null;
 }
 
 function formatLimit(val: number, unit: string) {
@@ -180,7 +197,7 @@ export default function BillingPage() {
         },
         prefill: {},
         theme: {
-          color: "var(--accent)",
+          color: "#0f172a",
         },
         modal: {
           ondismiss: function () {
@@ -213,324 +230,221 @@ export default function BillingPage() {
   const isTrial = subStatus?.subscription_status === "trial";
   const isActive = subStatus?.is_active ?? true;
 
+  const daysLeft = subStatus?.days_remaining ?? 0;
+  const statusDot = !isActive ? "#ef4444" : isTrial ? "#f59e0b" : "#10b981";
+  const statusText = !isActive
+    ? isTrial ? "Trial ended" : "Plan ended"
+    : isTrial
+      ? `${daysLeft} ${daysLeft === 1 ? "day" : "days"} left in your trial`
+      : subStatus?.subscription_ends_at
+        ? `Active · renews ${new Date(subStatus.subscription_ends_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`
+        : "Active";
+  const card: React.CSSProperties = {
+    background: "var(--bg-card)",
+    border: "1px solid var(--border)",
+    borderRadius: 18,
+    boxShadow: "0 1px 2px rgba(15,23,42,.04), 0 6px 20px rgba(15,23,42,.035)",
+  };
+  const check = (on = true) => (
+    <span
+      aria-hidden
+      style={{
+        width: 18,
+        height: 18,
+        borderRadius: "50%",
+        flexShrink: 0,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: on ? "rgba(16,185,129,.12)" : "var(--bg-surface)",
+        color: on ? "#059669" : "var(--text-muted)",
+      }}
+    >
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+        {on ? <path d="M5 12.5l4.5 4.5L19 7.5" /> : <path d="M7 7l10 10M17 7L7 17" />}
+      </svg>
+    </span>
+  );
+
   return (
     <>
       <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
 
-      <div style={{ width: "100%", maxWidth: 1400, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
-        <header style={{ marginBottom: "2rem" }}>
-          <h1 style={{ margin: "0 0 0.25rem 0", fontSize: "1.5rem", fontWeight: 800, color: "var(--text-primary)" }}>
-            Billing & Subscription
+      <div style={{ width: "100%", maxWidth: 1180, margin: "0 auto", padding: "2rem 1.75rem", boxSizing: "border-box" }}>
+        <style>{`
+          .bl-plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.25rem; align-items: stretch; }
+          .bl-plan { transition: transform .18s ease, box-shadow .18s ease; }
+          .bl-plan:hover { transform: translateY(-3px); box-shadow: 0 16px 36px rgba(15,23,42,.10) !important; }
+          .bl-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(15,23,42,.22) !important; }
+          .bl-current { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap; }
+          .bl-limits { display: flex; gap: 1rem; }
+          @media (max-width: 640px) { .bl-limits { width: 100%; } .bl-limits > div { flex: 1; } }
+        `}</style>
+
+        <header style={{ marginBottom: "1.5rem" }}>
+          <h1 style={{ margin: "0 0 0.35rem", fontSize: "1.75rem", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text-primary)" }}>
+            Plans &amp; billing
           </h1>
-          <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.88rem" }}>
-            Manage your workspace plan, view usage limits, and upgrade via Razorpay gateway.
+          <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.95rem" }}>
+            Pick the plan that fits your business. Payments are handled securely by Razorpay.
           </p>
         </header>
 
         {error && (
-          <div
-            style={{
-              marginBottom: "1.5rem",
-              padding: "0.9rem 1.1rem",
-              borderRadius: 8,
-              border: "1px solid rgba(239, 68, 68, 0.35)",
-              background: "rgba(239, 68, 68, 0.1)",
-              color: "var(--error)",
-              fontSize: "0.88rem",
-            }}
-          >
+          <div style={{ marginBottom: "1.25rem", padding: "0.8rem 1rem", borderRadius: 12, border: "1px solid rgba(239, 68, 68, 0.25)", background: "rgba(239, 68, 68, 0.06)", color: "var(--error)", fontSize: "0.86rem" }}>
             {error}
           </div>
         )}
         {success && (
-          <div
-            style={{
-              marginBottom: "1.5rem",
-              padding: "0.9rem 1.1rem",
-              borderRadius: 8,
-              border: "1px solid rgba(16, 185, 129, 0.35)",
-              background: "rgba(16, 185, 129, 0.1)",
-              color: "var(--success)",
-              fontSize: "0.88rem",
-            }}
-          >
+          <div style={{ marginBottom: "1.25rem", padding: "0.8rem 1rem", borderRadius: 12, border: "1px solid rgba(16, 185, 129, 0.3)", background: "rgba(16, 185, 129, 0.06)", color: "#047857", fontSize: "0.86rem" }}>
             {success}
           </div>
         )}
 
-        {/* Expired / Inactive Notice Banner */}
         {!isActive && (
-          <div
-            style={{
-              marginBottom: "1.5rem",
-              padding: "1rem 1.25rem",
-              borderRadius: 10,
-              border: "1px solid rgba(239, 68, 68, 0.35)",
-              background: "linear-gradient(90deg, rgba(239, 68, 68, 0.12) 0%, rgba(239, 68, 68, 0.04) 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              flexWrap: "wrap",
-              gap: "1rem",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: "50%",
-                  background: "rgba(239, 68, 68, 0.2)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "1.1rem",
-                  flexShrink: 0,
-                }}
-              >
-                ⚠️
-              </div>
-              <div>
-                <div style={{ color: "var(--text-primary)", fontWeight: 700, fontSize: "0.95rem" }}>
-                  {isTrial ? "Your 3-Day Free Trial Has Expired" : "Subscription Inactive"}
-                </div>
-                <div style={{ color: "var(--text-primary)", fontSize: "0.85rem", marginTop: "0.15rem" }}>
-                  Website widget embedding is currently paused. Upgrade to a paid plan below to instantly reactivate your AI assistant.
-                </div>
-              </div>
-            </div>
+          <div style={{ marginBottom: "1.25rem", padding: "0.9rem 1.1rem", borderRadius: 14, border: "1px solid rgba(239, 68, 68, 0.25)", background: "rgba(239, 68, 68, 0.05)", fontSize: "0.88rem", color: "var(--text-primary)", lineHeight: 1.5 }}>
+            <strong>{isTrial ? "Your free trial has ended." : "Your plan has ended."}</strong> The chat on your website is paused. Choose a plan below to turn it back on straight away.
           </div>
         )}
 
-        {/* Current Plan Summary Banner */}
-        <section
-          style={{
-            backgroundColor: "var(--bg-card)",
-            border: !isActive
-              ? "1px solid rgba(239, 68, 68, 0.4)"
-              : "1px solid var(--border)",
-            background: !isActive
-              ? "linear-gradient(180deg, rgba(239, 68, 68, 0.05) 0%, var(--bg-card) 100%)"
-              : "var(--bg-card)",
-            borderRadius: 10,
-            padding: "1.5rem",
-            marginBottom: "2rem",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: "1.5rem",
-            boxShadow: !isActive ? "0 4px 20px rgba(239, 68, 68, 0.08)" : "none",
-          }}
-        >
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem" }}>
-              <span
-                style={{
-                  fontSize: "0.75rem",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  color: "var(--text-secondary)",
-                  letterSpacing: "0.05em",
-                }}
-              >
-                Current Plan
-              </span>
-              <span
-                style={{
-                  padding: "0.25rem 0.65rem",
-                  borderRadius: 6,
-                  background: isActive ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.18)",
-                  color: isActive ? "#10b981" : "#f87171",
-                  border: isActive ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid rgba(239, 68, 68, 0.35)",
-                  fontSize: "0.75rem",
-                  fontWeight: 700,
-                  textTransform: "capitalize",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.35rem",
-                }}
-              >
-                {!isActive ? "● Expired" : isTrial ? "● Trial Active" : "● Active"}
-              </span>
+        {/* Current plan */}
+        <section className="bl-current" style={{ ...card, padding: "1.35rem 1.5rem", marginBottom: "2rem" }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: "0.68rem", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>Your plan</div>
+            <div style={{ fontSize: "1.45rem", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text-primary)", marginTop: 4 }}>
+              {subStatus?.plan?.name || (isTrial ? "Free trial" : "Your plan")}
             </div>
-            <h2 style={{ margin: "0 0 0.35rem 0", fontSize: "1.4rem", color: "var(--text-primary)", fontWeight: 800 }}>
-              {subStatus?.plan?.name || (isTrial ? "Free Trial Plan" : "Active Subscription")}
-            </h2>
-            <p style={{ margin: 0, color: !isActive ? "rgba(255, 255, 255, 0.65)" : "var(--text-secondary)", fontSize: "0.9rem" }}>
-              {subStatus?.message || "Active workspace plan."}
-            </p>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 6, fontSize: "0.84rem", color: "var(--text-secondary)" }}>
+              <span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: statusDot, boxShadow: `0 0 0 3px ${statusDot}26` }} />
+              {statusText}
+            </div>
           </div>
-
-          <div style={{ display: "flex", gap: "2rem", alignItems: "center" }}>
-            <div>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase" }}>
-                Monthly Chat Limit
+          <div className="bl-limits">
+            {[
+              { k: "Chat messages", v: formatLimit(subStatus?.plan?.max_monthly_messages ?? 100, "/ month") },
+              { k: "Files", v: formatLimit(subStatus?.plan?.max_kb_files ?? 3, "") },
+            ].map((x) => (
+              <div key={x.k} style={{ padding: "0.75rem 1rem", border: "1px solid var(--border)", borderRadius: 12, minWidth: 140 }}>
+                <div style={{ fontSize: "0.74rem", color: "var(--text-muted)" }}>{x.k}</div>
+                <div style={{ fontSize: "1.05rem", fontWeight: 650, color: "var(--text-primary)", marginTop: 2, fontVariantNumeric: "tabular-nums" }}>{x.v.trim()}</div>
               </div>
-              <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>
-                {formatLimit(subStatus?.plan?.max_monthly_messages ?? 100, "msgs")}
-              </div>
-            </div>
-
-            <div>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase" }}>
-                KB File Limit
-              </div>
-              <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>
-                {formatLimit(subStatus?.plan?.max_kb_files ?? 3, "files")}
-              </div>
-            </div>
+            ))}
           </div>
         </section>
 
-        {/* Pricing Cards Grid */}
-        <h2 style={{ margin: "0 0 1.25rem 0", fontSize: "1.2rem", color: "var(--text-primary)", fontWeight: 800 }}>
-          Available Subscription Plans
-        </h2>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 380px))",
-            gap: "1.5rem",
-            alignItems: "stretch",
-          }}
-        >
+        {/* Plans */}
+        <h2 style={{ margin: "0 0 1rem", fontSize: "1.05rem", fontWeight: 650, color: "var(--text-primary)" }}>All plans</h2>
+        <div className="bl-plans">
           {plans.map((plan) => {
             const isCurrent = plan.slug === currentPlanSlug;
             const isProcessing = checkoutPlanSlug === plan.slug;
             const isCurrentExpired = isCurrent && !isActive;
+            const disabled = (isCurrent && !isCurrentExpired) || isProcessing || plan.price_inr <= 0;
+            const features = plan.features.map(featureLabel).filter((f): f is string => Boolean(f));
+            const priceMain = plan.price_inr === 0 ? "Free" : `₹${plan.price_inr.toLocaleString()}`;
+            const priceUnit = plan.price_inr === 0 ? "" : plan.billing_cycle === "yearly" ? "/ year" : plan.billing_cycle === "monthly" ? "/ month" : "";
 
             return (
               <div
                 key={plan.id}
+                className="bl-plan"
                 style={{
-                  backgroundColor: "var(--bg-card)",
-                  border: isCurrent
-                    ? isCurrentExpired
-                      ? "2px solid rgba(239, 68, 68, 0.5)"
-                      : "2px solid var(--accent)"
-                    : "1px solid var(--border)",
-                  borderRadius: 12,
-                  padding: "1.75rem",
+                  ...card,
+                  padding: "1.5rem",
                   display: "flex",
                   flexDirection: "column",
-                  justifyContent: "space-between",
                   position: "relative",
-                  boxShadow: isCurrent
-                    ? isCurrentExpired
-                      ? "0 8px 32px rgba(239, 68, 68, 0.12)"
-                      : "0 8px 32px rgba(138, 100, 233, 0.15)"
-                    : "none",
+                  border: isCurrent ? `1.5px solid ${isCurrentExpired ? "rgba(239,68,68,.5)" : "#0f172a"}` : card.border,
                 }}
               >
-                {isCurrent && (
-                  <span
-                    style={{
-                      position: "absolute",
-                      top: -12,
-                      right: 20,
-                      background: isCurrentExpired ? "#ef4444" : "var(--accent)",
-                      color: "var(--bg)",
-                      padding: "0.25rem 0.75rem",
-                      borderRadius: 12,
-                      fontSize: "0.72rem",
-                      fontWeight: 800,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      boxShadow: isCurrentExpired ? "0 2px 10px rgba(239, 68, 68, 0.4)" : "none",
-                    }}
-                  >
-                    {isCurrentExpired ? "Expired Plan" : "Active Plan"}
-                  </span>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 650, color: "var(--text-primary)" }}>{plan.name}</h3>
+                  {isCurrent && (
+                    <span
+                      style={{
+                        fontSize: "0.68rem",
+                        fontWeight: 600,
+                        letterSpacing: "0.04em",
+                        padding: "3px 9px",
+                        borderRadius: 999,
+                        background: isCurrentExpired ? "rgba(239,68,68,.08)" : "#0f172a",
+                        color: isCurrentExpired ? "#dc2626" : "#fff",
+                        border: isCurrentExpired ? "1px solid rgba(239,68,68,.3)" : "none",
+                      }}
+                    >
+                      {isCurrentExpired ? "Ended" : "Your plan"}
+                    </span>
+                  )}
+                </div>
+                {plan.description && (
+                  <p style={{ margin: "0.4rem 0 0", color: "var(--text-muted)", fontSize: "0.82rem", lineHeight: 1.5, minHeight: "2.5em" }}>{plan.description}</p>
                 )}
 
-                <div>
-                  <h3 style={{ margin: "0 0 0.5rem 0", fontSize: "1.2rem", color: "var(--text-primary)", fontWeight: 700 }}>
-                    {plan.name}
-                  </h3>
-                  {plan.description && (
-                    <p style={{ margin: "0 0 1.25rem 0", color: "var(--text-muted)", fontSize: "0.85rem", lineHeight: 1.5 }}>
-                      {plan.description}
-                    </p>
-                  )}
-
-                  <div style={{ marginBottom: "1.5rem" }}>
-                    <span style={{ fontSize: "2rem", fontWeight: 800, color: "var(--text-primary)" }}>
-                      {formatPrice(plan.price_inr, plan.billing_cycle)}
-                    </span>
-                  </div>
-
-                  <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1.25rem", marginBottom: "1.5rem" }}>
-                    <div style={{ fontSize: "0.78rem", textTransform: "uppercase", color: "var(--text-secondary)", fontWeight: 700, marginBottom: "0.75rem" }}>
-                      Included Features:
-                    </div>
-                    <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.55rem" }}>
-                      <li style={{ fontSize: "0.88rem", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <span style={{ color: "var(--success)" }}>✓</span> {formatLimit(plan.max_monthly_messages, "monthly messages")}
-                      </li>
-                      <li style={{ fontSize: "0.88rem", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <span style={{ color: "var(--success)" }}>✓</span> {formatLimit(plan.max_kb_files, "KB document files")}
-                      </li>
-                      <li style={{ fontSize: "0.88rem", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <span style={{ color: plan.allow_widget_embed ? "var(--success)" : "var(--text-muted)" }}>
-                          {plan.allow_widget_embed ? "✓" : "✕"}
-                        </span>
-                        Website Widget Embedding
-                      </li>
-                      {plan.features.map((feat) => (
-                        <li key={feat} style={{ fontSize: "0.88rem", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                          <span style={{ color: "var(--success)" }}>✓</span> {feat}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 6, margin: "1.1rem 0 1.1rem" }}>
+                  <span style={{ fontSize: "2.1rem", fontWeight: 700, letterSpacing: "-0.03em", color: "var(--text-primary)" }}>{priceMain}</span>
+                  {priceUnit && <span style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}>{priceUnit}</span>}
                 </div>
+
+                <ul style={{ listStyle: "none", padding: "1.1rem 0 0", margin: "0 0 1.4rem", borderTop: "1px solid var(--border)", display: "grid", gap: "0.65rem" }}>
+                  <li style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.86rem", color: "var(--text-primary)" }}>
+                    {check()} {formatLimit(plan.max_monthly_messages, "chat messages a month")}
+                  </li>
+                  <li style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.86rem", color: "var(--text-primary)" }}>
+                    {check()} {plan.max_kb_files === -1 ? "Unlimited files" : `${plan.max_kb_files.toLocaleString()} files your assistant learns from`}
+                  </li>
+                  <li style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.86rem", color: plan.allow_widget_embed ? "var(--text-primary)" : "var(--text-muted)" }}>
+                    {check(plan.allow_widget_embed)} Chat on your website
+                  </li>
+                  {features.map((f) => (
+                    <li key={f} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.86rem", color: "var(--text-primary)" }}>
+                      {check()} {f}
+                    </li>
+                  ))}
+                </ul>
 
                 <button
                   type="button"
+                  className="bl-btn"
                   onClick={() => handleUpgradePlan(plan)}
-                  disabled={
-                    (isCurrent && !isCurrentExpired) ||
-                    isProcessing ||
-                    plan.price_inr <= 0
-                  }
+                  disabled={disabled}
                   style={{
+                    marginTop: "auto",
                     width: "100%",
-                    padding: "0.85rem 1rem",
-                    borderRadius: 8,
+                    padding: "0.75rem 1rem",
+                    borderRadius: 11,
                     border: "none",
-                    background:
-                      isCurrent && !isCurrentExpired
-                        ? "var(--bg-hover)"
-                        : "var(--accent)",
-                    color: isCurrent && !isCurrentExpired ? "var(--text-muted)" : "#fff",
-                    fontWeight: 700,
+                    background: disabled && !isProcessing ? "var(--bg-hover)" : "#0f172a",
+                    color: disabled && !isProcessing ? "var(--text-muted)" : "#fff",
+                    fontWeight: 600,
                     fontFamily: "inherit",
                     fontSize: "0.9rem",
-                    cursor:
-                      (isCurrent && !isCurrentExpired) || isProcessing || plan.price_inr <= 0
-                        ? "not-allowed"
-                        : "pointer",
-                    opacity: isCurrent && !isCurrentExpired ? 0.7 : isProcessing ? 0.65 : 1,
+                    cursor: disabled ? "not-allowed" : "pointer",
+                    opacity: isProcessing ? 0.75 : 1,
+                    boxShadow: disabled ? "none" : "0 4px 12px rgba(15,23,42,.18)",
+                    transition: "transform .15s ease, box-shadow .15s ease",
                   }}
                 >
                   {isCurrent
                     ? isCurrentExpired
                       ? plan.price_inr > 0
                         ? `Renew ${plan.name}`
-                        : "Trial Expired"
-                      : "Current Active Plan"
+                        : "Trial ended"
+                      : "Your current plan"
                     : isProcessing
-                    ? "Processing Order..."
-                    : plan.price_inr <= 0
-                    ? "Included in Trial"
-                    : `Upgrade to ${plan.name}`}
+                      ? "Opening payment…"
+                      : plan.price_inr <= 0
+                        ? "Included in your trial"
+                        : `Choose ${plan.name}`}
                 </button>
               </div>
             );
           })}
         </div>
+
+        <p style={{ margin: "1.25rem 0 0", fontSize: "0.8rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 8 }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+          Secure payment by Razorpay. Prices in Indian rupees.
+        </p>
       </div>
     </>
   );

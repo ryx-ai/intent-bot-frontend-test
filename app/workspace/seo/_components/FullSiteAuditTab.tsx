@@ -666,56 +666,204 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
         )}
 
         <div
+          className="audit-intro"
           style={{
             backgroundColor: "var(--bg-card)",
             border: "1px solid var(--border)",
-            borderRadius: 14,
-            padding: "3.5rem 2rem",
-            textAlign: "center",
-            maxWidth: 620,
-            margin: "2rem auto",
+            borderRadius: 16,
+            boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.04)",
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1fr)",
+            overflow: "hidden",
           }}
         >
+          {/* Left: what it does + the action */}
+          <div style={{ padding: "2.5rem 2.5rem 2.25rem" }}>
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: "0.72rem",
+                fontWeight: 600,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                color: "var(--text-muted)",
+                marginBottom: "1rem",
+              }}
+            >
+              <span
+                aria-hidden
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
+                  border: "1px solid var(--border)",
+                  background: "var(--bg-surface)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "var(--accent, #8A64E9)",
+                }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 12h4l3-8 4 16 3-8h4" />
+                </svg>
+              </span>
+              Website check
+            </div>
+            <h2 style={{ fontSize: "1.5rem", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text-primary)", margin: "0 0 0.6rem 0", lineHeight: 1.25 }}>
+              See how healthy your website is
+            </h2>
+            <p style={{ fontSize: "0.92rem", color: "var(--text-secondary)", lineHeight: 1.65, margin: "0 0 1.5rem 0", maxWidth: 440 }}>
+              We read up to {maxPages} pages of{" "}
+              <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{selectedWebsite?.domain}</span>{" "}
+              and give you a short, plain list of fixes so more people find you on Google and in AI search.
+            </p>
+
+            <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1.85rem 0", display: "grid", gap: "0.6rem" }}>
+              {[
+                "Titles and headings Google reads",
+                "Page structure and broken parts",
+                "Images and files that slow pages down",
+                "How your pages look when shared",
+              ].map((item) => (
+                <li key={item} style={{ display: "flex", alignItems: "center", gap: "0.6rem", fontSize: "0.86rem", color: "var(--text-secondary)" }}>
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: "50%",
+                      flexShrink: 0,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "color-mix(in srgb, var(--accent, #8A64E9) 12%, transparent)",
+                      color: "var(--accent, #8A64E9)",
+                    }}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M5 12.5l4.5 4.5L19 7.5" />
+                    </svg>
+                  </span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+              <button
+                onClick={handleStartAudit}
+                disabled={launching}
+                className="audit-start-btn"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "0.75rem 1.35rem",
+                  borderRadius: 10,
+                  border: "none",
+                  backgroundColor: "var(--accent, #8A64E9)",
+                  color: "#fff",
+                  fontWeight: 600,
+                  fontSize: "0.9rem",
+                  fontFamily: "inherit",
+                  cursor: launching ? "not-allowed" : "pointer",
+                  opacity: launching ? 0.75 : 1,
+                  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.18)",
+                  transition: "transform 0.15s ease, box-shadow 0.15s ease",
+                }}
+              >
+                {launching ? "Starting check…" : "Check my website"}
+                {!launching && (
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M5 12h14M13 6l6 6-6 6" />
+                  </svg>
+                )}
+              </button>
+              <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                Up to {maxPages} pages · run it again anytime
+              </span>
+            </div>
+          </div>
+
+          {/* Right: a quiet preview of the report */}
           <div
+            aria-hidden
+            className="audit-intro-preview"
             style={{
-              width: 56,
-              height: 56,
-              borderRadius: "50%",
-              backgroundColor: "rgba(16, 185, 129, 0.12)",
-              color: "#10B981",
+              background: "var(--bg-surface)",
+              borderLeft: "1px solid var(--border)",
+              padding: "2.25rem",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "1.75rem",
-              margin: "0 auto 1.25rem auto",
             }}
           >
-            ⚡
+            <div
+              style={{
+                width: "100%",
+                maxWidth: 340,
+                background: "var(--bg-card)",
+                border: "1px solid var(--border)",
+                borderRadius: 14,
+                padding: "1.25rem 1.25rem 1.1rem",
+                boxShadow: "0 12px 32px rgba(15, 23, 42, 0.07)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "0.9rem", marginBottom: "1.1rem" }}>
+                <svg width="54" height="54" viewBox="0 0 54 54">
+                  <circle cx="27" cy="27" r="22" fill="none" stroke="var(--border)" strokeWidth="5" />
+                  <circle
+                    cx="27"
+                    cy="27"
+                    r="22"
+                    fill="none"
+                    stroke="var(--accent, #8A64E9)"
+                    strokeWidth="5"
+                    strokeLinecap="round"
+                    strokeDasharray={`${2 * Math.PI * 22 * 0.72} ${2 * Math.PI * 22}`}
+                    transform="rotate(-90 27 27)"
+                    opacity="0.85"
+                  />
+                  <text x="27" y="31.5" textAnchor="middle" fontSize="13" fontWeight="700" fill="var(--text-primary)">?</text>
+                </svg>
+                <div>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)" }}>Your health score</div>
+                  <div style={{ fontSize: "0.74rem", color: "var(--text-muted)", marginTop: 2 }}>Ready after the check</div>
+                </div>
+              </div>
+              {[
+                { label: "Titles & headings", w: 78 },
+                { label: "Page structure", w: 62 },
+                { label: "Images & files", w: 48 },
+                { label: "Social sharing", w: 70 },
+              ].map((row) => (
+                <div key={row.label} style={{ padding: "0.55rem 0", borderTop: "1px solid var(--border)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.76rem", color: "var(--text-secondary)", marginBottom: 6 }}>
+                    <span>{row.label}</span>
+                    <span style={{ color: "var(--text-muted)" }}>—</span>
+                  </div>
+                  <div style={{ height: 4, borderRadius: 999, background: "var(--border)", overflow: "hidden" }}>
+                    <div style={{ width: `${row.w}%`, height: "100%", borderRadius: 999, background: "color-mix(in srgb, var(--accent, #8A64E9) 35%, var(--border))" }} />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          <h2 style={{ fontSize: "1.35rem", fontWeight: 800, color: "var(--text-primary)", margin: "0 0 0.5rem 0" }}>
-            See how healthy your website is
-          </h2>
-          <p style={{ fontSize: "0.92rem", color: "var(--text-muted)", lineHeight: 1.6, margin: "0 0 1.75rem 0" }}>
-            We&apos;ll check up to {maxPages} pages of <strong>{selectedWebsite?.domain}</strong> and give you a simple list of what to fix so more people find you on Google and in AI search.
-          </p>
-          <button
-            onClick={handleStartAudit}
-            disabled={launching}
-            style={{
-              padding: "0.75rem 1.75rem",
-              borderRadius: 8,
-              border: "none",
-              backgroundColor: "var(--accent, #8A64E9)",
-              color: "#fff",
-              fontWeight: 700,
-              fontSize: "0.92rem",
-              cursor: launching ? "not-allowed" : "pointer",
-              boxShadow: "0 4px 14px rgba(138, 100, 233, 0.35)",
-            }}
-          >
-            {launching ? "Starting check…" : "Check my website"}
-          </button>
         </div>
+        <style>{`
+          .audit-start-btn:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 6px 16px color-mix(in srgb, var(--accent, #8A64E9) 30%, transparent) !important; }
+          @media (max-width: 860px) {
+            .audit-intro { grid-template-columns: 1fr !important; }
+            .audit-intro-preview { border-left: none !important; border-top: 1px solid var(--border); }
+          }
+          @media (max-width: 520px) {
+            .audit-intro > div:first-child { padding: 1.75rem 1.25rem !important; }
+            .audit-intro-preview { padding: 1.25rem !important; }
+          }
+        `}</style>
       </div>
     );
   }
@@ -741,7 +889,7 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
               width: 56,
               height: 56,
               borderRadius: "50%",
-              backgroundColor: "rgba(138, 100, 233, 0.15)",
+              backgroundColor: "color-mix(in srgb, var(--text-primary) 8%, transparent)",
               color: "var(--accent, #8A64E9)",
               display: "inline-flex",
               alignItems: "center",
@@ -853,7 +1001,7 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
               fontSize: "0.85rem",
               fontWeight: 700,
               cursor: isRunning ? "not-allowed" : "pointer",
-              boxShadow: "0 2px 8px rgba(138, 100, 233, 0.3)",
+              boxShadow: "0 2px 8px color-mix(in srgb, var(--text-primary) 16%, transparent)",
             }}
           >
             <span>⟳</span> Check again
@@ -1173,8 +1321,8 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
                     style={{
                       padding: "0.35rem 0.85rem",
                       borderRadius: 9999,
-                      border: isActive ? "1px solid rgba(138, 100, 233, 0.45)" : "1px solid var(--border)",
-                      backgroundColor: isActive ? "rgba(138, 100, 233, 0.14)" : "var(--bg-card)",
+                      border: isActive ? "1px solid color-mix(in srgb, var(--text-primary) 18%, transparent)" : "1px solid var(--border)",
+                      backgroundColor: isActive ? "color-mix(in srgb, var(--text-primary) 8%, transparent)" : "var(--bg-card)",
                       color: isActive ? "var(--accent, #8A64E9)" : "var(--text-muted)",
                       fontSize: "0.8rem",
                       fontWeight: isActive ? 700 : 500,
@@ -1378,8 +1526,8 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
                   style={{
                     padding: "0.35rem 0.85rem",
                     borderRadius: 9999,
-                    border: isActive ? "1px solid rgba(138, 100, 233, 0.45)" : "1px solid var(--border)",
-                    backgroundColor: isActive ? "rgba(138, 100, 233, 0.14)" : "var(--bg-card)",
+                    border: isActive ? "1px solid color-mix(in srgb, var(--text-primary) 18%, transparent)" : "1px solid var(--border)",
+                    backgroundColor: isActive ? "color-mix(in srgb, var(--text-primary) 8%, transparent)" : "var(--bg-card)",
                     color: isActive ? "var(--accent, #8A64E9)" : "var(--text-muted)",
                     fontSize: "0.8rem",
                     fontWeight: isActive ? 700 : 500,
@@ -1695,8 +1843,8 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
                     justifyContent: "space-between",
                     padding: "0.85rem 1.1rem",
                     borderRadius: 8,
-                    backgroundColor: isCurrent ? "rgba(138, 100, 233, 0.08)" : "var(--bg-surface)",
-                    border: isCurrent ? "1px solid rgba(138, 100, 233, 0.3)" : "1px solid var(--border)",
+                    backgroundColor: isCurrent ? "color-mix(in srgb, var(--text-primary) 4%, transparent)" : "var(--bg-surface)",
+                    border: isCurrent ? "1px solid color-mix(in srgb, var(--text-primary) 16%, transparent)" : "1px solid var(--border)",
                     cursor: isCurrent ? "default" : "pointer",
                     gap: 12,
                   }}
@@ -1740,7 +1888,7 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
                           fontWeight: 700,
                           padding: "3px 10px",
                           borderRadius: 20,
-                          backgroundColor: "rgba(138, 100, 233, 0.15)",
+                          backgroundColor: "color-mix(in srgb, var(--text-primary) 8%, transparent)",
                           color: "var(--accent, #8A64E9)",
                         }}
                       >

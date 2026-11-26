@@ -5,20 +5,99 @@ import { api } from "@/lib/api";
 import ShopifyGuide from "./ShopifyGuide";
 import WebsiteConfirmBanner from "../_components/WebsiteConfirmBanner";
 
-const PLATFORMS: { icon: string; name: string; guide?: boolean }[] = [
-  { icon: "🔷", name: "WordPress" },
-  { icon: "🟧", name: "Shopify", guide: true },
-  { icon: "🌐", name: "Wix" },
-  { icon: "⬛", name: "Webflow" },
-  { icon: "📄", name: "Raw HTML" },
-  { icon: "⚛️", name: "React/Next" },
+type Platform = { key: string; name: string; steps: React.ReactNode[] };
+
+const code = (t: string) => (
+  <span
+    style={{
+      display: "inline-block",
+      background: "var(--bg-surface)",
+      border: "1px solid var(--border)",
+      borderRadius: 6,
+      padding: "0 7px",
+      fontSize: "0.78rem",
+      fontWeight: 600,
+      color: "var(--text-primary)",
+      whiteSpace: "nowrap",
+    }}
+  >
+    {t}
+  </span>
+);
+const path = (...items: string[]) => (
+  <span style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
+    {items.map((t, i) => (
+      <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+        {code(t)}
+        {i < items.length - 1 && <span style={{ color: "var(--text-muted)" }}>›</span>}
+      </span>
+    ))}
+  </span>
+);
+
+const PLATFORMS: Platform[] = [
+  { key: "shopify", name: "Shopify", steps: [] },
+  {
+    key: "wordpress",
+    name: "WordPress",
+    steps: [
+      <>Install the free plugin {code("WPCode")} from {path("Plugins", "Add New")}.</>,
+      <>Open {path("Code Snippets", "Header & Footer")}.</>,
+      <>Paste your code into the {code("Footer")} box and click {code("Save Changes")}.</>,
+    ],
+  },
+  {
+    key: "wix",
+    name: "Wix",
+    steps: [
+      <>In your dashboard open {path("Settings", "Custom Code")} and click {code("+ Add Custom Code")}.</>,
+      <>Paste your code, choose {code("All pages")} and place it in {code("Body - end")}.</>,
+      <>Click {code("Apply")}. It shows on your live site right away.</>,
+    ],
+  },
+  {
+    key: "webflow",
+    name: "Webflow",
+    steps: [
+      <>Open {path("Site settings", "Custom code")}.</>,
+      <>Paste your code into {code("Footer code")} and click {code("Save")}.</>,
+      <>Click {code("Publish")} so the change goes live.</>,
+    ],
+  },
+  {
+    key: "squarespace",
+    name: "Squarespace",
+    steps: [
+      <>Open {path("Settings", "Advanced", "Code Injection")}.</>,
+      <>Paste your code into the {code("Footer")} box.</>,
+      <>Click {code("Save")}.</>,
+    ],
+  },
+  {
+    key: "html",
+    name: "Any website",
+    steps: [
+      <>Open the HTML of your pages (or the shared footer file).</>,
+      <>Paste your code on the line just above {code("</body>")}.</>,
+      <>Save and upload the file to your website.</>,
+    ],
+  },
+  {
+    key: "react",
+    name: "React / Next.js",
+    steps: [
+      <>Next.js: add it to {code("app/layout.tsx")} using the {code("<Script>")} component.</>,
+      <>React (Vite / CRA): paste it into {code("index.html")} just above {code("</body>")}.</>,
+      <>Deploy as usual. The chat loads on every page.</>,
+    ],
+  },
 ];
 
 const INFO_PILLS = [
-  { icon: "🔒", title: "Secure", desc: "All chat data encrypted in transit" },
-  { icon: "⚡", title: "Zero dependencies", desc: "No npm, no build step" },
-  { icon: "📱", title: "Mobile ready", desc: "Responsive on all screen sizes" },
-  { icon: "🎨", title: "No style conflicts", desc: "Isolated CSS namespace" },
+  { title: "Secure", desc: "Chats are encrypted", icon: <><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></> },
+  { title: "Lightweight", desc: "One line, nothing to install", icon: <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" /> },
+  { title: "Mobile ready", desc: "Works on every screen size", icon: <><rect x="7" y="2" width="10" height="20" rx="2" /><path d="M11 18h2" /></> },
+  { title: "No style clashes", desc: "Won't change your site's look", icon: <><circle cx="12" cy="12" r="9" /><path d="M12 3v18" /></> },
 ];
 
 // Hostnames that should never be used in a published embed snippet.
@@ -57,7 +136,7 @@ export default function DeployPage() {
   const [tenantSlug, setTenantSlug] = useState("");
   const [tenantName, setTenantName] = useState("");
   const [isSubActive, setIsSubActive] = useState<boolean | null>(null);
-  const [openGuide, setOpenGuide] = useState<string | null>(null);
+  const [platform, setPlatform] = useState("shopify");
 
   useEffect(() => {
     async function loadTenant() {
@@ -136,750 +215,318 @@ export default function DeployPage() {
     }
   }
 
+  const statusColor = health === "ok" ? "#10b981" : health === "down" ? "#ef4444" : "#f59e0b";
+  const statusText = health === "ok" ? "Live" : health === "down" ? "Can't reach the server" : "Checking…";
+  const current = PLATFORMS.find((p) => p.key === platform) || PLATFORMS[0];
+  const card: React.CSSProperties = {
+    background: "var(--bg-card)",
+    border: "1px solid var(--border)",
+    borderRadius: 18,
+    padding: "1.15rem 1.35rem",
+    boxShadow: "0 1px 2px rgba(15,23,42,.04), 0 6px 20px rgba(15,23,42,.035)",
+  };
+
+  const StepHead = ({ n, title, sub }: { n: number; title: string; sub: string }) => (
+    <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: "0.85rem" }}>
+      <span
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: "50%",
+          flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#0f172a",
+          color: "#fff",
+          fontSize: "0.8rem",
+          fontWeight: 700,
+        }}
+      >
+        {n}
+      </span>
+      <div>
+        <div style={{ fontSize: "1rem", fontWeight: 650, color: "var(--text-primary)" }}>{title}</div>
+        <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", marginTop: 2 }}>{sub}</div>
+      </div>
+    </div>
+  );
+
   return (
-    <div style={{ width: "100%", maxWidth: 1400, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
+    <div style={{ width: "100%", maxWidth: 1480, margin: "0 auto", padding: "2rem 1.75rem", boxSizing: "border-box" }}>
+      <style>{`
+        .dp-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+        .dp-preview { position: sticky; top: 24px; display: flex; flex-direction: column; }
+        .dp-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 1rem; }
+        .dp-tab { padding: .42rem .85rem; border-radius: 999px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary); font: inherit; font-size: .82rem; font-weight: 500; cursor: pointer; transition: all .15s; }
+        .dp-tab:hover { border-color: #cbd5e1; color: var(--text-primary); }
+        .dp-tab[aria-selected="true"] { background: #0f172a; border-color: #0f172a; color: #fff; }
+        .dp-copy { display: inline-flex; align-items: center; gap: 6px; padding: .45rem .85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,.18); background: #fff; color: #0f172a; font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; transition: transform .15s; }
+        .dp-copy:hover { transform: translateY(-1px); }
+        .dp-info { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+        @media (max-width: 1100px) { .dp-grid { grid-template-columns: minmax(0, 1fr); } .dp-preview { position: static; } }
+        @media (max-width: 560px) { .dp-info { grid-template-columns: 1fr; } }
+      `}</style>
+
       <WebsiteConfirmBanner />
 
-      {/* Expired Subscription Warning */}
       {isSubActive === false && (
         <div
           style={{
-            background: "rgba(239, 68, 68, 0.12)",
-            border: "1px solid rgba(239, 68, 68, 0.35)",
-            borderRadius: 10,
-            padding: "1rem 1.25rem",
-            marginBottom: "1.5rem",
+            background: "rgba(239, 68, 68, 0.06)",
+            border: "1px solid rgba(239, 68, 68, 0.25)",
+            borderRadius: 14,
+            padding: "0.9rem 1.1rem",
+            marginBottom: "1.25rem",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             gap: 12,
-            fontSize: "0.9rem",
-            color: "#f87171",
+            flexWrap: "wrap",
+            fontSize: "0.88rem",
+            color: "var(--text-primary)",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: "1.1rem" }}>🔒</span>
-            <span>
-              <strong>Widget Disabled (Trial Expired):</strong> Your 3-day trial has ended. Chatbot calls on your website are currently locked (HTTP 402 Payment Required).
-            </span>
-          </div>
-          <a
-            href="/workspace/billing"
-            style={{
-              background: "#ef4444",
-              color: "var(--text-primary)",
-              padding: "0.45rem 0.9rem",
-              borderRadius: 6,
-              fontWeight: 700,
-              fontSize: "0.85rem",
-              textDecoration: "none",
-              whiteSpace: "nowrap",
-            }}
-          >
-            Upgrade Plan →
+          <span>
+            <strong>The chat is paused.</strong> Your trial has ended, so the chat won&apos;t answer on your website until you choose a plan.
+          </span>
+          <a href="/workspace/billing" style={{ background: "#0f172a", color: "#fff", padding: "0.5rem 1rem", borderRadius: 10, fontWeight: 600, fontSize: "0.84rem", textDecoration: "none", whiteSpace: "nowrap" }}>
+            Choose a plan
           </a>
         </div>
       )}
 
-      {/* Localhost warning */}
       {isLocalhost && (
         <div
           style={{
-            background: "rgba(245, 158, 11, 0.1)",
-            border: "1px solid rgba(245, 158, 11, 0.3)",
-            borderRadius: 10,
-            padding: "0.75rem 1rem",
-            marginBottom: "1.5rem",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            fontSize: "0.85rem",
-            color: "var(--warning)",
+            background: "rgba(245, 158, 11, 0.07)",
+            border: "1px solid rgba(245, 158, 11, 0.28)",
+            borderRadius: 12,
+            padding: "0.65rem 0.95rem",
+            marginBottom: "1.25rem",
+            fontSize: "0.82rem",
+            color: "var(--text-secondary)",
           }}
         >
-          ⚠️ <strong>Dev Mode:</strong>&nbsp;Snippet points to localhost. Set{" "}
-          <code
-            style={{
-              background: "var(--bg-hover)",
-              padding: "2px 6px",
-              borderRadius: 4,
-            }}
-          >
-            NEXT_PUBLIC_API_URL
-          </code>{" "}
-          on Vercel before deploying.
+          <strong style={{ color: "#b45309" }}>Test mode:</strong> this code points to your computer, so it only works while it&apos;s running. Set{" "}
+          <code style={{ background: "var(--bg-surface)", padding: "1px 6px", borderRadius: 4 }}>NEXT_PUBLIC_API_URL</code> on the live site.
         </div>
       )}
-      {/* Hero */}
-      <div style={{ marginBottom: "2.5rem" }}>
+
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem", flexWrap: "wrap", marginBottom: "1.1rem" }}>
+        <div>
+          <h1 style={{ margin: "0 0 0.35rem", fontSize: "1.75rem", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text-primary)" }}>
+            Add the chat to your website
+          </h1>
+          <p style={{ margin: 0, fontSize: "0.95rem", color: "var(--text-secondary)" }}>
+            Copy one line of code and paste it into your website. It takes about a minute.
+          </p>
+        </div>
         <span
+          title={`${health === "down" ? "Cannot reach" : "Active at"} ${backendOrigin}`}
           style={{
             display: "inline-flex",
             alignItems: "center",
-            gap: 6,
-            background: "var(--accent-dim)",
-            border: "1px solid var(--accent-glow)",
-            color: "var(--accent)",
-            borderRadius: 20,
-            padding: "4px 12px",
-            fontSize: "0.72rem",
+            gap: 8,
+            padding: "0.45rem 0.9rem",
+            borderRadius: 999,
+            border: "1px solid var(--border)",
+            background: "var(--bg-card)",
+            fontSize: "0.82rem",
             fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: 1,
-            marginBottom: "1rem",
-          }}
-        >
-          ⚡ Live Deployment
-        </span>
-        <h1
-          style={{
-            margin: "0 0 0.5rem 0",
-            fontSize: "2rem",
-            fontWeight: 800,
             color: "var(--text-primary)",
-            // background:
-            //   "linear-gradient(135deg, #fff 40%, var(--accent-light))",
-            // WebkitBackgroundClip: "text",
-            // WebkitTextFillColor: "transparent",
-            // backgroundClip: "text",
+            boxShadow: "0 1px 2px rgba(15,23,42,.05)",
           }}
         >
-          Deploy Your Agent
-        </h1>
-        <p
-          style={{
-            margin: 0,
-            color: "var(--text-muted)",
-            fontSize: "0.95rem",
-            lineHeight: 1.6,
-            maxWidth: 580,
-          }}
-        >
-          Embed the RYX AI chatbot on any website in under 60 seconds — no
-          developer needed. Just copy the snippet and paste it before your{" "}
-          <code
-            style={{ color: "var(--accent)", fontFamily: "monospace" }}
-          >
-            &lt;/body&gt;
-          </code>{" "}
-          tag.
-        </p>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: statusColor, boxShadow: `0 0 0 3px ${statusColor}26` }} />
+          {statusText}
+        </span>
       </div>
 
-      {/* Live Status Banner — color and label reflect the real /health probe. */}
-      {(() => {
-        const palette =
-          health === "ok"
-            ? {
-                bg: "rgba(16, 185, 129, 0.1)",
-                border: "rgba(16, 185, 129, 0.25)",
-                dot: "#10b981",
-                dotShadow: "rgba(16, 185, 129, 0.6)",
-                text: "#10b981",
-                label: "Agent is Live & Running",
-              }
-            : health === "down"
-              ? {
-                  bg: "rgba(239, 68, 68, 0.1)",
-                  border: "rgba(239, 68, 68, 0.3)",
-                  dot: "#ef4444",
-                  dotShadow: "rgba(239, 68, 68, 0.6)",
-                  text: "#fca5a5",
-                  label: "Agent is Unreachable",
-                }
-              : {
-                  bg: "rgba(245, 158, 11, 0.08)",
-                  border: "rgba(245, 158, 11, 0.25)",
-                  dot: "#f59e0b",
-                  dotShadow: "rgba(245, 158, 11, 0.5)",
-                  text: "#fbbf24",
-                  label: "Checking agent status…",
-                };
-        return (
-          <div
-            style={{
-              background: palette.bg,
-              border: `1px solid ${palette.border}`,
-              borderRadius: 10,
-              padding: "1rem 1.25rem",
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              marginBottom: "2rem",
-            }}
-          >
-            <div
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: "50%",
-                background: palette.dot,
-                boxShadow: `0 0 8px ${palette.dotShadow}`,
-                animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-              }}
-            />
-            <div>
-              <p
-                style={{
-                  margin: "0 0 2px 0",
-                  fontSize: "0.85rem",
-                  fontWeight: 600,
-                  color: palette.text,
-                }}
-              >
-                {palette.label}
-              </p>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: "0.75rem",
-                  color: "var(--text-muted)",
-                }}
-              >
-                {health === "down" ? "Cannot reach: " : "Active at: "}
-                {backendOrigin}
-              </p>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Steps */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "1.25rem",
-          marginBottom: "2rem",
-        }}
-      >
-        {/* Step 1: Preview */}
-        <div
-          style={{
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: 14,
-            padding: "1.5rem",
-            position: "relative",
-            transition: "border-color 0.2s",
-          }}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.borderColor = "var(--accent-glow)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.borderColor = "var(--border)")
-          }
-        >
-          <div
-            style={{
-              position: "absolute",
-              top: "1.25rem",
-              left: "1.5rem",
-              width: 28,
-              height: 28,
-              background: "var(--accent-dim)",
-              border: "1px solid var(--accent-glow)",
-              borderRadius: "50%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "0.75rem",
-              fontWeight: 700,
-              color: "var(--accent)",
-            }}
-          >
-            1
-          </div>
-          <div style={{ paddingLeft: "2.5rem" }}>
-            <h3
-              style={{
-                margin: "0 0 0.3rem 0",
-                fontSize: "0.95rem",
-                fontWeight: 700,
-                color: "var(--text-primary)",
-              }}
-            >
-              Preview on a customer&apos;s site
-            </h3>
-            <p
-              style={{
-                margin: "0 0 1rem 0",
-                fontSize: "0.82rem",
-                color: "var(--text-secondary)",
-                lineHeight: 1.6,
-              }}
-            >
-              This is what the AI Agent looks like after it&apos;s embedded. The
-              purple button appears fixed to the bottom-right corner of any
-              webpage.
-            </p>
-
-            {/* Mock site preview */}
-            <div
-              style={{
-                backgroundColor: "var(--bg)",
-                borderRadius: 10,
-                height: 260,
-                position: "relative",
-                overflow: "hidden",
-                border: "1px solid var(--border)",
-              }}
-            >
-              {/* Mock navbar */}
-              <div
-                style={{
-                  backgroundColor: "var(--bg-surface)",
-                  borderBottom: "1px solid var(--border)",
-                  padding: "12px 20px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                }}
-              >
-                <div
-                  style={{
-                    width: 80,
-                    height: 8,
-                    background: "var(--border)",
-                    borderRadius: 4,
-                  }}
-                />
-                <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
-                  {[1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      style={{
-                        width: 40,
-                        height: 6,
-                        background: "var(--border)",
-                        borderRadius: 3,
-                      }}
-                    />
+      <div className="dp-grid">
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", minWidth: 0 }}>
+          {/* Step 1 */}
+          <div style={card}>
+            <StepHead n={1} title="Copy your code" sub="This one line adds the chat button to your website." />
+            <div style={{ borderRadius: 14, overflow: "hidden", background: "#0b1220", border: "1px solid #0b1220" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.45rem 0.6rem 0.45rem 1rem", borderBottom: "1px solid rgba(255,255,255,.08)" }}>
+                <span style={{ display: "inline-flex", gap: 6 }} aria-hidden>
+                  {["#ef4444", "#f59e0b", "#10b981"].map((c) => (
+                    <span key={c} style={{ width: 9, height: 9, borderRadius: "50%", background: c, opacity: 0.8 }} />
                   ))}
-                </div>
-              </div>
-              {/* Mock body */}
-              <div style={{ padding: 20 }}>
-                <div
-                  style={{
-                    width: 200,
-                    height: 10,
-                    backgroundColor: "var(--bg-card)",
-                    borderRadius: 4,
-                    marginBottom: 8,
-                  }}
-                />
-                <div
-                  style={{
-                    width: 300,
-                    height: 7,
-                    backgroundColor: "var(--bg-hover)",
-                    borderRadius: 3,
-                    marginBottom: 6,
-                  }}
-                />
-                <div
-                  style={{
-                    width: 240,
-                    height: 7,
-                    backgroundColor: "var(--bg-hover)",
-                    borderRadius: 3,
-                    marginBottom: 6,
-                  }}
-                />
-              </div>
-
-              {/* Chat bubble */}
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: 68,
-                  right: 14,
-                  backgroundColor: "var(--bg-hover)",
-                  borderRadius: "12px 12px 2px 12px",
-                  padding: "10px 14px",
-                  boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
-                  fontSize: 12,
-                  color: "var(--text-primary)",
-                  width: 200,
-                  lineHeight: 1.4,
-                  border: "1px solid var(--border)",
-                }}
-              >
-                👋 Hello! I&apos;m the {tenantName ? `${tenantName} AI Assistant` : "AI Assistant"}. How can I help you?
-              </div>
-              {/* Bot button */}
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: 16,
-                  right: 16,
-                  width: 44,
-                  height: 44,
-                  borderRadius: "50%",
-                  background: "var(--accent)",
-                  boxShadow: "0 6px 20px rgba(107, 76, 255, 0.45)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "white",
-                  fontSize: 18,
-                  cursor: "pointer",
-                }}
-              >
-                ✦
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Step 2: Code snippet */}
-        <div
-          style={{
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: 14,
-            padding: "1.5rem",
-            position: "relative",
-            transition: "border-color 0.2s",
-          }}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.borderColor = "var(--accent-glow)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.borderColor = "var(--border)")
-          }
-        >
-          <div
-            style={{
-              position: "absolute",
-              top: "1.25rem",
-              left: "1.5rem",
-              width: 28,
-              height: 28,
-              background: "var(--accent-dim)",
-              border: "1px solid var(--accent-glow)",
-              borderRadius: "50%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "0.75rem",
-              fontWeight: 700,
-              color: "var(--accent)",
-            }}
-          >
-            2
-          </div>
-          <div style={{ paddingLeft: "2.5rem" }}>
-            <h3
-              style={{
-                margin: "0 0 0.3rem 0",
-                fontSize: "0.95rem",
-                fontWeight: 700,
-                color: "var(--text-primary)",
-              }}
-            >
-              Copy the embed snippet
-            </h3>
-            <p
-              style={{
-                margin: "0 0 1rem 0",
-                fontSize: "0.82rem",
-                color: "var(--text-secondary)",
-                lineHeight: 1.6,
-              }}
-            >
-              Paste this single line just before the closing{" "}
-              <code
-                style={{
-                  color: "var(--accent)",
-                  fontFamily: "monospace",
-                }}
-              >
-                &lt;/body&gt;
-              </code>{" "}
-              tag on every page you want the agent to appear.
-            </p>
-            <div
-              style={{
-                background: "#0d1020",
-                border: "1px solid var(--border)",
-                borderRadius: 10,
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  backgroundColor: "var(--bg-surface)",
-                  borderBottom: "1px solid var(--border)",
-                  padding: "10px 16px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: "0.7rem",
-                    fontWeight: 600,
-                    letterSpacing: 1,
-                    textTransform: "uppercase",
-                    color: "var(--text-muted)",
-                  }}
-                >
-                  HTML
                 </span>
-                <button
-                  onClick={copySnippet}
-                  style={{
-                    background: copied
-                      ? "rgba(16, 185, 129, 0.15)"
-                      : "var(--accent-dim)",
-                    border: `1px solid ${copied ? "rgba(16, 185, 129, 0.4)" : "var(--accent-glow)"}`,
-                    color: copied ? "#10b981" : "var(--accent)",
-                    borderRadius: 6,
-                    padding: "4px 12px",
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
-                    fontFamily: "'Inter', sans-serif",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!copied) {
-                      e.currentTarget.style.background =
-                        "rgba(107, 76, 255, 0.25)";
-                      e.currentTarget.style.borderColor = "var(--accent)";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!copied) {
-                      e.currentTarget.style.background = "var(--accent-dim)";
-                      e.currentTarget.style.borderColor = "var(--accent-glow)";
-                    }
-                  }}
-                >
-                  {copied ? "Copied" : "Copy Snippet"}
+                <button type="button" className="dp-copy" onClick={copySnippet}>
+                  {copied ? (
+                    <>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
+                      Copy code
+                    </>
+                  )}
                 </button>
               </div>
               <pre
                 style={{
                   margin: 0,
-                  padding: "18px 20px",
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: "0.82rem",
-                  lineHeight: 1.7,
-                  color: "var(--text-primary)",
+                  padding: "0.8rem 1.1rem 0.9rem",
+                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                  fontSize: "0.78rem",
+                  lineHeight: 1.65,
+                  color: "#e2e8f0",
                   whiteSpace: "pre-wrap",
                   wordBreak: "break-all",
-                  overflowX: "auto",
                 }}
               >
-                <code>
-                  <span style={{ color: "#f9a8d4" }}>&lt;script</span>{" "}
-                  <span style={{ color: "#93c5fd" }}>src</span>=
-                  <span style={{ color: "#86efac" }}>
-                    &quot;{backendOrigin}/static/embed.js&quot;
-                  </span>
-                  {"\n        "}
-                  <span style={{ color: "#93c5fd" }}>data-api</span>=
-                  <span style={{ color: "#86efac" }}>
-                    &quot;{backendOrigin}&quot;
-                  </span>
-                  {tenantSlug && (
-                    <>
-                      {"\n        "}
-                      <span style={{ color: "#93c5fd" }}>data-tenant</span>=
-                      <span style={{ color: "#86efac" }}>
-                        &quot;{tenantSlug}&quot;
-                      </span>
-                    </>
-                  )}
-                  <span style={{ color: "#f9a8d4" }}>&gt;&lt;/script&gt;</span>
-                </code>
+                <span style={{ color: "#f472b6" }}>&lt;script</span> <span style={{ color: "#93c5fd" }}>src</span>=<span style={{ color: "#86efac" }}>&quot;{backendOrigin}/static/embed.js&quot;</span>
+                {"\n        "}<span style={{ color: "#93c5fd" }}>data-api</span>=<span style={{ color: "#86efac" }}>&quot;{backendOrigin}&quot;</span>
+                {tenantSlug && (
+                  <>
+                    {"\n        "}<span style={{ color: "#93c5fd" }}>data-tenant</span>=<span style={{ color: "#86efac" }}>&quot;{tenantSlug}&quot;</span>
+                  </>
+                )}
+                <span style={{ color: "#f472b6" }}>&gt;&lt;/script&gt;</span>
               </pre>
             </div>
-            {copyError && (
-              <p
-                style={{
-                  marginTop: "0.5rem",
-                  marginBottom: 0,
-                  fontSize: "0.78rem",
-                  color: "var(--error)",
-                }}
-              >
-                {copyError}
-              </p>
+            {copyError && <div style={{ marginTop: 8, fontSize: "0.8rem", color: "var(--error)" }}>{copyError}</div>}
+          </div>
+
+          {/* Step 2 */}
+          <div style={card}>
+            <StepHead n={2} title="Paste it on your website" sub="Pick where your website is built for simple steps." />
+            <div className="dp-tabs" role="tablist">
+              {PLATFORMS.map((p) => (
+                <button key={p.key} type="button" role="tab" aria-selected={platform === p.key} className="dp-tab" onClick={() => setPlatform(p.key)}>
+                  {p.name}
+                </button>
+              ))}
+            </div>
+            {current.key === "shopify" ? (
+              <ShopifyGuide copied={copied} onCopy={copySnippet} />
+            ) : (
+              <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: "0.85rem" }}>
+                {current.steps.map((st, i) => (
+                  <li key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start", fontSize: "0.88rem", color: "var(--text-secondary)", lineHeight: 1.65 }}>
+                    <span
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: "50%",
+                        flexShrink: 0,
+                        marginTop: 1,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        border: "1px solid var(--border)",
+                        fontSize: "0.72rem",
+                        fontWeight: 700,
+                        color: "var(--text-primary)",
+                        background: "var(--bg-card)",
+                      }}
+                    >
+                      {i + 1}
+                    </span>
+                    <span>{st}</span>
+                  </li>
+                ))}
+              </ol>
             )}
           </div>
+
         </div>
 
-        {/* Step 3: Platforms */}
-        <div
-          style={{
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: 14,
-            padding: "1.5rem",
-            position: "relative",
-            transition: "border-color 0.2s",
-          }}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.borderColor = "var(--accent-glow)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.borderColor = "var(--border)")
-          }
-        >
-          <div
-            style={{
-              position: "absolute",
-              top: "1.25rem",
-              left: "1.5rem",
-              width: 28,
-              height: 28,
-              background: "var(--accent-dim)",
-              border: "1px solid var(--accent-glow)",
-              borderRadius: "50%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "0.75rem",
-              fontWeight: 700,
-              color: "var(--accent)",
-            }}
-          >
-            3
+        {/* Preview */}
+        <div className="dp-preview">
+          <div style={{ fontSize: "0.68rem", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)", margin: "0 0 10px 4px" }}>
+            What visitors see
           </div>
-          <div style={{ paddingLeft: "2.5rem" }}>
-            <h3
-              style={{
-                margin: "0 0 0.3rem 0",
-                fontSize: "0.95rem",
-                fontWeight: 700,
-                color: "var(--text-primary)",
-              }}
-            >
-              Works on any platform
-            </h3>
-            <p
-              style={{
-                margin: "0 0 1rem 0",
-                fontSize: "0.82rem",
-                color: "var(--text-secondary)",
-                lineHeight: 1.6,
-              }}
-            >
-              Paste it in your website builder&apos;s &quot;Custom Code&quot; or
-              &quot;Footer Scripts&quot; section.
-            </p>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-                gap: "0.75rem",
-                marginTop: "1rem",
-              }}
-            >
-              {PLATFORMS.map((p) => (
+          <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0.7rem 1rem", borderBottom: "1px solid var(--border)", background: "var(--bg-surface)" }}>
+              <span style={{ display: "inline-flex", gap: 6 }} aria-hidden>
+                {["#cbd5e1", "#cbd5e1", "#cbd5e1"].map((c, i) => (
+                  <span key={i} style={{ width: 9, height: 9, borderRadius: "50%", background: c }} />
+                ))}
+              </span>
+              <span style={{ flex: 1, height: 22, borderRadius: 7, background: "var(--bg-card)", border: "1px solid var(--border)", display: "flex", alignItems: "center", padding: "0 10px", fontSize: "0.72rem", color: "var(--text-muted)" }}>
+                yourwebsite.com
+              </span>
+            </div>
+            <div style={{ position: "relative", height: 300, background: "linear-gradient(180deg, var(--bg-card), var(--bg-surface))", padding: "1.6rem 1.5rem" }} aria-hidden>
+              <div style={{ height: 12, width: "45%", borderRadius: 6, background: "#e2e8f0" }} />
+              <div style={{ height: 26, width: "75%", borderRadius: 8, background: "#cbd5e1", marginTop: 16 }} />
+              <div style={{ height: 10, width: "85%", borderRadius: 5, background: "#e2e8f0", marginTop: 14 }} />
+              <div style={{ height: 10, width: "65%", borderRadius: 5, background: "#e2e8f0", marginTop: 8 }} />
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginTop: 24 }}>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} style={{ height: 64, borderRadius: 12, background: "#eef2f6" }} />
+                ))}
+              </div>
+
+              {/* The real chat button design: greeting bubble + white circle */}
+              <div style={{ position: "absolute", right: 22, bottom: 22, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12 }}>
                 <div
-                  key={p.name}
-                  role={p.guide ? "button" : undefined}
-                  tabIndex={p.guide ? 0 : undefined}
-                  onClick={p.guide ? () => setOpenGuide(openGuide === p.name ? null : p.name) : undefined}
-                  onKeyDown={p.guide ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenGuide(openGuide === p.name ? null : p.name); } } : undefined}
                   style={{
-                    backgroundColor: openGuide === p.name ? "rgba(107, 76, 255, 0.1)" : "var(--bg-surface)",
-                    border: `1px solid ${openGuide === p.name ? "var(--accent)" : "var(--border)"}`,
-                    borderRadius: 10,
-                    padding: "0.875rem 1rem",
-                    textAlign: "center",
-                    transition: "all 0.2s",
-                    cursor: p.guide ? "pointer" : "default",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "var(--accent-glow)";
-                    e.currentTarget.style.background =
-                      "rgba(107, 76, 255, 0.1)";
-                  }}
-                  onMouseLeave={(e) => {
-                    if (openGuide === p.name) return;
-                    e.currentTarget.style.borderColor = "var(--border)";
-                    e.currentTarget.style.background = "var(--bg-surface)";
+                    maxWidth: 230,
+                    background: "#fff",
+                    color: "#0f172a",
+                    fontSize: "0.8rem",
+                    lineHeight: 1.45,
+                    padding: "10px 14px",
+                    borderRadius: "16px 16px 4px 16px",
+                    boxShadow: "0 10px 30px rgba(15,23,42,.14)",
+                    border: "1px solid #eef2f6",
                   }}
                 >
-                  <div style={{ fontSize: "1.5rem", marginBottom: "0.3rem" }}>
-                    {p.icon}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "0.78rem",
-                      fontWeight: 600,
-                      color: "var(--text-primary)",
-                    }}
-                  >
-                    {p.name}
-                  </div>
-                  <div
-                    style={{
-                      display: "inline-block",
-                      marginTop: "0.3rem",
-                      fontSize: "0.65rem",
-                      background: p.guide ? "var(--accent-dim)" : "rgba(16, 185, 129, 0.15)",
-                      color: p.guide ? "var(--accent)" : "#10b981",
-                      borderRadius: 4,
-                      padding: "1px 6px",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {p.guide ? (openGuide === p.name ? "Hide steps ▴" : "Show steps →") : "✓ Supported"}
-                  </div>
+                  👋 Hi! Have a question? I&apos;m here to help.
+                </div>
+                <div
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: "50%",
+                    background: "#fff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#0f172a",
+                    boxShadow: "0 0 0 2px #0f172a, 0 10px 26px rgba(15,23,42,.22)",
+                  }}
+                >
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p style={{ margin: "10px 4px 0", fontSize: "0.78rem", color: "var(--text-muted)", lineHeight: 1.5 }}>
+            On your website, the button takes your website&apos;s own colour{tenantName ? `, and the chat greets visitors as ${tenantName}` : ""}.
+          </p>
+          <div style={{ height: 14 }} />
+          {/* Step 3 */}
+          <div style={card}>
+            <StepHead n={3} title="Check it's working" sub="Open your website. The chat button appears bottom-right." />
+            <div className="dp-info">
+              {INFO_PILLS.map((p) => (
+                <div key={p.title} style={{ display: "flex", gap: 9, alignItems: "center", padding: "0.5rem 0.6rem", border: "1px solid var(--border)", borderRadius: 12 }}>
+                  <span style={{ width: 32, height: 32, borderRadius: 9, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-surface)", color: "var(--text-secondary)" }} aria-hidden>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">{p.icon}</svg>
+                  </span>
+                  <span>
+                    <span style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-primary)" }}>{p.title}</span>
+                    <span style={{ display: "block", fontSize: "0.76rem", color: "var(--text-muted)" }}>{p.desc}</span>
+                  </span>
                 </div>
               ))}
             </div>
-            {openGuide === "Shopify" && (
-              <ShopifyGuide copied={copied} onCopy={copySnippet} onClose={() => setOpenGuide(null)} />
-            )}
           </div>
+
         </div>
       </div>
-
-      {/* Info pills */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
-        {INFO_PILLS.map((pill) => (
-          <div
-            key={pill.title}
-            style={{
-              backgroundColor: "var(--bg-surface)",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              padding: "8px 14px",
-              fontSize: "0.78rem",
-              color: "var(--text-secondary)",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            {pill.icon}{" "}
-            <strong style={{ color: "var(--text-primary)", fontWeight: 600 }}>
-              {pill.title}
-            </strong>{" "}
-            — {pill.desc}
-          </div>
-        ))}
-      </div>
-
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: .5; }
-        }
-      `,
-        }}
-      />
     </div>
   );
 }

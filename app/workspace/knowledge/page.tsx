@@ -521,7 +521,7 @@ export default function KnowledgeLakePage() {
   const manualWebUrls = webUrls.filter((u) => u.is_manual !== false);
 
   return (
-    <div style={{ width: "100%", maxWidth: 1040, margin: "0 auto", padding: "2rem 1.5rem", boxSizing: "border-box" }}>
+    <div style={{ width: "100%", maxWidth: 1480, margin: "0 auto", padding: "2rem 1.75rem", boxSizing: "border-box" }}>
       <style>{`
         @keyframes indeterminateMove {
           0% { left: -35%; width: 35%; }
@@ -538,6 +538,17 @@ export default function KnowledgeLakePage() {
         .mobile-only-menu {
           display: none;
         }
+        .kn-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+        .kn-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1.25rem; }
+        .kn-stat { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 1rem 1.15rem; display: flex; align-items: center; gap: .85rem; box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 6px 20px rgba(15,23,42,.03); }
+        .kn-ico { width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-secondary); }
+        .kn-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 18px; padding: 1.5rem; box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 6px 20px rgba(15,23,42,.035); }
+        .kn-btn-dark { display: inline-flex; align-items: center; gap: .5rem; padding: .62rem 1.2rem; border-radius: 10px; border: none; background: #0f172a; color: #fff; font: inherit; font-weight: 600; font-size: .86rem; cursor: pointer; box-shadow: 0 4px 12px rgba(15,23,42,.18); transition: transform .15s, box-shadow .15s; }
+        .kn-btn-dark:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(15,23,42,.22); }
+        @media (max-width: 1080px) { .kn-grid { grid-template-columns: minmax(0, 1fr); } }
+        .kn-card { min-width: 0; overflow-wrap: anywhere; }
+        @media (max-width: 640px) { .kn-card { padding: 1.15rem; } }
+        @media (max-width: 760px) { .kn-stats { grid-template-columns: 1fr; } }
         @media (max-width: 640px) {
           .desktop-only-actions {
             display: none !important;
@@ -550,7 +561,7 @@ export default function KnowledgeLakePage() {
 
       {/* ── Page Header ── */}
       <header style={{ marginBottom: "2rem" }}>
-        <h1 style={{ margin: "0 0 0.35rem 0", fontSize: "1.75rem", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.02em" }}>
+        <h1 style={{ margin: "0 0 0.35rem 0", fontSize: "1.75rem", fontWeight: 700, color: "var(--text-primary)", letterSpacing: "-0.02em" }}>
           What your assistant knows
         </h1>
         <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.95rem" }}>
@@ -558,19 +569,50 @@ export default function KnowledgeLakePage() {
         </p>
       </header>
 
+      {/* ── At a glance ── */}
+      <div className="kn-stats">
+        <div className="kn-stat">
+          <span className="kn-ico" aria-hidden>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: "1.35rem", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text-primary)", lineHeight: 1.1 }}>
+              {files.length}
+              {!isUnlimited && <span style={{ fontSize: "0.9rem", fontWeight: 500, color: "var(--text-muted)" }}> / {maxKbFiles}</span>}
+            </div>
+            <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>Files</div>
+          </div>
+        </div>
+        <div className="kn-stat">
+          <span className="kn-ico" aria-hidden>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></svg>
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: "1.35rem", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text-primary)", lineHeight: 1.1 }}>
+              {primaryWebsite ? primaryWebsite.indexed_pages_count : 0}
+            </div>
+            <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>Website pages read</div>
+          </div>
+        </div>
+        <div className="kn-stat">
+          <span className="kn-ico" aria-hidden>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" /><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" /></svg>
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: "1.35rem", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text-primary)", lineHeight: 1.1 }}>
+              {manualWebUrls.length}
+              <span style={{ fontSize: "0.9rem", fontWeight: 500, color: "var(--text-muted)" }}> / 50</span>
+            </div>
+            <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>Extra pages</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="kn-grid">
       {/* ══════════════════════════════════════════════════════════
           CARD 1: Files
       ══════════════════════════════════════════════════════════ */}
-      <div
-        style={{
-          background: "var(--bg-card)",
-          border: "1px solid var(--border)",
-          borderRadius: 14,
-          padding: "1.75rem",
-          boxShadow: "var(--shadow-sm)",
-          marginBottom: "1.75rem",
-        }}
-      >
+      <div className="kn-card">
         {/* Card Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem", marginBottom: "1.25rem" }}>
           <div>
@@ -586,8 +628,19 @@ export default function KnowledgeLakePage() {
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--text-secondary)" }}>
                 {isUnlimited ? `${files.length} files used` : `${files.length} of ${maxKbFiles} used`}
-                <span style={{ margin: "0 0.4rem", color: "var(--border)" }}>·</span>
-                <span style={{ color: "var(--text-muted)" }}>{subStatus?.plan?.name || (isTrial ? "Trial" : "Plan")}</span>
+                <span
+                  style={{
+                    marginLeft: 8,
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    color: "var(--text-secondary)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 999,
+                    padding: "2px 8px",
+                  }}
+                >
+                  {subStatus?.plan?.name || (isTrial ? "Trial" : "Plan")}
+                </span>
               </div>
               {!isUnlimited && maxKbFiles > 0 && (
                 <div style={{ height: 3, background: "var(--bg-hover)", borderRadius: 9999, overflow: "hidden", marginTop: 4, width: "100%", maxWidth: 120, marginLeft: "auto" }}>
@@ -595,7 +648,7 @@ export default function KnowledgeLakePage() {
                     style={{
                       height: "100%",
                       width: `${Math.min(100, Math.round((files.length / maxKbFiles) * 100))}%`,
-                      background: isAtCapacity ? "var(--warning)" : "var(--accent)",
+                      background: isAtCapacity ? "var(--warning)" : "#0f172a",
                       borderRadius: 9999,
                       transition: "width 0.3s ease",
                     }}
@@ -608,13 +661,15 @@ export default function KnowledgeLakePage() {
               <Link
                 href="/workspace/billing"
                 style={{
-                  color: "var(--accent)",
-                  fontWeight: 700,
-                  fontSize: "0.85rem",
+                  color: "var(--text-primary)",
+                  fontWeight: 600,
+                  fontSize: "0.8rem",
                   textDecoration: "none",
-                  padding: "0.25rem 0.5rem",
-                  borderRadius: 6,
-                  transition: "opacity 0.15s",
+                  padding: "0.35rem 0.75rem",
+                  borderRadius: 999,
+                  border: "1px solid var(--border)",
+                  background: "var(--bg-card)",
+                  transition: "border-color 0.15s",
                 }}
               >
                 Get more
@@ -671,10 +726,10 @@ export default function KnowledgeLakePage() {
           <div
             style={{
               border: dragOver ? "1.5px dashed var(--accent)" : "1.5px dashed var(--border)",
-              borderRadius: 10,
-              padding: "2.75rem 1.5rem",
+              borderRadius: 14,
+              padding: "2.5rem 1.5rem",
               textAlign: "center",
-              background: dragOver ? "var(--accent-dim)" : "transparent",
+              background: dragOver ? "var(--accent-dim)" : "linear-gradient(180deg, var(--bg-surface), transparent)",
               transition: "all 0.2s ease",
             }}
             onDragOver={(e) => {
@@ -684,29 +739,45 @@ export default function KnowledgeLakePage() {
             onDragLeave={() => setDragOver(false)}
             onDrop={onDrop}
           >
-            <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: "0.35rem" }}>
-              Add your first file
-            </div>
-            <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", maxWidth: 440, margin: "0 auto 1.25rem auto", lineHeight: 1.5 }}>
-              A price list or brochure is a great start. Your assistant will use it to answer questions.
-            </div>
-            <button
-              onClick={() => inputRef.current?.click()}
+            <div
+              aria-hidden
               style={{
-                padding: "0.55rem 1.35rem",
-                borderRadius: 6,
-                border: "none",
-                background: "var(--accent)",
+                width: 52,
+                height: 52,
+                margin: "0 auto 1rem",
+                borderRadius: 16,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "linear-gradient(145deg,#1e293b,#0f172a)",
                 color: "#fff",
-                fontFamily: "inherit",
-                fontWeight: 600,
-                fontSize: "0.88rem",
-                cursor: "pointer",
-                boxShadow: "var(--shadow-sm)",
+                boxShadow: "0 8px 20px rgba(15,23,42,.18)",
               }}
             >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 16V4M7 9l5-5 5 5" />
+                <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+              </svg>
+            </div>
+            <div style={{ fontSize: "1.05rem", fontWeight: 650, color: "var(--text-primary)", marginBottom: "0.35rem" }}>
+              Add your first file
+            </div>
+            <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", maxWidth: 400, margin: "0 auto 1.25rem auto", lineHeight: 1.55 }}>
+              A price list, brochure or FAQ is a great start. Drag it here or choose it from your computer.
+            </div>
+            <button type="button" className="kn-btn-dark" onClick={() => inputRef.current?.click()}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M12 5v14M5 12h14" />
+              </svg>
               Choose files
             </button>
+            <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: "1rem" }}>
+              {["PDF", "DOC", "DOCX"].map((t) => (
+                <span key={t} style={{ fontSize: "0.68rem", fontWeight: 600, letterSpacing: "0.04em", color: "var(--text-muted)", border: "1px solid var(--border)", borderRadius: 6, padding: "1px 7px" }}>
+                  {t}
+                </span>
+              ))}
+            </div>
             <input
               ref={inputRef}
               type="file"
@@ -737,7 +808,7 @@ export default function KnowledgeLakePage() {
             onDragLeave={() => setDragOver(false)}
             onDrop={onDrop}
           >
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: "0.4rem", color: "var(--accent)" }}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: "0.4rem", color: "var(--text-secondary)" }}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                 <polyline points="17 8 12 3 7 8" />
@@ -746,7 +817,7 @@ export default function KnowledgeLakePage() {
             </div>
             <div style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--text-primary)" }}>
               Drop files here or{" "}
-              <span style={{ color: "var(--accent)", textDecoration: "underline" }}>choose files</span>
+              <span style={{ color: "var(--text-primary)", textDecoration: "underline", textUnderlineOffset: 3 }}>choose files</span>
             </div>
             <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
               Price lists, brochures, FAQs, policies
@@ -764,8 +835,8 @@ export default function KnowledgeLakePage() {
 
         {/* Uploading progress indicator */}
         {uploading && (
-          <div style={{ margin: "0.75rem 0", color: "var(--accent)", fontWeight: 600, fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>🔄</span>
+          <div style={{ margin: "0.75rem 0", color: "var(--text-secondary)", fontWeight: 600, fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" style={{ animation: "spin 1s linear infinite" }} aria-hidden><path d="M21 12a9 9 0 1 1-3-6.7" /></svg>
             Uploading and processing documents... Please wait.
           </div>
         )}
@@ -783,16 +854,16 @@ export default function KnowledgeLakePage() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    padding: "0.75rem 1rem",
-                    borderRadius: 8,
+                    padding: "0.7rem 0.85rem",
+                    borderRadius: 12,
                     border: "1px solid var(--border)",
-                    background: "var(--bg-surface)",
-                    transition: "background 0.15s ease",
+                    background: "var(--bg-card)",
+                    transition: "border-color 0.15s ease",
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", minWidth: 0 }}>
-                    <div style={{ color: "var(--accent)", flexShrink: 0 }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <div style={{ color: "var(--text-secondary)", flexShrink: 0, width: 38, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-surface)", border: "1px solid var(--border)" }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                         <polyline points="14 2 14 8 20 8" />
                       </svg>
@@ -815,18 +886,24 @@ export default function KnowledgeLakePage() {
                     style={{
                       background: "transparent",
                       border: "none",
-                      color: "var(--error)",
+                      color: "var(--text-muted)",
                       cursor: isDeleting ? "not-allowed" : "pointer",
                       padding: "0.45rem",
-                      borderRadius: 6,
+                      borderRadius: 8,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       transition: "background 0.15s, color 0.15s",
                       opacity: isDeleting ? 0.5 : 1,
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(239, 68, 68, 0.12)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "rgba(239, 68, 68, 0.08)";
+                      e.currentTarget.style.color = "var(--error)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "transparent";
+                      e.currentTarget.style.color = "var(--text-muted)";
+                    }}
                   >
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="3 6 5 6 21 6" />
@@ -843,15 +920,7 @@ export default function KnowledgeLakePage() {
       {/* ══════════════════════════════════════════════════════════
           CARD 2: Your website
       ══════════════════════════════════════════════════════════ */}
-      <div
-        style={{
-          background: "var(--bg-card)",
-          border: "1px solid var(--border)",
-          borderRadius: 14,
-          padding: "1.75rem",
-          boxShadow: "var(--shadow-sm)",
-        }}
-      >
+      <div className="kn-card">
         {/* Card Header */}
         <div style={{ marginBottom: "1.25rem" }}>
           <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>
@@ -894,9 +963,9 @@ export default function KnowledgeLakePage() {
               href="/workspace/deploy"
               style={{
                 display: "inline-block",
-                padding: "0.6rem 1.25rem",
-                borderRadius: 8,
-                background: "var(--accent)",
+                padding: "0.62rem 1.25rem",
+                borderRadius: 10,
+                background: "#0f172a",
                 color: "#fff",
                 fontWeight: 600,
                 fontSize: "0.88rem",
@@ -1220,9 +1289,9 @@ export default function KnowledgeLakePage() {
                   disabled={webIndexing || !webUrlInput.trim()}
                   style={{
                     padding: "0.6rem 1.25rem",
-                    borderRadius: 8,
+                    borderRadius: 10,
                     border: "none",
-                    background: "var(--accent)",
+                    background: "#0f172a",
                     color: "#fff",
                     fontFamily: "inherit",
                     fontWeight: 600,
@@ -1279,7 +1348,7 @@ export default function KnowledgeLakePage() {
                         style={{
                           fontSize: "0.88rem",
                           fontWeight: 500,
-                          color: "var(--accent)",
+                          color: "var(--text-primary)",
                           textDecoration: "none",
                           wordBreak: "break-all",
                         }}
@@ -1429,6 +1498,7 @@ export default function KnowledgeLakePage() {
             Only public pages can be added.
           </div>
         </div>
+      </div>
       </div>
 
       {/* ══════════════════════════════════════════════════════════

@@ -105,7 +105,7 @@ function statusBadgeStyle(status: string): React.CSSProperties {
   if (status === "completed")
     return { ...base, background: "rgba(16,185,129,0.15)", color: "#10B981" };
   if (status === "running" || status === "pending")
-    return { ...base, background: "rgba(99,102,241,0.15)", color: "#818CF8" };
+    return { ...base, background: "color-mix(in srgb, var(--text-primary) 8%, transparent)", color: "#818CF8" };
   if (status === "failed")
     return { ...base, background: "rgba(239,68,68,0.15)", color: "#EF4444" };
   return { ...base, background: "rgba(107,114,128,0.15)", color: "#9CA3AF" };
@@ -789,7 +789,7 @@ export default function AuditDetailPage() {
             padding: "6px 16px",
             borderRadius: 8,
             border: "none",
-            background: viewMode === "pages" ? "rgba(99,102,241,0.2)" : "transparent",
+            background: viewMode === "pages" ? "color-mix(in srgb, var(--text-primary) 11%, transparent)" : "transparent",
             color: viewMode === "pages" ? "#818CF8" : "var(--text-muted)",
             fontWeight: 700,
             fontSize: "0.85rem",
@@ -805,7 +805,7 @@ export default function AuditDetailPage() {
             padding: "6px 16px",
             borderRadius: 8,
             border: "none",
-            background: viewMode === "issues" ? "rgba(99,102,241,0.2)" : "transparent",
+            background: viewMode === "issues" ? "color-mix(in srgb, var(--text-primary) 11%, transparent)" : "transparent",
             color: viewMode === "issues" ? "#818CF8" : "var(--text-muted)",
             fontWeight: 700,
             fontSize: "0.85rem",
@@ -855,7 +855,7 @@ export default function AuditDetailPage() {
                       borderRadius: 20,
                       border: "1px solid",
                       borderColor: pageFilter === f ? "#6366F1" : "var(--border)",
-                      background: pageFilter === f ? "rgba(99,102,241,0.15)" : "transparent",
+                      background: pageFilter === f ? "color-mix(in srgb, var(--text-primary) 8%, transparent)" : "transparent",
                       color: pageFilter === f ? "#818CF8" : "var(--text-muted)",
                       fontSize: "0.75rem",
                       fontWeight: 600,
@@ -888,7 +888,7 @@ export default function AuditDetailPage() {
                       width: "100%",
                       padding: "0.9rem 1.25rem",
                       borderBottom: "1px solid var(--border)",
-                      background: selectedPage?.id === page.id ? "rgba(99,102,241,0.08)" : "transparent",
+                      background: selectedPage?.id === page.id ? "color-mix(in srgb, var(--text-primary) 4%, transparent)" : "transparent",
                       border: "none",
                       borderLeft: selectedPage?.id === page.id ? "3px solid #6366F1" : "3px solid transparent",
                       textAlign: "left",
@@ -1170,8 +1170,8 @@ export default function AuditDetailPage() {
                             style={{
                               padding: "6px 10px",
                               borderRadius: 6,
-                              background: "rgba(99,102,241,0.08)",
-                              border: "1px solid rgba(99,102,241,0.2)",
+                              background: "color-mix(in srgb, var(--text-primary) 4%, transparent)",
+                              border: "1px solid color-mix(in srgb, var(--text-primary) 11%, transparent)",
                               fontSize: "0.73rem",
                               color: "#818CF8",
                               lineHeight: 1.4,
@@ -1223,7 +1223,7 @@ export default function AuditDetailPage() {
                     borderRadius: 20,
                     border: "1px solid",
                     borderColor: issueFilter === f ? "#6366F1" : "var(--border)",
-                    background: issueFilter === f ? "rgba(99,102,241,0.15)" : "transparent",
+                    background: issueFilter === f ? "color-mix(in srgb, var(--text-primary) 8%, transparent)" : "transparent",
                     color: issueFilter === f ? "#818CF8" : "var(--text-muted)",
                     fontSize: "0.75rem",
                     fontWeight: 600,
@@ -1400,8 +1400,8 @@ export default function AuditDetailPage() {
                               marginTop: "0.75rem",
                               padding: "0.85rem 1rem",
                               borderRadius: 8,
-                              background: "rgba(99,102,241,0.08)",
-                              border: "1px solid rgba(99,102,241,0.25)",
+                              background: "color-mix(in srgb, var(--text-primary) 4%, transparent)",
+                              border: "1px solid color-mix(in srgb, var(--text-primary) 14%, transparent)",
                               fontSize: "0.82rem",
                               color: "#818CF8",
                               lineHeight: 1.5,

@@ -40,28 +40,93 @@ function getInitials(name: string) {
   return initials || "?";
 }
 
-const NAV_ITEMS = [
-  { label: "Test Your Agent", href: "/workspace/testing" },
-  { label: "Chatbot Analytics", href: "/workspace/dashboard" },
-  { label: "SEO Health & Audit", href: "/workspace/seo" },
-  { label: "Knowledge Lake", href: "/workspace/knowledge" },
-  { label: "Visual Mapping", href: "/workspace/visual-mapping" },
-  { label: "Deploy Agent", href: "/workspace/deploy" },
+type NavItem = { label: string; href: string; icon: string };
+type NavGroup = { title: string; items: NavItem[] };
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    title: "Set up",
+    items: [
+      { label: "Assistant", href: "/workspace/testing", icon: "assistant" },
+      { label: "Knowledge", href: "/workspace/knowledge", icon: "knowledge" },
+      { label: "Pictures", href: "/workspace/visual-mapping", icon: "pictures" },
+      { label: "Add to website", href: "/workspace/deploy", icon: "install" },
+    ],
+  },
+  {
+    title: "Results",
+    items: [
+      { label: "Conversations", href: "/workspace/dashboard", icon: "chats" },
+      { label: "Tracking", href: "/workspace/metrics", icon: "tracking" },
+      { label: "Website health", href: "/workspace/seo", icon: "health" },
+    ],
+  },
+  {
+    title: "Account",
+    items: [
+      { label: "Settings", href: "/workspace/settings", icon: "settings" },
+      { label: "Plans", href: "/workspace/billing", icon: "plans" },
+    ],
+  },
 ];
 
-const SETTINGS_ITEMS = [
-  { label: "Workspace Settings", href: "/workspace/settings" },
-  { label: "AI Core Metrics", href: "/workspace/metrics" },
-  { label: "Billing & Plans", href: "/workspace/billing" },
+const SUPER_ADMIN_GROUPS: NavGroup[] = [
+  {
+    title: "Platform",
+    items: [
+      { label: "Tenants", href: "/workspace/admin/tenants", icon: "users" },
+      { label: "Packages", href: "/workspace/admin/plans", icon: "plans" },
+      { label: "Core prompt", href: "/workspace/admin/core-prompt", icon: "prompt" },
+    ],
+  },
 ];
 
-const SUPER_ADMIN_NAV_ITEMS = [
-  { label: "Tenant Management", href: "/workspace/admin/tenants" },
-  { label: "Package Management", href: "/workspace/admin/plans" },
-  { label: "Core System Prompt", href: "/workspace/admin/core-prompt" },
-];
-
-const SUPER_ADMIN_SETTINGS_ITEMS: typeof SETTINGS_ITEMS = [];
+function NavIcon({ name }: { name: string }) {
+  const paths: Record<string, React.ReactNode> = {
+    assistant: <path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z" />,
+    knowledge: (
+      <>
+        <path d="M4 5a2 2 0 0 1 2-2h12v16H6a2 2 0 0 0-2 2z" />
+        <path d="M4 21V5" />
+      </>
+    ),
+    pictures: (
+      <>
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+        <circle cx="8.5" cy="8.5" r="1.5" />
+        <path d="M21 15l-5-5L5 21" />
+      </>
+    ),
+    install: <path d="M16 18l6-6-6-6M8 6l-6 6 6 6" />,
+    chats: <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />,
+    tracking: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />,
+    health: <path d="M3 12h4l3-8 4 16 3-8h4" />,
+    settings: (
+      <>
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2" />
+      </>
+    ),
+    plans: (
+      <>
+        <rect x="2" y="5" width="20" height="14" rx="2" />
+        <path d="M2 10h20" />
+      </>
+    ),
+    users: (
+      <>
+        <circle cx="9" cy="8" r="3.5" />
+        <path d="M2 20a7 7 0 0 1 14 0M16 4.5a3.5 3.5 0 0 1 0 7M22 20a6 6 0 0 0-4-5.6" />
+      </>
+    ),
+    prompt: <path d="M4 6h16M4 12h10M4 18h7" />,
+  };
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ flexShrink: 0 }}>
+      {paths[name] ?? paths.settings}
+    </svg>
+  );
+}
 
 function matchesNav(pathname: string, href: string) {
   if (pathname === href) return true;
@@ -78,6 +143,8 @@ export default function WorkspaceLayout({
   const { logout } = useAuth();
   const [user, setUser] = useState<UserInfo | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [plan, setPlan] = useState<{ status: string; active: boolean; days: number; name: string } | null>(null);
 
   const isDark = useSyncExternalStore(
     subscribeTheme,
@@ -99,6 +166,7 @@ export default function WorkspaceLayout({
   if (prevPathname !== pathname) {
     setPrevPathname(pathname);
     setMobileMenuOpen(false);
+    setAccountMenuOpen(false);
   }
 
   const handleNavClick = (
@@ -171,6 +239,29 @@ export default function WorkspaceLayout({
       });
   }, []);
 
+  // Plan line under the name (not for platform admins)
+  useEffect(() => {
+    if (!user || user.role === "super_admin") return;
+    api
+      .get<{ subscription_status: string; is_active: boolean; days_remaining: number; plan?: { name?: string } | null }>(
+        "/api/payments/subscription-status",
+      )
+      .then((r) =>
+        setPlan({ status: r.subscription_status, active: r.is_active, days: r.days_remaining, name: r.plan?.name || "" }),
+      )
+      .catch(() => {});
+  }, [user]);
+
+  // Close the account menu on Escape
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setAccountMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [accountMenuOpen]);
+
   useEffect(() => {
     if (!user?.role) return;
 
@@ -185,10 +276,18 @@ export default function WorkspaceLayout({
   }, [pathname, router, user?.role]);
 
   const isSuperAdmin = user?.role === "super_admin";
-  const navItems = isSuperAdmin ? SUPER_ADMIN_NAV_ITEMS : NAV_ITEMS;
-  const settingsItems = isSuperAdmin
-    ? SUPER_ADMIN_SETTINGS_ITEMS
-    : SETTINGS_ITEMS;
+  const groups = isSuperAdmin ? SUPER_ADMIN_GROUPS : NAV_GROUPS;
+  const displayName = (user?.tenant?.name || user?.name || "").replace(/['\u2019]s workspace$/i, "").trim();
+  const planLine = isSuperAdmin
+    ? "Platform admin"
+    : !plan
+      ? ""
+      : !plan.active
+        ? plan.status === "trial" ? "Trial ended" : "Plan ended"
+        : plan.status === "trial"
+          ? `Free trial · ${plan.days} ${plan.days === 1 ? "day" : "days"} left`
+          : plan.name || "Active plan";
+  const planDot = !plan || isSuperAdmin ? "#cbd5e1" : !plan.active ? "#ef4444" : plan.status === "trial" ? "#f59e0b" : "#10b981";
 
   return (
     <div
@@ -203,15 +302,30 @@ export default function WorkspaceLayout({
       }}
     >
       <style>{`
+        .ws-nav { display: flex; align-items: center; gap: 11px; padding: 0.55rem 0.75rem; border-radius: 10px; font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); text-decoration: none; transition: background .15s ease, color .15s ease; }
+        .ws-nav svg { color: var(--text-muted); transition: color .15s ease; }
+        .ws-nav:hover { background: var(--bg-surface); color: var(--text-primary); }
+        .ws-nav:hover svg { color: var(--text-primary); }
+        .ws-nav-on, .ws-nav-on:hover { background: #0f172a; color: #fff; font-weight: 600; box-shadow: 0 6px 16px rgba(15,23,42,.18); }
+        .ws-nav-on svg, .ws-nav-on:hover svg { color: #fff; }
+        [data-theme="dark"] .ws-nav-on, [data-theme="dark"] .ws-nav-on:hover { background: #fff; color: #0f172a; }
+        [data-theme="dark"] .ws-nav-on svg { color: #0f172a; }
+        .ws-me { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; margin-top: 8px; border-radius: 14px; border: 1px solid transparent; background: var(--bg-surface); cursor: pointer; font-family: inherit; transition: border-color .15s ease, background .15s ease; }
+        .ws-me:hover, .ws-me[aria-expanded="true"] { border-color: var(--border); background: var(--bg-card); }
+        .ws-menu-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: none; border-radius: 9px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 0.85rem; text-decoration: none; cursor: pointer; text-align: left; }
+        .ws-menu-item:hover { background: var(--bg-surface); color: var(--text-primary); }
+        .ws-menu-out { color: #dc2626; }
+        [data-theme="dark"] .ws-av { background: #fff !important; color: #0f172a !important; }
+        .ws-menu-out:hover { color: #dc2626; background: rgba(239,68,68,.06); }
         @media (max-width: 767px) {
           .workspace-sidebar {
             position: fixed !important;
             top: 0 !important;
             left: 0 !important;
             bottom: 0 !important;
-            width: 270px !important;
+            width: 280px !important;
             z-index: 100 !important;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5) !important;
+            padding: 10px !important;
             transform: translateX(-100%);
             transition: transform 0.25s ease-in-out !important;
           }
@@ -245,371 +359,174 @@ export default function WorkspaceLayout({
         />
       )}
 
-      {/* ── Sidebar ── */}
-      <aside
+      {/* ── Sidebar: a floating card ── */}
+      <div
         className={`workspace-sidebar ${mobileMenuOpen ? "open" : ""}`}
         style={{
-          width: 250,
+          width: 264,
           height: "100%",
           flexShrink: 0,
+          padding: "14px 0 14px 14px",
+          boxSizing: "border-box",
           display: "flex",
-          flexDirection: "column",
-          backgroundColor: "var(--bg-sidebar)",
-          borderRight: "1px solid var(--border)",
-          padding: "1.25rem 1rem",
         }}
       >
-        {/* Brand / Logo & Dark Mode Toggle */}
-        <div
-          style={{
-            marginBottom: "1.25rem",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "0 0.25rem",
-          }}
-        >
-          <Link
-            href={isSuperAdmin ? "/workspace/admin/tenants" : "/workspace/testing"}
-            onClick={(e) =>
-              handleNavClick(
-                e,
-                isSuperAdmin ? "/workspace/admin/tenants" : "/workspace/testing"
-              )
-            }
-            style={{ display: "flex", alignItems: "center", textDecoration: "none" }}
-          >
-            <Image
-              src={
-                isDark
-                  ? "/ferry/svg/ferry-horizontal-white.svg"
-                  : "/ferry/svg/ferry-horizontal-black.svg"
-              }
-              alt="Ferry by RYX AI"
-              width={140}
-              height={30}
-              priority
-              style={{
-                width: "auto",
-                height: 28,
-                maxWidth: 160,
-                objectFit: "contain",
-              }}
-            />
-          </Link>
-        </div>
-
-        {/* Scrollable Navigation Area */}
-        <div
+        <aside
           style={{
             flex: 1,
-            minHeight: 0,
-            overflowY: "auto",
-            overflowX: "hidden",
-            paddingRight: "0.25rem",
+            minWidth: 0,
             display: "flex",
             flexDirection: "column",
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            borderRadius: 20,
+            boxShadow: "0 1px 2px rgba(15,23,42,.04), 0 10px 30px rgba(15,23,42,.07)",
+            padding: "16px 10px 10px",
+            position: "relative",
           }}
         >
-          {/* Workspace section */}
-          <div
-            style={{
-              fontSize: "0.75rem",
-              textTransform: "uppercase",
-              color: "var(--text-muted)",
-              fontWeight: 600,
-              letterSpacing: "0.05em",
-              marginBottom: "0.5rem",
-              padding: "0 0.5rem",
-            }}
-          >
-            Workspace
+          {/* Logo */}
+          <div style={{ padding: "2px 10px 10px" }}>
+            <Link
+              href={isSuperAdmin ? "/workspace/admin/tenants" : "/workspace/testing"}
+              onClick={(e) => handleNavClick(e, isSuperAdmin ? "/workspace/admin/tenants" : "/workspace/testing")}
+              style={{ display: "inline-flex", alignItems: "center", textDecoration: "none" }}
+            >
+              <Image
+                src={isDark ? "/ferry/svg/ferry-horizontal-white.svg" : "/ferry/svg/ferry-horizontal-black.svg"}
+                alt="Ferry by RYX AI"
+                width={140}
+                height={30}
+                priority
+                style={{ width: "auto", height: 26, maxWidth: 150, objectFit: "contain" }}
+              />
+            </Link>
           </div>
-          <ul
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.25rem",
-              listStyle: "none",
-              padding: 0,
-              margin: "0 0 1.25rem 0",
-            }}
-          >
-            {navItems.map((item) => {
-              const isActive = matchesNav(pathname, item.href);
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    onClick={(e) => handleNavClick(e, item.href)}
-                    style={{
-                      display: "block",
-                      padding: "0.6rem 0.85rem",
-                      borderRadius: 8,
-                      fontSize: "0.875rem",
-                      fontWeight: isActive ? 600 : 500,
-                      color: isActive
-                        ? "var(--accent)"
-                        : "var(--text-secondary)",
-                      background: isActive
-                        ? "var(--accent-light)"
-                        : "transparent",
-                      textDecoration: "none",
-                      transition: "all 0.2s ease",
-                    }}
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
 
-          {settingsItems.length > 0 && (
-            <>
-              {/* Settings section */}
-              <div
-                style={{
-                  fontSize: "0.75rem",
-                  textTransform: "uppercase",
-                  color: "var(--text-muted)",
-                  fontWeight: 600,
-                  letterSpacing: "0.05em",
-                  marginBottom: "0.5rem",
-                  padding: "0 0.5rem",
-                }}
-              >
-                Settings
+          {/* Navigation */}
+          <nav style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden" }}>
+            {groups.map((g) => (
+              <div key={g.title} style={{ marginBottom: 6 }}>
+                <div
+                  style={{
+                    fontSize: "0.66rem",
+                    fontWeight: 600,
+                    letterSpacing: "0.1em",
+                    textTransform: "uppercase",
+                    color: "var(--text-muted)",
+                    padding: "10px 12px 6px",
+                  }}
+                >
+                  {g.title}
+                </div>
+                <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 2 }}>
+                  {g.items.map((item) => {
+                    const isActive = matchesNav(pathname, item.href);
+                    return (
+                      <li key={item.href}>
+                        <Link
+                          href={item.href}
+                          onClick={(e) => handleNavClick(e, item.href)}
+                          className={`ws-nav${isActive ? " ws-nav-on" : ""}`}
+                          aria-current={isActive ? "page" : undefined}
+                        >
+                          <NavIcon name={item.icon} />
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
-              <ul
+            ))}
+          </nav>
+
+          {/* Account */}
+          {accountMenuOpen && (
+            <>
+              <div onClick={() => setAccountMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 60 }} />
+              <div
+                role="menu"
                 style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.25rem",
-                  listStyle: "none",
-                  padding: 0,
-                  margin: 0,
+                  position: "absolute",
+                  left: 10,
+                  right: 10,
+                  bottom: 70,
+                  zIndex: 61,
+                  background: "var(--bg-card)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 14,
+                  boxShadow: "0 18px 40px rgba(15,23,42,.16)",
+                  padding: 6,
                 }}
               >
-                {settingsItems.map((item) => {
-                  const isActive = matchesNav(pathname, item.href);
-                  return (
-                    <li key={item.href}>
-                      <Link
-                        href={item.href}
-                        onClick={(e) => handleNavClick(e, item.href)}
-                        style={{
-                          display: "block",
-                          padding: "0.6rem 0.85rem",
-                          borderRadius: 8,
-                          fontSize: "0.875rem",
-                          fontWeight: isActive ? 600 : 500,
-                          color: isActive
-                            ? "var(--accent)"
-                            : "var(--text-secondary)",
-                          background: isActive
-                            ? "var(--accent-light)"
-                            : "transparent",
-                          textDecoration: "none",
-                          transition: "all 0.2s ease",
-                        }}
-                      >
-                        {item.label}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
+                {!isSuperAdmin && (
+                  <>
+                    <Link href="/workspace/settings" onClick={(e) => { setAccountMenuOpen(false); handleNavClick(e, "/workspace/settings"); }} className="ws-menu-item" role="menuitem">
+                      <NavIcon name="settings" /> Settings
+                    </Link>
+                    <Link href="/workspace/billing" onClick={(e) => { setAccountMenuOpen(false); handleNavClick(e, "/workspace/billing"); }} className="ws-menu-item" role="menuitem">
+                      <NavIcon name="plans" /> Plans &amp; billing
+                    </Link>
+                  </>
+                )}
+                <button type="button" onClick={toggleTheme} className="ws-menu-item" role="menuitem">
+                  {isDark ? (
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4" /></svg>
+                  ) : (
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></svg>
+                  )}
+                  {isDark ? "Light mode" : "Dark mode"}
+                </button>
+                <div style={{ height: 1, background: "var(--border)", margin: "5px 4px" }} />
+                <button type="button" onClick={() => { setAccountMenuOpen(false); handleLogoutClick(); }} className="ws-menu-item ws-menu-out" role="menuitem">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>
+                  Log out
+                </button>
+              </div>
             </>
           )}
-        </div>
-
-        {/* Footer: User + Logout */}
-        <div
-          style={{
-            flexShrink: 0,
-            marginTop: "auto",
-            paddingTop: "0.85rem",
-            borderTop: "1px solid var(--border)",
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.4rem",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "0.6rem",
-              padding: "0.5rem",
-              borderRadius: 8,
-              background: "rgba(0, 0, 0, 0.02)",
-            }}
-          >
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: "50%",
-                background: "var(--accent)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "0.75rem",
-                fontWeight: 700,
-                color: "#ffffff",
-                flexShrink: 0,
-              }}
-            >
-              {user ? getInitials(user.name) : "—"}
-            </div>
-            <div style={{ overflow: "hidden" }}>
-              <div
-                style={{
-                  fontSize: "0.85rem",
-                  fontWeight: 600,
-                  color: "var(--text-primary)",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {user?.name ?? "Loading..."}
-              </div>
-              <div
-                style={{
-                  fontSize: "0.75rem",
-                  color: "var(--text-muted)",
-                  textTransform: "capitalize",
-                }}
-              >
-                {user?.role ? user.role.replace("_", " ") : "Member"}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={toggleTheme}
-              aria-label={
-                isDark ? "Switch to Light Mode" : "Switch to Dark Mode"
-              }
-              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: isDark
-                  ? "rgba(255, 255, 255, 0.08)"
-                  : "rgba(0, 0, 0, 0.04)",
-                border: "1px solid var(--border)",
-                color: isDark ? "#fbbf24" : "var(--text-secondary)",
-                cursor: "pointer",
-                transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                flexShrink: 0,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = isDark
-                  ? "rgba(255, 255, 255, 0.14)"
-                  : "rgba(0, 0, 0, 0.08)";
-                e.currentTarget.style.transform = "scale(1.06)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = isDark
-                  ? "rgba(255, 255, 255, 0.08)"
-                  : "rgba(0, 0, 0, 0.04)";
-                e.currentTarget.style.transform = "scale(1)";
-              }}
-            >
-              {isDark ? (
-                <svg
-                  width="17"
-                  height="17"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="12" cy="12" r="4" />
-                  <path d="M12 2v2" />
-                  <path d="M12 20v2" />
-                  <path d="m4.93 4.93 1.41 1.41" />
-                  <path d="m17.66 17.66 1.41 1.41" />
-                  <path d="M2 12h2" />
-                  <path d="M20 12h2" />
-                  <path d="m6.34 17.66-1.41 1.41" />
-                  <path d="m19.07 4.93-1.41 1.41" />
-                </svg>
-              ) : (
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
-                </svg>
-              )}
-            </button>
-          </div>
-
           <button
-            onClick={handleLogoutClick}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              width: "100%",
-              padding: "0.55rem 0.85rem",
-              borderRadius: 8,
-              background: "transparent",
-              border: "1px solid var(--border)",
-              color: "var(--text-secondary)",
-              fontSize: "0.85rem",
-              fontWeight: 500,
-              fontFamily: "'Inter', sans-serif",
-              cursor: "pointer",
-              textAlign: "left" as const,
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = "var(--error)";
-              e.currentTarget.style.borderColor = "var(--error)";
-              e.currentTarget.style.background = "rgba(239, 68, 68, 0.06)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = "var(--text-secondary)";
-              e.currentTarget.style.borderColor = "var(--border)";
-              e.currentTarget.style.background = "transparent";
-            }}
+            type="button"
+            onClick={() => setAccountMenuOpen((v) => !v)}
+            aria-haspopup="menu"
+            aria-expanded={accountMenuOpen}
+            className="ws-me"
           >
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ flexShrink: 0 }}
+            <span
+              aria-hidden
+              className="ws-av"
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: "50%",
+                flexShrink: 0,
+                background: "#0f172a",
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "0.78rem",
+                fontWeight: 700,
+              }}
             >
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
+              {displayName ? getInitials(displayName) : "—"}
+            </span>
+            <span style={{ minWidth: 0, flex: 1, textAlign: "left" }}>
+              <span style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {displayName || "Loading…"}
+              </span>
+              <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.72rem", color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 1 }}>
+                {planLine && <span aria-hidden style={{ width: 6, height: 6, borderRadius: "50%", background: planDot, flexShrink: 0 }} />}
+                {planLine}
+              </span>
+            </span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ color: "var(--text-muted)", flexShrink: 0, transition: "transform .2s", transform: accountMenuOpen ? "rotate(180deg)" : "none" }}>
+              <path d="M7 15l5-5 5 5" />
             </svg>
-            Logout
           </button>
-        </div>
-      </aside>
+        </aside>
+      </div>
 
       {/* ── Main Content ── */}
       <main

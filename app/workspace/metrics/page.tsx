@@ -30,6 +30,61 @@ function newUid(): string {
   return `uid_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 }
 
+type MetricKind = "score" | "choice" | "text";
+
+function metricKind(desc: string): MetricKind {
+  const d = desc.toLowerCase().trim();
+  if (/\b(integer|number|score)\b|\b1\s*-\s*100\b/.test(d)) return "score";
+  // A short list of options, e.g. "sales, support, info, booking"
+  const items = d.replace(/\.$/, "").split(",").map((x) => x.trim());
+  if (items.length >= 2 && items.every((x) => x && x.split(/\s+/).length <= 3 && /^[a-z0-9_ -]+$/.test(x))) return "choice";
+  if (/\bone of\b/.test(d)) return "choice";
+  return "text";
+}
+
+const KIND_LABEL: Record<MetricKind, string> = { score: "Score 1-100", choice: "Choice", text: "Text" };
+
+// First sentence of the instruction, with codes made readable.
+function previewText(desc: string): string {
+  const t = desc.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  const first = t.split(/(?<=[.!?])\s/)[0] || t;
+  return first.length > 140 ? first.slice(0, 137) + "…" : first;
+}
+
+function KindIcon({ kind }: { kind: MetricKind }) {
+  return (
+    <span
+      aria-hidden
+      style={{
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "var(--bg-surface)",
+        border: "1px solid var(--border)",
+        color: "var(--text-secondary)",
+      }}
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+        {kind === "score" ? (
+          <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+        ) : kind === "choice" ? (
+          <>
+            <circle cx="6" cy="7" r="2" />
+            <circle cx="6" cy="17" r="2" />
+            <path d="M11 7h9M11 17h9" />
+          </>
+        ) : (
+          <path d="M4 6h16M4 12h16M4 18h10" />
+        )}
+      </svg>
+    </span>
+  );
+}
+
 export default function MetricsPage() {
   const [metrics, setMetrics] = useState<MetricRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +95,58 @@ export default function MetricsPage() {
   const [expandedUid, setExpandedUid] = useState<string | null>(null);
   const [metricToDelete, setMetricToDelete] = useState<MetricRow | null>(null);
   const [pendingRenames, setPendingRenames] = useState<MetricRow[]>([]);
+  // AI wording suggestions per item, and the wording they were made from
+  const [suggestions, setSuggestions] = useState<Record<string, { name: string; description: string }>>({});
+  const [improvingUid, setImprovingUid] = useState<string | null>(null);
+  const [improveError, setImproveError] = useState<Record<string, string>>({});
+  const [improvedFrom, setImprovedFrom] = useState<Record<string, string>>({});
+
+  async function improveWording(m: MetricRow, auto = false) {
+    const source = `${m.name.trim()}|${m.description.trim()}`;
+    if (auto && (improvedFrom[m._uid] === source || m.description.trim().length < 3)) return;
+    setImprovingUid(m._uid);
+    setImproveError((prev) => ({ ...prev, [m._uid]: "" }));
+    try {
+      const res = await api.post<{ name: string; description: string }>("/api/metrics/improve", {
+        name: m.name,
+        description: m.description,
+      });
+      setImprovedFrom((prev) => ({ ...prev, [m._uid]: source }));
+      const same = res.name.trim() === m.name.trim() && res.description.trim() === m.description.trim();
+      setSuggestions((prev) => {
+        const next = { ...prev };
+        if (same) delete next[m._uid];
+        else next[m._uid] = res;
+        return next;
+      });
+    } catch (err) {
+      const msg = err instanceof Error && err.message ? err.message : "Couldn't improve this right now.";
+      if (!auto) setImproveError((prev) => ({ ...prev, [m._uid]: msg }));
+    } finally {
+      setImprovingUid(null);
+    }
+  }
+
+  function applySuggestion(uid: string) {
+    const sug = suggestions[uid];
+    if (!sug) return;
+    updateMetricField(uid, "name", sug.name);
+    updateMetricField(uid, "description", sug.description);
+    setImprovedFrom((prev) => ({ ...prev, [uid]: `${sug.name.trim()}|${sug.description.trim()}` }));
+    setSuggestions((prev) => {
+      const next = { ...prev };
+      delete next[uid];
+      return next;
+    });
+  }
+
+  function keepMine(uid: string) {
+    setSuggestions((prev) => {
+      const next = { ...prev };
+      delete next[uid];
+      return next;
+    });
+  }
 
   function showToast(message: string, isError = false) {
     setToast({ message, isError });
@@ -147,12 +254,25 @@ export default function MetricsPage() {
       return;
     }
 
+    // A brand-new item left completely empty is simply not saved.
+    const isBlankNew = (m: MetricRow) =>
+      m._originalId === null && !m.name.trim() && !m.description.trim();
+    const toSave = metrics.filter((m) => !isBlankNew(m));
+
+    // Every saved item needs a name (it is the column title in Analytics).
+    const unnamed = toSave.find((m) => !m.name.trim());
+    if (unnamed) {
+      setExpandedUid(unnamed._uid);
+      showToast("Give this item a name before saving.", true);
+      return;
+    }
+
     // Strip internal fields before sending to the backend.
-    const payload: MetricConfig[] = metrics.map(
+    const payload: MetricConfig[] = toSave.map(
       ({ _uid, _originalId, ...rest }) => {
         void _uid;
         void _originalId;
-        return rest;
+        return { ...rest, name: rest.name.trim() };
       },
     );
 
@@ -160,7 +280,9 @@ export default function MetricsPage() {
     try {
       await api.post("/api/metrics/config", payload);
       // After a successful save, the saved ids become the new "originals".
-      setMetrics((prev) => prev.map((m) => ({ ...m, _originalId: m.id })));
+      setMetrics((prev) =>
+        prev.filter((m) => !isBlankNew(m)).map((m) => ({ ...m, _originalId: m.id })),
+      );
       setDirty(false);
       setSavedSuccess(true);
     } catch (err) {
@@ -211,12 +333,14 @@ export default function MetricsPage() {
     return (
       <div
         key={metric._uid}
+        className={`mt-card${isExpanded ? " mt-open" : ""}`}
         style={{
           backgroundColor: "var(--bg-card)",
-          border: "1px solid var(--border)",
-          borderRadius: 12,
-          padding: "1.1rem 1.25rem",
-          transition: "border-color 0.15s ease",
+          border: `1px solid ${isExpanded ? "#cbd5e1" : "var(--border)"}`,
+          borderRadius: 16,
+          padding: "1rem 1.1rem",
+          boxShadow: isExpanded ? "0 10px 28px rgba(15,23,42,.08)" : "0 1px 2px rgba(15,23,42,.04)",
+          transition: "border-color 0.15s ease, box-shadow 0.15s ease",
         }}
       >
         {/* Row header: Name, truncated instruction preview, status pill, and Edit/Close button */}
@@ -229,6 +353,7 @@ export default function MetricsPage() {
             gap: "1rem",
           }}
         >
+          <KindIcon kind={metricKind(metric.description)} />
           <div style={{ minWidth: 0, flex: 1 }}>
             <div
               style={{
@@ -252,7 +377,7 @@ export default function MetricsPage() {
                 marginTop: "0.2rem",
               }}
             >
-              {metric.description.trim() ||
+              {(metric.description.trim() && previewText(metric.description)) ||
                 (isExpanded
                   ? "e.g. Note what the assistant should look for..."
                   : "No instructions set")}
@@ -268,28 +393,37 @@ export default function MetricsPage() {
             }}
           >
             <span
+              className="mt-kind"
               style={{
-                display: "inline-flex",
-                alignItems: "center",
-                fontSize: "0.78rem",
+                fontSize: "0.7rem",
                 fontWeight: 600,
-                padding: "0.25rem 0.65rem",
+                color: "var(--text-muted)",
+                border: "1px solid var(--border)",
                 borderRadius: 6,
-                background: metric.display_on_dashboard
-                  ? "rgba(79, 70, 229, 0.08)"
-                  : "var(--bg-hover)",
-                color: metric.display_on_dashboard
-                  ? "var(--accent)"
-                  : "var(--text-muted)",
-                border: `1px solid ${
-                  metric.display_on_dashboard
-                    ? "rgba(79, 70, 229, 0.2)"
-                    : "var(--border)"
-                }`,
+                padding: "1px 7px",
                 whiteSpace: "nowrap",
               }}
             >
-              {metric.display_on_dashboard ? "In Analytics" : "Hidden"}
+              {KIND_LABEL[metricKind(metric.description)]}
+            </span>
+            <span
+              title={metric.display_on_dashboard ? "Shown as a column in Chatbot Analytics" : "Not shown in Chatbot Analytics"}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: "0.74rem",
+                fontWeight: 600,
+                padding: "0.22rem 0.6rem",
+                borderRadius: 999,
+                background: "var(--bg-card)",
+                color: "var(--text-secondary)",
+                border: "1px solid var(--border)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <span aria-hidden style={{ width: 6, height: 6, borderRadius: "50%", background: metric.display_on_dashboard ? "#10b981" : "#cbd5e1" }} />
+              {metric.display_on_dashboard ? "Shown" : "Hidden"}
             </span>
 
             <button
@@ -301,7 +435,7 @@ export default function MetricsPage() {
                 background: "var(--bg-surface)",
                 color: "var(--text-primary)",
                 border: "1px solid var(--border)",
-                borderRadius: 6,
+                borderRadius: 9,
                 padding: "0.4rem 0.85rem",
                 fontSize: "0.82rem",
                 fontWeight: 500,
@@ -366,11 +500,12 @@ export default function MetricsPage() {
                   boxSizing: "border-box",
                 }}
                 onFocus={(e) =>
-                  (e.currentTarget.style.borderColor = "var(--accent)")
+                  (e.currentTarget.style.borderColor = "#94a3b8")
                 }
-                onBlur={(e) =>
-                  (e.currentTarget.style.borderColor = "var(--border)")
-                }
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "var(--border)";
+                  void improveWording(metric, true);
+                }}
               />
               <p
                 style={{
@@ -385,17 +520,43 @@ export default function MetricsPage() {
 
             {/* What should the assistant look for? */}
             <div>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "0.4rem",
-                  fontSize: "0.85rem",
-                  fontWeight: 600,
-                  color: "var(--text-primary)",
-                }}
-              >
-                What should the assistant look for?
-              </label>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: "0.4rem" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  What should the assistant look for?
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void improveWording(metric)}
+                  disabled={improvingUid === metric._uid || (metric.name.trim() + metric.description.trim()).length < 3}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "0.32rem 0.7rem",
+                    borderRadius: 999,
+                    border: "1px solid var(--border)",
+                    background: "var(--bg-card)",
+                    color: "var(--text-primary)",
+                    fontSize: "0.76rem",
+                    fontWeight: 600,
+                    fontFamily: "inherit",
+                    cursor: improvingUid === metric._uid ? "default" : "pointer",
+                    opacity: (metric.name.trim() + metric.description.trim()).length < 3 ? 0.5 : 1,
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8L12 3zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15z" />
+                  </svg>
+                  {improvingUid === metric._uid ? "Improving…" : "Improve with AI"}
+                </button>
+              </div>
               <textarea
                 rows={3}
                 value={metric.description}
@@ -423,12 +584,52 @@ export default function MetricsPage() {
                   minHeight: 80,
                 }}
                 onFocus={(e) =>
-                  (e.currentTarget.style.borderColor = "var(--accent)")
+                  (e.currentTarget.style.borderColor = "#94a3b8")
                 }
-                onBlur={(e) =>
-                  (e.currentTarget.style.borderColor = "var(--border)")
-                }
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "var(--border)";
+                  void improveWording(metric, true);
+                }}
               />
+              {suggestions[metric._uid] && (
+                <div
+                  style={{
+                    marginTop: "0.75rem",
+                    padding: "0.9rem 1rem",
+                    borderRadius: 12,
+                    border: "1px solid #cbd5e1",
+                    background: "var(--bg-surface)",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.7rem", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8L12 3z" />
+                    </svg>
+                    Clearer version
+                  </div>
+                  <div style={{ marginTop: 6, fontSize: "0.92rem", fontWeight: 650, color: "var(--text-primary)" }}>{suggestions[metric._uid].name}</div>
+                  <div style={{ marginTop: 2, fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>{suggestions[metric._uid].description}</div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => applySuggestion(metric._uid)}
+                      style={{ padding: "0.45rem 0.9rem", borderRadius: 9, border: "none", background: "#0f172a", color: "#fff", fontSize: "0.8rem", fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}
+                    >
+                      Use this
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => keepMine(metric._uid)}
+                      style={{ padding: "0.45rem 0.9rem", borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg-card)", color: "var(--text-secondary)", fontSize: "0.8rem", fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}
+                    >
+                      Keep mine
+                    </button>
+                  </div>
+                </div>
+              )}
+              {improveError[metric._uid] && (
+                <p style={{ margin: "0.5rem 0 0", color: "var(--error)", fontSize: "0.8rem" }}>{improveError[metric._uid]}</p>
+              )}
               <p
                 style={{
                   margin: "0.35rem 0 0 0",
@@ -469,7 +670,7 @@ export default function MetricsPage() {
                   style={{
                     width: 17,
                     height: 17,
-                    accentColor: "var(--accent)",
+                    accentColor: "#0f172a",
                     cursor: "pointer",
                   }}
                 />
@@ -488,55 +689,7 @@ export default function MetricsPage() {
                 flexWrap: "wrap",
               }}
             >
-              <div style={{ flex: 1, minWidth: 220, maxWidth: 360 }}>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "0.4rem",
-                    fontSize: "0.85rem",
-                    fontWeight: 600,
-                    color: "var(--text-primary)",
-                  }}
-                >
-                  Internal ID (advanced)
-                </label>
-                <input
-                  type="text"
-                  value={metric.id}
-                  readOnly={isBuiltIn}
-                  onChange={(e) =>
-                    updateMetricField(metric._uid, "id", e.target.value)
-                  }
-                  style={{
-                    width: "100%",
-                    padding: "0.6rem 0.8rem",
-                    borderRadius: 8,
-                    border: "1px solid var(--border)",
-                    background: isBuiltIn
-                      ? "var(--bg-hover)"
-                      : "var(--bg-surface)",
-                    color: isBuiltIn
-                      ? "var(--text-muted)"
-                      : "var(--text-primary)",
-                    fontSize: "0.85rem",
-                    outline: "none",
-                    fontFamily: "inherit",
-                    boxSizing: "border-box",
-                    cursor: isBuiltIn ? "not-allowed" : "text",
-                    opacity: isBuiltIn ? 0.75 : 1,
-                  }}
-                  onFocus={(e) => {
-                    if (!isBuiltIn) {
-                      e.currentTarget.style.borderColor = "var(--accent)";
-                    }
-                  }}
-                  onBlur={(e) => {
-                    if (!isBuiltIn) {
-                      e.currentTarget.style.borderColor = "var(--border)";
-                    }
-                  }}
-                />
-              </div>
+              <div style={{ flex: 1 }} />
 
               {!isBuiltIn && (
                 <button
@@ -578,13 +731,18 @@ export default function MetricsPage() {
       className="metrics-page-wrap"
       style={{
         width: "100%",
-        maxWidth: 1200,
+        maxWidth: 1320,
         margin: "0 auto",
-        padding: "2rem",
+        padding: "2rem 1.75rem",
         boxSizing: "border-box",
       }}
     >
       <style>{`
+        .mt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.85rem; align-items: start; }
+        .mt-grid > .mt-open { grid-column: 1 / -1; }
+        .mt-card:hover { border-color: #cbd5e1 !important; }
+        @media (max-width: 1100px) { .mt-grid { grid-template-columns: minmax(0, 1fr); } }
+        @media (max-width: 640px) { .mt-kind { display: none; } }
         @media (max-width: 640px) {
           .metrics-page-wrap {
             padding: 1rem !important;
@@ -637,16 +795,17 @@ export default function MetricsPage() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "flex-start",
-          marginBottom: "2.5rem",
+          marginBottom: "1.75rem",
           gap: "1.5rem",
         }}
       >
         <div>
           <h1
             style={{
-              margin: "0 0 0.4rem 0",
-              fontSize: "1.5rem",
-              fontWeight: 800,
+              margin: "0 0 0.35rem 0",
+              fontSize: "1.75rem",
+              fontWeight: 700,
+              letterSpacing: "-0.02em",
               color: "var(--text-primary)",
             }}
           >
@@ -655,8 +814,8 @@ export default function MetricsPage() {
           <p
             style={{
               margin: 0,
-              color: "var(--text-muted)",
-              fontSize: "0.88rem",
+              color: "var(--text-secondary)",
+              fontSize: "0.95rem",
               lineHeight: 1.5,
             }}
           >
@@ -669,11 +828,12 @@ export default function MetricsPage() {
           onClick={addMetric}
           className="metrics-header-btn"
           style={{
-            background: "rgba(79, 70, 229, 0.08)",
-            color: "var(--accent)",
-            border: "1px solid rgba(79, 70, 229, 0.2)",
-            borderRadius: 8,
+            background: "#0f172a",
+            color: "#fff",
+            border: "1px solid #0f172a",
+            borderRadius: 10,
             padding: "0.65rem 1.15rem",
+            boxShadow: "0 4px 12px rgba(15,23,42,.18)",
             fontSize: "0.88rem",
             fontWeight: 600,
             cursor: "pointer",
@@ -683,10 +843,10 @@ export default function MetricsPage() {
             flexShrink: 0,
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "rgba(79, 70, 229, 0.15)";
+            e.currentTarget.style.transform = "translateY(-1px)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = "rgba(79, 70, 229, 0.08)";
+            e.currentTarget.style.transform = "none";
           }}
         >
           + Add something to track
@@ -725,15 +885,7 @@ export default function MetricsPage() {
           </div>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.75rem",
-          }}
-        >
-          {builtInMetrics.map(renderMetricRow)}
-        </div>
+        <div className="mt-grid">{builtInMetrics.map(renderMetricRow)}</div>
       </section>
 
       {/* Added by you section */}
@@ -775,24 +927,16 @@ export default function MetricsPage() {
               textAlign: "center",
               background: "var(--bg-card)",
               border: "1px dashed var(--border)",
-              borderRadius: 12,
+              borderRadius: 16,
               color: "var(--text-muted)",
               fontSize: "0.88rem",
             }}
           >
-            No custom metrics added yet. Click &ldquo;+ Add something to
+            Nothing added yet. Click &ldquo;+ Add something to
             track&rdquo; to create one.
           </div>
         ) : (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.75rem",
-            }}
-          >
-            {userMetrics.map(renderMetricRow)}
-          </div>
+          <div className="mt-grid">{userMetrics.map(renderMetricRow)}</div>
         )}
       </section>
 
@@ -804,8 +948,8 @@ export default function MetricsPage() {
           justifyContent: "space-between",
           alignItems: "center",
           borderTop: "1px solid var(--border)",
-          paddingTop: "1.5rem",
-          marginTop: "2.5rem",
+          paddingTop: "1.25rem",
+          marginTop: "1.5rem",
           gap: "1rem",
           flexWrap: "wrap",
         }}
@@ -837,9 +981,9 @@ export default function MetricsPage() {
                 gap: "0.6rem",
                 padding: "0.5rem 0.9rem",
                 borderRadius: 8,
-                background: "rgba(59, 130, 246, 0.08)",
-                border: "1px solid rgba(59, 130, 246, 0.25)",
-                color: "var(--accent)",
+                background: "rgba(245, 158, 11, 0.07)",
+                border: "1px solid rgba(245, 158, 11, 0.3)",
+                color: "#b45309",
                 fontSize: "0.88rem",
                 fontWeight: 500,
               }}
@@ -849,7 +993,7 @@ export default function MetricsPage() {
                   width: 8,
                   height: 8,
                   borderRadius: "50%",
-                  backgroundColor: "var(--accent)",
+                  backgroundColor: "#f59e0b",
                   display: "inline-block",
                 }}
               />
@@ -873,15 +1017,15 @@ export default function MetricsPage() {
           disabled={saving || !dirty}
           className="metrics-save-btn"
           style={{
-            background: "var(--accent)",
-            color: "#ffffff",
+            background: saving || !dirty ? "var(--bg-hover)" : "#0f172a",
+            color: saving || !dirty ? "var(--text-muted)" : "#ffffff",
             border: "none",
-            borderRadius: 8,
+            borderRadius: 10,
             padding: "0.7rem 1.5rem",
             fontSize: "0.88rem",
             fontWeight: 600,
             cursor: saving || !dirty ? "not-allowed" : "pointer",
-            opacity: saving || !dirty ? 0.55 : 1,
+            boxShadow: saving || !dirty ? "none" : "0 4px 12px rgba(15,23,42,.18)",
             transition: "opacity 0.2s ease, transform 0.1s ease",
             fontFamily: "inherit",
           }}
@@ -904,9 +1048,9 @@ export default function MetricsPage() {
             bottom: 20,
             right: 20,
             zIndex: 50,
-            background: toast.isError ? "var(--error)" : "var(--success)",
+            background: toast.isError ? "var(--error)" : "#0f172a",
             color: "#ffffff",
-            borderRadius: 8,
+            borderRadius: 10,
             padding: "0.7rem 1.5rem",
             fontSize: "0.85rem",
             fontWeight: 600,

@@ -246,7 +246,7 @@ export default function CorePromptAdminPage() {
             style={{
               width: 32,
               height: 32,
-              border: "3px solid rgba(138, 100, 233, 0.2)",
+              border: "3px solid color-mix(in srgb, var(--text-primary) 11%, transparent)",
               borderTopColor: "var(--accent, #8A64E9)",
               borderRadius: "50%",
               animation: "spin 1s linear infinite",
@@ -381,7 +381,7 @@ export default function CorePromptAdminPage() {
               cursor: saving ? "not-allowed" : "pointer",
               opacity: saving ? 0.7 : 1,
               transition: "all 0.15s ease",
-              boxShadow: "0 2px 8px rgba(138, 100, 233, 0.3)",
+              boxShadow: "0 2px 8px color-mix(in srgb, var(--text-primary) 16%, transparent)",
             }}
           >
             {saving ? "Saving Changes..." : isDirty ? "Save Changes *" : "Save Changes"}
@@ -555,8 +555,8 @@ export default function CorePromptAdminPage() {
         style={{
           padding: "1rem 1.25rem",
           borderRadius: "10px",
-          backgroundColor: "rgba(138, 100, 233, 0.08)",
-          border: "1px solid rgba(138, 100, 233, 0.2)",
+          backgroundColor: "color-mix(in srgb, var(--text-primary) 4%, transparent)",
+          border: "1px solid color-mix(in srgb, var(--text-primary) 11%, transparent)",
           display: "flex",
           gap: "0.75rem",
           alignItems: "flex-start",
@@ -596,8 +596,8 @@ export default function CorePromptAdminPage() {
                 fontSize: "0.75rem",
                 padding: "0.3rem 0.6rem",
                 borderRadius: "6px",
-                border: "1px solid rgba(138, 100, 233, 0.3)",
-                backgroundColor: "rgba(138, 100, 233, 0.1)",
+                border: "1px solid color-mix(in srgb, var(--text-primary) 16%, transparent)",
+                backgroundColor: "color-mix(in srgb, var(--text-primary) 6%, transparent)",
                 color: "var(--accent, #8A64E9)",
                 cursor: "pointer",
                 fontFamily: "monospace",

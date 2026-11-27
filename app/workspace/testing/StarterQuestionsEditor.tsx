@@ -4,7 +4,6 @@ import { useState } from "react";
 import { api } from "@/lib/api";
 import { Spinner } from "../_components/Loader";
 
-const MAX = 4;
 const MAX_LEN = 80;
 
 const SparkIcon = () => (
@@ -23,12 +22,22 @@ export default function StarterQuestionsEditor({
   value,
   defaults,
   onChange,
+  title = "First questions",
+  description,
+  max = 4,
+  emptyNote,
 }: {
   value: string[];
   /** What the chat shows when the owner hasn't approved any questions. */
   defaults: string[];
   onChange: (next: string[]) => void;
+  title?: string;
+  description?: string;
+  max?: number;
+  /** Shown when there are no questions and no defaults. */
+  emptyNote?: string;
 }) {
+  const MAX = max;
   const usingDefaults = value.length === 0;
   const rows = usingDefaults ? defaults.slice(0, MAX) : value;
 
@@ -135,9 +144,9 @@ export default function StarterQuestionsEditor({
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--text-primary)" }}>First questions</div>
+          <div style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--text-primary)" }}>{title}</div>
           <p style={{ margin: "4px 0 0", fontSize: "0.75rem", color: "var(--text-muted)", maxWidth: 470, lineHeight: 1.5 }}>
-            Up to {MAX} questions visitors can tap when the chat opens. Changes appear on your website only after you save.
+            {description ?? `Up to ${MAX} questions visitors can tap when the chat opens. Changes appear on your website only after you save.`}
           </p>
         </div>
         <button type="button" style={quietBtn} onClick={suggest} disabled={suggesting}>
@@ -150,6 +159,13 @@ export default function StarterQuestionsEditor({
         <div style={{ marginTop: 14, fontSize: "0.74rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 7 }}>
           <span style={{ padding: "2px 8px", borderRadius: 999, border: "1px solid var(--border)", fontWeight: 600 }}>Default</span>
           These show now. Edit, improve or replace them to make them yours.
+        </div>
+      )}
+
+      {rows.length === 0 && emptyNote && (
+        <div style={{ marginTop: 14, fontSize: "0.76rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 7 }}>
+          <span style={{ padding: "2px 8px", borderRadius: 999, border: "1px solid var(--border)", fontWeight: 600 }}>Automatic</span>
+          {emptyNote}
         </div>
       )}
 

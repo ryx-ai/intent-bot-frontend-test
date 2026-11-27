@@ -262,6 +262,7 @@ export default function TestingPage() {
   const [siteColor, setSiteColor] = useState<string | null>(null);
   const [hideBranding, setHideBranding] = useState(false);
   const [starterQuestions, setStarterQuestions] = useState<string[]>([]);
+  const [followupQuestions, setFollowupQuestions] = useState<string[]>([]);
   // What the chat shows when no first questions are approved (same as the
   // website widget and the test chat).
   const starterBusinessName = (tenantName || "").trim().replace(/['’]s workspace$/i, "").trim() || "RYX AI";
@@ -343,6 +344,7 @@ export default function TestingPage() {
             support_contact?: string;
             hide_branding?: boolean;
             starter_questions?: string[];
+            followup_questions?: string[];
             is_customized_by_admin?: boolean;
           }>("/api/config/bot"),
           api.get<{ role?: string; tenant?: { slug: string; name?: string } }>("/api/auth/me"),
@@ -378,6 +380,7 @@ export default function TestingPage() {
           setSupportContact(data.support_contact || "");
           setHideBranding(!!data.hide_branding);
           setStarterQuestions(Array.isArray(data.starter_questions) ? data.starter_questions : []);
+          setFollowupQuestions(Array.isArray(data.followup_questions) ? data.followup_questions : []);
           if (data.theme_color) {
             setThemeColor(data.theme_color);
           }
@@ -457,6 +460,7 @@ export default function TestingPage() {
         support_contact: supportContact.trim(),
         hide_branding: planHas("custom_branding") ? hideBranding : false,
         starter_questions: starterQuestions.map((q) => q.trim()).filter(Boolean),
+        followup_questions: followupQuestions.map((q) => q.trim()).filter(Boolean),
       });
       setSavedRole(role);
       setToast("Configuration saved!");
@@ -1149,10 +1153,24 @@ export default function TestingPage() {
           }}
         >
           <StarterQuestionsEditor
+            title="When the chat opens"
             value={starterQuestions}
             defaults={defaultStarterQuestions}
             onChange={(next) => {
               setStarterQuestions(next);
+              setDirty(true);
+            }}
+          />
+          <div style={{ height: 1, background: C.border, margin: "1.25rem 0" }} />
+          <StarterQuestionsEditor
+            title="After a reply"
+            description="Up to 12 questions. After each answer the chat shows the two that fit the conversation best, never repeating one."
+            max={12}
+            value={followupQuestions}
+            defaults={[]}
+            emptyNote="The chat picks questions your website and files can answer. Add your own to choose them yourself."
+            onChange={(next) => {
+              setFollowupQuestions(next);
               setDirty(true);
             }}
           />
@@ -2434,7 +2452,7 @@ export default function TestingPage() {
     products: "Products",
     rules: "Rules",
     booking: role === "shop" ? "Advanced" : "Booking link",
-    starters: "First questions",
+    starters: "Suggested questions",
   };
 
   const SETTING_HINTS: Record<SettingKey, string> = {
@@ -2444,7 +2462,7 @@ export default function TestingPage() {
     products: "What your assistant can recommend to shoppers",
     rules: "Plain-word rules for how your assistant replies",
     booking: role === "shop" ? "Platform and prompt options" : "Where visitors book a call with you",
-    starters: "What visitors can tap when the chat opens",
+    starters: "What visitors can tap when the chat opens and after each reply",
   };
 
   // One setting, opened from a collage tile, in a pop-up in the centre

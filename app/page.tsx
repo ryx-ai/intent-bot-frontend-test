@@ -103,12 +103,16 @@ export default function AuthPage() {
           const btnDiv = document.getElementById("googleBtnContainer");
           if (btnDiv) {
             btnDiv.innerHTML = "";
+            // Same width and corners as the email/password fields (Google
+            // allows 200-400px wide); dark style in dark mode.
+            const fullWidth = Math.max(200, Math.min(400, Math.round(btnDiv.getBoundingClientRect().width || 400)));
+            const dark = document.documentElement.getAttribute("data-theme") === "dark";
             accountsId.renderButton(btnDiv, {
-              theme: "outline",
+              theme: dark ? "filled_black" : "outline",
               size: "large",
-              width: "320",
+              width: String(fullWidth),
               text: mode === "signin" ? "signin_with" : "signup_with",
-              shape: "pill",
+              shape: "rectangular",
             });
           }
         } catch (e) {
@@ -318,7 +322,7 @@ export default function AuthPage() {
 
                 {/* Google SSO Container */}
                 <div style={{ display: "flex", justifyContent: "center", minHeight: 44 }}>
-                  <div id="googleBtnContainer" style={{ width: "100%", maxWidth: 320, display: "flex", justifyContent: "center" }} />
+                  <div id="googleBtnContainer" style={{ width: "100%", display: "flex", justifyContent: "center" }} />
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", margin: "20px 0", color: "var(--lg-faint)", fontSize: 12 }}>

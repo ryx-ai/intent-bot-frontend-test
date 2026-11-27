@@ -446,7 +446,7 @@ export default function AssistantCollage({
 
       {/* First questions shown when the chat opens */}
       <Tile
-        label="First questions"
+        label="Suggested questions"
         action={starterQuestions.length ? "Edit" : "Set up"}
         onOpen={() => onOpen("starters")}
         style={{ gridColumn: "span 6", gridRow: "auto" }}

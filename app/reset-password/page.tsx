@@ -364,7 +364,7 @@ export default function ResetPasswordPage() {
         justifyContent: "center",
         position: "relative",
         overflow: "hidden",
-        background: "linear-gradient(135deg, #F8FAFC 0%, #EEF2FF 100%)",
+        background: "linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)",
       }}
     >
       {/* Glow background accent */}

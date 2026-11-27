@@ -136,7 +136,7 @@ export function SinglePageScanTab({ initialSeo, defaultUrl, isConfigured }: Sing
               padding: "0.65rem 1.4rem",
               borderRadius: 8,
               border: "none",
-              background: analyzing ? "color-mix(in srgb, var(--text-primary) 18%, transparent)" : "var(--accent, #8A64E9)",
+              background: analyzing ? "color-mix(in srgb, var(--text-primary) 18%, transparent)" : "var(--ink)",
               color: "#fff",
               fontWeight: 700,
               fontSize: "0.88rem",
@@ -202,7 +202,7 @@ export function SinglePageScanTab({ initialSeo, defaultUrl, isConfigured }: Sing
             style={{
               padding: "0.65rem 1.35rem",
               borderRadius: 8,
-              backgroundColor: "var(--accent, #8a64e9)",
+              backgroundColor: "var(--ink)",
               color: "#fff",
               fontSize: "0.88rem",
               fontWeight: 700,

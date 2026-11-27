@@ -106,7 +106,7 @@ function statusBadgeStyle(status: string): React.CSSProperties {
   if (status === "completed")
     return { ...base, background: "rgba(16,185,129,0.15)", color: "#10B981" };
   if (status === "running" || status === "pending")
-    return { ...base, background: "color-mix(in srgb, var(--text-primary) 8%, transparent)", color: "#818CF8" };
+    return { ...base, background: "color-mix(in srgb, var(--text-primary) 8%, transparent)", color: "var(--text-primary)" };
   if (status === "failed")
     return { ...base, background: "rgba(239,68,68,0.15)", color: "#EF4444" };
   return { ...base, background: "rgba(107,114,128,0.15)", color: "#9CA3AF" };
@@ -197,14 +197,14 @@ function getAuditLayer(category: string, title?: string): "technical" | "onpage"
 function layerBadgeStyle(layer: "technical" | "onpage" | "aeo" | "geo"): { bg: string; color: string; border: string; label: string } {
   switch (layer) {
     case "geo":
-      return { bg: "rgba(16, 185, 129, 0.12)", color: "#10B981", border: "rgba(16, 185, 129, 0.3)", label: "🤖 GEO" };
+      return { bg: "rgba(16, 185, 129, 0.12)", color: "#10B981", border: "rgba(16, 185, 129, 0.3)", label: "AI search" };
     case "aeo":
-      return { bg: "rgba(245, 158, 11, 0.12)", color: "#F59E0B", border: "rgba(245, 158, 11, 0.3)", label: "💡 AEO" };
+      return { bg: "rgba(245, 158, 11, 0.12)", color: "#F59E0B", border: "rgba(245, 158, 11, 0.3)", label: "Answers" };
     case "technical":
-      return { bg: "rgba(59, 130, 246, 0.12)", color: "#3B82F6", border: "rgba(59, 130, 246, 0.3)", label: "⚙️ Technical" };
+      return { bg: "color-mix(in srgb, var(--text-primary) 7%, transparent)", color: "var(--text-primary)", border: "color-mix(in srgb, var(--text-primary) 18%, transparent)", label: "Technical" };
     case "onpage":
     default:
-      return { bg: "rgba(139, 92, 246, 0.12)", color: "#8B5CF6", border: "rgba(139, 92, 246, 0.3)", label: "📝 On-Page" };
+      return { bg: "color-mix(in srgb, var(--text-primary) 7%, transparent)", color: "var(--text-primary)", border: "color-mix(in srgb, var(--text-primary) 18%, transparent)", label: "On-page" };
   }
 }
 
@@ -514,7 +514,7 @@ export default function AuditDetailPage() {
             gap: 6,
             padding: "0.6rem 1.25rem",
             borderRadius: 8,
-            background: "#0f172a",
+            background: "var(--ink)",
             color: "#fff",
             fontWeight: 600,
             fontSize: "0.88rem",
@@ -600,9 +600,9 @@ export default function AuditDetailPage() {
             style={{
               padding: "0.55rem 1rem",
               borderRadius: 8,
-              border: "1px solid rgba(139, 92, 246, 0.4)",
-              background: "rgba(139, 92, 246, 0.12)",
-              color: "var(--accent, #8A64E9)",
+              border: "1px solid color-mix(in srgb, var(--text-primary) 35%, transparent)",
+              background: "color-mix(in srgb, var(--text-primary) 8%, transparent)",
+              color: "var(--text-primary)",
               fontSize: "0.85rem",
               fontWeight: 700,
               cursor: "pointer",
@@ -637,7 +637,7 @@ export default function AuditDetailPage() {
             style={{
               padding: "0.55rem 1.1rem",
               borderRadius: 8,
-              background: "#0f172a",
+              background: "var(--ink)",
               color: "#fff",
               fontSize: "0.85rem",
               fontWeight: 700,
@@ -786,7 +786,7 @@ export default function AuditDetailPage() {
             borderRadius: 8,
             border: "none",
             background: viewMode === "pages" ? "color-mix(in srgb, var(--text-primary) 11%, transparent)" : "transparent",
-            color: viewMode === "pages" ? "#818CF8" : "var(--text-muted)",
+            color: viewMode === "pages" ? "var(--text-primary)" : "var(--text-muted)",
             fontWeight: 700,
             fontSize: "0.85rem",
             cursor: "pointer",
@@ -802,7 +802,7 @@ export default function AuditDetailPage() {
             borderRadius: 8,
             border: "none",
             background: viewMode === "issues" ? "color-mix(in srgb, var(--text-primary) 11%, transparent)" : "transparent",
-            color: viewMode === "issues" ? "#818CF8" : "var(--text-muted)",
+            color: viewMode === "issues" ? "var(--text-primary)" : "var(--text-muted)",
             fontWeight: 700,
             fontSize: "0.85rem",
             cursor: "pointer",
@@ -850,9 +850,9 @@ export default function AuditDetailPage() {
                       padding: "4px 12px",
                       borderRadius: 20,
                       border: "1px solid",
-                      borderColor: pageFilter === f ? "#0f172a" : "var(--border)",
+                      borderColor: pageFilter === f ? "var(--ink)" : "var(--border)",
                       background: pageFilter === f ? "color-mix(in srgb, var(--text-primary) 8%, transparent)" : "transparent",
-                      color: pageFilter === f ? "#818CF8" : "var(--text-muted)",
+                      color: pageFilter === f ? "var(--text-primary)" : "var(--text-muted)",
                       fontSize: "0.75rem",
                       fontWeight: 600,
                       cursor: "pointer",
@@ -886,7 +886,7 @@ export default function AuditDetailPage() {
                       borderBottom: "1px solid var(--border)",
                       background: selectedPage?.id === page.id ? "color-mix(in srgb, var(--text-primary) 4%, transparent)" : "transparent",
                       border: "none",
-                      borderLeft: selectedPage?.id === page.id ? "3px solid #0f172a" : "3px solid transparent",
+                      borderLeft: selectedPage?.id === page.id ? "3px solid var(--ink)" : "3px solid transparent",
                       textAlign: "left",
                       cursor: "pointer",
                       transition: "background 0.15s",
@@ -1024,7 +1024,7 @@ export default function AuditDetailPage() {
                   <div
                     style={{
                       fontSize: "0.75rem",
-                      color: "#818CF8",
+                      color: "var(--text-primary)",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
@@ -1169,7 +1169,7 @@ export default function AuditDetailPage() {
                               background: "color-mix(in srgb, var(--text-primary) 4%, transparent)",
                               border: "1px solid color-mix(in srgb, var(--text-primary) 11%, transparent)",
                               fontSize: "0.73rem",
-                              color: "#818CF8",
+                              color: "var(--text-primary)",
                               lineHeight: 1.4,
                             }}
                           >
@@ -1218,9 +1218,9 @@ export default function AuditDetailPage() {
                     padding: "4px 12px",
                     borderRadius: 20,
                     border: "1px solid",
-                    borderColor: issueFilter === f ? "#0f172a" : "var(--border)",
+                    borderColor: issueFilter === f ? "var(--ink)" : "var(--border)",
                     background: issueFilter === f ? "color-mix(in srgb, var(--text-primary) 8%, transparent)" : "transparent",
-                    color: issueFilter === f ? "#818CF8" : "var(--text-muted)",
+                    color: issueFilter === f ? "var(--text-primary)" : "var(--text-muted)",
                     fontSize: "0.75rem",
                     fontWeight: 600,
                     cursor: "pointer",
@@ -1260,9 +1260,9 @@ export default function AuditDetailPage() {
                     gap: 6,
                     padding: "0.4rem 0.85rem",
                     borderRadius: 8,
-                    border: isActive ? "1px solid rgba(139, 92, 246, 0.5)" : "1px solid var(--border)",
-                    background: isActive ? "rgba(139, 92, 246, 0.15)" : "var(--bg-secondary)",
-                    color: isActive ? "var(--accent, #8A64E9)" : "var(--text-muted)",
+                    border: isActive ? "1px solid color-mix(in srgb, var(--text-primary) 35%, transparent)" : "1px solid var(--border)",
+                    background: isActive ? "color-mix(in srgb, var(--text-primary) 8%, transparent)" : "var(--bg-secondary)",
+                    color: isActive ? "var(--text-primary)" : "var(--text-muted)",
                     fontSize: "0.8rem",
                     fontWeight: isActive ? 700 : 500,
                     cursor: "pointer",
@@ -1276,8 +1276,8 @@ export default function AuditDetailPage() {
                       fontSize: "0.68rem",
                       padding: "1px 6px",
                       borderRadius: 10,
-                      background: isActive ? "rgba(139, 92, 246, 0.25)" : "rgba(125,125,125,0.12)",
-                      color: isActive ? "var(--accent, #8A64E9)" : "var(--text-muted)",
+                      background: isActive ? "color-mix(in srgb, var(--text-primary) 14%, transparent)" : "rgba(125,125,125,0.12)",
+                      color: isActive ? "var(--text-primary)" : "var(--text-muted)",
                       fontWeight: 700,
                     }}
                   >
@@ -1399,7 +1399,7 @@ export default function AuditDetailPage() {
                               background: "color-mix(in srgb, var(--text-primary) 4%, transparent)",
                               border: "1px solid color-mix(in srgb, var(--text-primary) 14%, transparent)",
                               fontSize: "0.82rem",
-                              color: "#818CF8",
+                              color: "var(--text-primary)",
                               lineHeight: 1.5,
                             }}
                           >

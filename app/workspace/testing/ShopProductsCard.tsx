@@ -232,7 +232,7 @@ export default function ShopProductsCard({ wide = false }: { wide?: boolean } = 
                 height: 44,
                 borderRadius: 12,
                 flexShrink: 0,
-                background: "linear-gradient(145deg,#1e293b,#0f172a)",
+                background: "var(--ink-grad)",
                 boxShadow: "inset 0 1px 0 rgba(255,255,255,.08), 0 4px 10px rgba(15,23,42,.18)",
                 color: "#fff",
                 display: "flex",
@@ -537,8 +537,8 @@ export default function ShopProductsCard({ wide = false }: { wide?: boolean } = 
                 }}
                 style={{
                   borderRadius: 18,
-                  border: "1px solid #0f172a",
-                  background: "radial-gradient(120% 90% at 100% 0%, #334155 0%, #0f172a 60%)",
+                  border: "1px solid var(--ink)",
+                  background: "var(--ink-grad)",
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "flex-start",
@@ -560,7 +560,7 @@ export default function ShopProductsCard({ wide = false }: { wide?: boolean } = 
                         height: 30,
                         borderRadius: "50%",
                         marginLeft: i ? -9 : 0,
-                        border: "2px solid #0f172a",
+                        border: "2px solid var(--ink)",
                         background: p.image_url ? `#fff center/cover no-repeat url(${JSON.stringify(p.image_url)})` : "#334155",
                       }}
                     />

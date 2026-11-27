@@ -12,6 +12,7 @@ import ShopSuggestionBanner from "./ShopSuggestionBanner";
 import WebsiteConfirmBanner from "../_components/WebsiteConfirmBanner";
 import AssistantCollage, { type SettingKey } from "./AssistantCollage";
 import LiveSiteStatus from "../_components/SiteStatusChip";
+import { Spinner } from "../_components/Loader";
 
 interface Plan {
   id: number;
@@ -258,7 +259,7 @@ export default function TestingPage() {
   // can't see their site), and plans without own branding use the standard navy.
   const previewColor =
     !planHas("custom_branding") || themeColor.toLowerCase() === MATCH_WEBSITE_COLOR.toLowerCase()
-      ? "#0f172a"
+      ? "var(--ink)"
       : themeColor;
 
   function showCalCredentialMessage(message: string, isError = false) {
@@ -766,15 +767,8 @@ export default function TestingPage() {
 
   if (loading || !tenantSlug) {
     return (
-      <div
-        style={{
-          padding: "5rem",
-          textAlign: "center",
-          color: C.textMuted,
-          fontSize: "0.95rem",
-        }}
-      >
-        Loading assistant settings…
+      <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Spinner size={32} stroke={3} label="Loading your assistant…" />
       </div>
     );
   }
@@ -1377,7 +1371,7 @@ export default function TestingPage() {
                 textAlign: "center",
               }}
             >
-              Loading rules…
+              <Spinner size={18} stroke={2.2} />
             </div>
           ) : rules.length === 0 ? (
             <div
@@ -2160,8 +2154,8 @@ export default function TestingPage() {
                           style={{
                             fontSize: "0.68rem",
                             fontWeight: 700,
-                            color: "#8b5cf6",
-                            backgroundColor: "rgba(139, 92, 246, 0.12)",
+                            color: "var(--text-primary)",
+                            backgroundColor: "color-mix(in srgb, var(--text-primary) 8%, transparent)",
                             padding: "1px 6px",
                             borderRadius: 4,
                           }}
@@ -2413,8 +2407,8 @@ export default function TestingPage() {
               style={{
                 padding: "0.62rem 1.35rem",
                 borderRadius: 10,
-                border: dirty ? `1px solid ${C.border}` : "1px solid #0f172a",
-                background: dirty ? C.bgCard : "#0f172a",
+                border: dirty ? `1px solid ${C.border}` : "1px solid var(--ink)",
+                background: dirty ? C.bgCard : "var(--ink)",
                 color: dirty ? C.textPrimary : "#fff",
                 boxShadow: dirty ? "none" : "0 4px 12px rgba(15,23,42,.18)",
                 fontSize: "0.85rem",

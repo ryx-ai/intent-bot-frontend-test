@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
+import { Spinner } from "../../_components/Loader";
 
 interface Plan {
   id: number;
@@ -226,7 +227,7 @@ export default function PlansAdminPage() {
         <button
           onClick={handleOpenCreate}
           style={{
-            background: "var(--accent)",
+            background: "var(--ink)",
             color: "#ffffff",
             border: "none",
             borderRadius: 8,
@@ -291,8 +292,8 @@ export default function PlansAdminPage() {
 
       {/* Plans Cards Grid */}
       {loading ? (
-        <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>
-          Loading plan packages...
+        <div style={{ padding: "4rem 0", display: "flex", justifyContent: "center" }}>
+          <Spinner size={30} stroke={3} label="Loading plans…" />
         </div>
       ) : (
         <div

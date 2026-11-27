@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
+import { Spinner } from "../_components/Loader";
 
 interface UserInfo {
   email: string;
@@ -144,8 +145,8 @@ export default function WorkspaceSettingsPage() {
 
   if (loading) {
     return (
-      <div style={{ width: "100%", maxWidth: 1360, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
-        <p style={{ color: 'var(--text-secondary)' }}>Loading workspace settings...</p>
+      <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Spinner size={32} stroke={3} label="Loading settings…" />
       </div>
     );
   }
@@ -249,7 +250,7 @@ export default function WorkspaceSettingsPage() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: 'linear-gradient(145deg,#1e293b,#0f172a)',
+              background: 'var(--ink-grad)',
               color: '#fff',
               fontWeight: 700,
               fontSize: '1.05rem',
@@ -285,7 +286,7 @@ export default function WorkspaceSettingsPage() {
               gap: 6,
               padding: '0.6rem 1.1rem',
               borderRadius: 10,
-              background: '#0f172a',
+              background: 'var(--ink)',
               color: '#fff',
               fontSize: '0.85rem',
               fontWeight: 600,
@@ -333,7 +334,7 @@ export default function WorkspaceSettingsPage() {
                   padding: '0.65rem 1.3rem',
                   borderRadius: 10,
                   border: 'none',
-                  background: canSave ? '#0f172a' : 'var(--bg-hover)',
+                  background: canSave ? 'var(--ink)' : 'var(--bg-hover)',
                   color: canSave ? '#fff' : 'var(--text-muted)',
                   fontWeight: 600,
                   fontSize: '0.88rem',

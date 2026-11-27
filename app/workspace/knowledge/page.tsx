@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { ConfirmDialog } from "../_components/ConfirmDialog";
-import { Spinner } from "../_components/Loader";
+import { SkeletonBlock, Spinner } from "../_components/Loader";
 
 interface KBFile {
   filename: string;
@@ -525,10 +525,19 @@ export default function KnowledgeLakePage() {
     <div style={{ width: "100%", maxWidth: 1360, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
       <style>{`
         @keyframes indeterminateMove {
-          0% { left: -35%; width: 35%; }
-          50% { left: 30%; width: 50%; }
-          100% { left: 100%; width: 35%; }
+          0% { left: -40%; width: 40%; }
+          60% { left: 35%; width: 45%; }
+          100% { left: 100%; width: 40%; }
         }
+        @keyframes knBreathe {
+          0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-primary) 35%, transparent); }
+          50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--text-primary) 0%, transparent); }
+        }
+        .kn-reading { display: inline-flex; align-items: center; gap: 7px; padding: 3px 10px 3px 8px; border-radius: 9999px; border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-primary); font-weight: 600; font-size: 0.78rem; }
+        .kn-reading-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-primary); animation: knBreathe 1.8s ease-in-out infinite; }
+        .kn-progress { height: 4px; border-radius: 9999px; overflow: hidden; position: relative; background: var(--bg-hover); }
+        .kn-progress-bar { position: absolute; top: 0; bottom: 0; border-radius: 9999px; background: linear-gradient(90deg, transparent, var(--text-primary) 35%, var(--text-primary) 65%, transparent); animation: indeterminateMove 1.8s cubic-bezier(.65,0,.35,1) infinite; }
+        @media (prefers-reduced-motion: reduce) { .kn-progress-bar, .kn-reading-dot { animation-duration: 4s; } }
         @keyframes pulseDot {
           0%, 100% { opacity: 1; transform: scale(1); }
           50% { opacity: 0.4; transform: scale(0.85); }
@@ -544,7 +553,7 @@ export default function KnowledgeLakePage() {
         .kn-stat { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 1rem 1.15rem; display: flex; align-items: center; gap: .85rem; box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 6px 20px rgba(15,23,42,.03); }
         .kn-ico { width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-secondary); }
         .kn-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 18px; padding: 1.5rem; box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 6px 20px rgba(15,23,42,.035); display: flex; flex-direction: column; }
-        .kn-btn-dark { display: inline-flex; align-items: center; gap: .5rem; padding: .62rem 1.2rem; border-radius: 10px; border: none; background: #0f172a; color: #fff; font: inherit; font-weight: 600; font-size: .86rem; cursor: pointer; box-shadow: 0 4px 12px rgba(15,23,42,.18); transition: transform .15s, box-shadow .15s; }
+        .kn-btn-dark { display: inline-flex; align-items: center; gap: .5rem; padding: .62rem 1.2rem; border-radius: 10px; border: none; background: var(--ink); color: #fff; font: inherit; font-weight: 600; font-size: .86rem; cursor: pointer; box-shadow: 0 4px 12px rgba(15,23,42,.18); transition: transform .15s, box-shadow .15s; }
         .kn-btn-dark:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(15,23,42,.22); }
         @media (max-width: 1080px) { .kn-grid { grid-template-columns: minmax(0, 1fr); } }
         .kn-card { min-width: 0; overflow-wrap: anywhere; }
@@ -578,8 +587,8 @@ export default function KnowledgeLakePage() {
           </span>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: "1.35rem", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text-primary)", lineHeight: 1.1 }}>
-              {files.length}
-              {!isUnlimited && <span style={{ fontSize: "0.9rem", fontWeight: 500, color: "var(--text-muted)" }}> / {maxKbFiles}</span>}
+              {loading ? <SkeletonBlock width={44} height={22} radius={6} /> : files.length}
+              {!loading && !isUnlimited && <span style={{ fontSize: "0.9rem", fontWeight: 500, color: "var(--text-muted)" }}> / {maxKbFiles}</span>}
             </div>
             <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>Files</div>
           </div>
@@ -590,7 +599,7 @@ export default function KnowledgeLakePage() {
           </span>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: "1.35rem", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text-primary)", lineHeight: 1.1 }}>
-              {primaryWebsite ? primaryWebsite.indexed_pages_count : 0}
+              {loading ? <SkeletonBlock width={32} height={22} radius={6} /> : primaryWebsite ? primaryWebsite.indexed_pages_count : 0}
             </div>
             <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>Website pages read</div>
           </div>
@@ -601,8 +610,8 @@ export default function KnowledgeLakePage() {
           </span>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: "1.35rem", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--text-primary)", lineHeight: 1.1 }}>
-              {manualWebUrls.length}
-              <span style={{ fontSize: "0.9rem", fontWeight: 500, color: "var(--text-muted)" }}> / 50</span>
+              {loading ? <SkeletonBlock width={44} height={22} radius={6} /> : manualWebUrls.length}
+              {!loading && <span style={{ fontSize: "0.9rem", fontWeight: 500, color: "var(--text-muted)" }}> / 50</span>}
             </div>
             <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>Extra pages</div>
           </div>
@@ -648,7 +657,7 @@ export default function KnowledgeLakePage() {
                     style={{
                       height: "100%",
                       width: `${Math.min(100, Math.round((files.length / maxKbFiles) * 100))}%`,
-                      background: isAtCapacity ? "var(--warning)" : "#0f172a",
+                      background: isAtCapacity ? "var(--warning)" : "var(--ink)",
                       borderRadius: 9999,
                       transition: "width 0.3s ease",
                     }}
@@ -680,8 +689,17 @@ export default function KnowledgeLakePage() {
 
         {/* Upload Zone / Special Capacity or Empty State */}
         {loading ? (
-          <div style={{ textAlign: "center", padding: "2.5rem 1rem", color: "var(--text-muted)", fontSize: "0.85rem" }}>
-            Loading files…
+          <div role="status" aria-label="Loading files" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <SkeletonBlock height={150} radius={14} />
+            {[0, 1].map((i) => (
+              <div key={i} style={{ display: "flex", gap: 12, alignItems: "center", padding: "0.25rem 0" }}>
+                <SkeletonBlock width={36} height={36} radius={10} style={{ flexShrink: 0 }} />
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7 }}>
+                  <SkeletonBlock width={`${60 - i * 15}%`} height={12} />
+                  <SkeletonBlock width={`${30 - i * 5}%`} height={10} />
+                </div>
+              </div>
+            ))}
           </div>
         ) : isAtCapacity ? (
           /* Capacity Reached State (Yellow box) */
@@ -709,7 +727,7 @@ export default function KnowledgeLakePage() {
               style={{
                 display: "inline-block",
                 padding: "0.45rem 1rem",
-                background: "var(--accent)",
+                background: "var(--ink)",
                 color: "#fff",
                 fontWeight: 600,
                 fontSize: "0.84rem",
@@ -753,7 +771,7 @@ export default function KnowledgeLakePage() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                background: "linear-gradient(145deg,#1e293b,#0f172a)",
+                background: "var(--ink-grad)",
                 color: "#fff",
                 boxShadow: "0 8px 20px rgba(15,23,42,.18)",
               }}
@@ -931,14 +949,27 @@ export default function KnowledgeLakePage() {
             Your website
           </div>
           <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", marginTop: "0.2rem" }}>
-            {websites.length === 0
+            {!loading && websites.length === 0
               ? "Add the chat to your website and we'll read your public pages automatically (up to 25). Nothing else to set up."
               : "Your assistant reads the public pages of your website automatically."}
           </div>
         </div>
 
-        {/* ── Case 1: No website connected yet (3-step setup) ── */}
-        {websites.length === 0 ? (
+        {loading ? (
+          <div
+            role="status"
+            aria-label="Loading your website"
+            style={{ border: "1px solid var(--border)", borderRadius: 12, padding: "1.25rem", marginBottom: "1.5rem", display: "flex", gap: 14, alignItems: "center" }}
+          >
+            <SkeletonBlock width={40} height={40} radius={10} style={{ flexShrink: 0 }} />
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+              <SkeletonBlock width="40%" height={14} />
+              <SkeletonBlock width="25%" height={18} radius={999} />
+            </div>
+            <SkeletonBlock width={110} height={36} radius={10} />
+          </div>
+        ) : /* ── Case 1: No website connected yet (3-step setup) ── */
+        websites.length === 0 ? (
           <div
             style={{
               background: "var(--bg-surface)",
@@ -969,7 +1000,7 @@ export default function KnowledgeLakePage() {
                 display: "inline-block",
                 padding: "0.62rem 1.25rem",
                 borderRadius: 10,
-                background: "#0f172a",
+                background: "var(--ink)",
                 color: "#fff",
                 fontWeight: 600,
                 fontSize: "0.88rem",
@@ -1050,7 +1081,8 @@ export default function KnowledgeLakePage() {
                       )}
 
                       {(primaryWebsite.indexing_status === "indexing" || primaryWebsite.indexing_status === "queued") && (
-                        <span style={{ padding: "2px 8px", borderRadius: 9999, background: "var(--accent-dim)", color: "var(--accent)", fontWeight: 600 }}>
+                        <span className="kn-reading">
+                          <span className="kn-reading-dot" aria-hidden="true" />
                           Reading your website…
                         </span>
                       )}
@@ -1193,17 +1225,8 @@ export default function KnowledgeLakePage() {
               {/* Status-specific details under main row */}
               {(primaryWebsite.indexing_status === "indexing" || primaryWebsite.indexing_status === "queued") && (
                 <div style={{ marginTop: "1rem" }}>
-                  <div style={{ height: 4, background: "var(--bg-hover)", borderRadius: 9999, overflow: "hidden", position: "relative" }}>
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        bottom: 0,
-                        background: "linear-gradient(90deg, var(--accent), #10b981)",
-                        borderRadius: 9999,
-                        animation: "indeterminateMove 1.6s infinite ease-in-out",
-                      }}
-                    />
+                  <div className="kn-progress" role="progressbar" aria-label="Reading your website">
+                    <div className="kn-progress-bar" />
                   </div>
                   <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", marginTop: "0.45rem" }}>
                     This takes a few minutes. You can leave this page.
@@ -1308,7 +1331,7 @@ export default function KnowledgeLakePage() {
                     padding: "0.6rem 1.25rem",
                     borderRadius: 10,
                     border: "none",
-                    background: "#0f172a",
+                    background: "var(--ink)",
                     color: "#fff",
                     fontFamily: "inherit",
                     fontWeight: 600,

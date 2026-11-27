@@ -238,7 +238,7 @@ export default function DeployPage() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#0f172a",
+          background: "var(--ink)",
           color: "#fff",
           fontSize: "0.8rem",
           fontWeight: 700,
@@ -261,7 +261,7 @@ export default function DeployPage() {
         .dp-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 1rem; }
         .dp-tab { padding: .42rem .85rem; border-radius: 999px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary); font: inherit; font-size: .82rem; font-weight: 500; cursor: pointer; transition: all .15s; }
         .dp-tab:hover { border-color: #cbd5e1; color: var(--text-primary); }
-        .dp-tab[aria-selected="true"] { background: #0f172a; border-color: #0f172a; color: #fff; }
+        .dp-tab[aria-selected="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
         .dp-copy { display: inline-flex; align-items: center; gap: 6px; padding: .45rem .85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,.18); background: #fff; color: #0f172a; font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; transition: transform .15s; }
         .dp-copy:hover { transform: translateY(-1px); }
         .dp-info { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
@@ -291,7 +291,7 @@ export default function DeployPage() {
           <span>
             <strong>The chat is paused.</strong> Your trial has ended, so the chat won&apos;t answer on your website until you choose a plan.
           </span>
-          <a href="/workspace/billing" style={{ background: "#0f172a", color: "#fff", padding: "0.5rem 1rem", borderRadius: 10, fontWeight: 600, fontSize: "0.84rem", textDecoration: "none", whiteSpace: "nowrap" }}>
+          <a href="/workspace/billing" style={{ background: "var(--ink)", color: "#fff", padding: "0.5rem 1rem", borderRadius: 10, fontWeight: 600, fontSize: "0.84rem", textDecoration: "none", whiteSpace: "nowrap" }}>
             Choose a plan
           </a>
         </div>
@@ -476,7 +476,7 @@ export default function DeployPage() {
                   style={{
                     maxWidth: 230,
                     background: "#fff",
-                    color: "#0f172a",
+                    color: "var(--ink)",
                     fontSize: "0.8rem",
                     lineHeight: 1.45,
                     padding: "10px 14px",
@@ -496,8 +496,8 @@ export default function DeployPage() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    color: "#0f172a",
-                    boxShadow: "0 0 0 2px #0f172a, 0 10px 26px rgba(15,23,42,.22)",
+                    color: "var(--ink)",
+                    boxShadow: "0 0 0 2px var(--ink), 0 10px 26px rgba(15,23,42,.22)",
                   }}
                 >
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

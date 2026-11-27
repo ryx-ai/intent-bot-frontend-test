@@ -259,7 +259,7 @@ export default function ColourPopover({
           padding: "0.6rem",
           borderRadius: 10,
           border: "none",
-          background: "var(--accent)",
+          background: "var(--ink)",
           color: "#fff",
           fontWeight: 700,
           fontSize: "0.82rem",

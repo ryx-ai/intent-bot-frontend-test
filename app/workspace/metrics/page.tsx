@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { unsavedChangesStore } from "@/lib/unsaved-changes";
 import { ConfirmDialog } from "../_components/ConfirmDialog";
+import { Spinner } from "../_components/Loader";
 
 interface MetricConfig {
   id: string;
@@ -311,14 +312,8 @@ export default function MetricsPage() {
 
   if (loading) {
     return (
-      <div
-        style={{
-          padding: "5rem",
-          textAlign: "center",
-          color: "var(--text-muted)",
-        }}
-      >
-        Loading...
+      <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Spinner size={32} stroke={3} label="Loading tracking…" />
       </div>
     );
   }
@@ -613,7 +608,7 @@ export default function MetricsPage() {
                     <button
                       type="button"
                       onClick={() => applySuggestion(metric._uid)}
-                      style={{ padding: "0.45rem 0.9rem", borderRadius: 9, border: "none", background: "#0f172a", color: "#fff", fontSize: "0.8rem", fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}
+                      style={{ padding: "0.45rem 0.9rem", borderRadius: 9, border: "none", background: "var(--ink)", color: "#fff", fontSize: "0.8rem", fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}
                     >
                       Use this
                     </button>
@@ -670,7 +665,7 @@ export default function MetricsPage() {
                   style={{
                     width: 17,
                     height: 17,
-                    accentColor: "#0f172a",
+                    accentColor: "var(--ink)",
                     cursor: "pointer",
                   }}
                 />
@@ -828,9 +823,9 @@ export default function MetricsPage() {
           onClick={addMetric}
           className="metrics-header-btn"
           style={{
-            background: "#0f172a",
+            background: "var(--ink)",
             color: "#fff",
-            border: "1px solid #0f172a",
+            border: "1px solid var(--ink)",
             borderRadius: 10,
             padding: "0.65rem 1.15rem",
             boxShadow: "0 4px 12px rgba(15,23,42,.18)",
@@ -1017,7 +1012,7 @@ export default function MetricsPage() {
           disabled={saving || !dirty}
           className="metrics-save-btn"
           style={{
-            background: saving || !dirty ? "var(--bg-hover)" : "#0f172a",
+            background: saving || !dirty ? "var(--bg-hover)" : "var(--ink)",
             color: saving || !dirty ? "var(--text-muted)" : "#ffffff",
             border: "none",
             borderRadius: 10,
@@ -1048,7 +1043,7 @@ export default function MetricsPage() {
             bottom: 20,
             right: 20,
             zIndex: 50,
-            background: toast.isError ? "var(--error)" : "#0f172a",
+            background: toast.isError ? "var(--error)" : "var(--ink)",
             color: "#ffffff",
             borderRadius: 10,
             padding: "0.7rem 1.5rem",

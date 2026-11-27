@@ -112,8 +112,8 @@ function EditorSketch() {
             fontSize: 11,
             fontWeight: 700,
             borderRadius: 5,
-            background: "#0f172a",
-            border: "1px solid #0f172a",
+            background: "var(--ink)",
+            border: "1px solid var(--ink)",
             color: "#fff",
             display: "inline-block",
           }}
@@ -134,11 +134,11 @@ function EditorSketch() {
             height: 34,
             borderRadius: "50%",
             background: "#fff",
-            color: "#0f172a",
+            color: "var(--ink)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            boxShadow: "0 0 0 2px #0f172a, 0 4px 14px rgba(15,23,42,.2)",
+            boxShadow: "0 0 0 2px var(--ink), 0 4px 14px rgba(15,23,42,.2)",
           }}
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
@@ -189,8 +189,8 @@ export default function ShopifyGuide({ copied, onCopy, onClose }: Props) {
           <button
             onClick={onCopy}
             style={{
-              background: copied ? "rgba(16, 185, 129, 0.1)" : "#0f172a",
-              border: copied ? "1px solid rgba(16, 185, 129, 0.4)" : "1px solid #0f172a",
+              background: copied ? "rgba(16, 185, 129, 0.1)" : "var(--ink)",
+              border: copied ? "1px solid rgba(16, 185, 129, 0.4)" : "1px solid var(--ink)",
               color: copied ? "#059669" : "white",
               borderRadius: 10,
               padding: "7px 16px",

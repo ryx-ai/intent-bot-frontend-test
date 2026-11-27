@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { SkeletonBlock, Spinner } from "../_components/Loader";
 
 const ANALYTICS_LIMIT = 500;
 
@@ -1127,14 +1128,16 @@ export default function DashboardPage() {
         }}
       >
         {loading ? (
-          <div
-            style={{
-              padding: "5rem 1rem",
-              textAlign: "center",
-              color: "var(--text-secondary)",
-            }}
-          >
-            Loading conversations…
+          <div role="status" aria-label="Loading" style={{ display: "flex", flexDirection: "column", gap: 14, padding: "1.25rem" }}>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <SkeletonBlock width={36} height={36} radius={999} style={{ flexShrink: 0 }} />
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7 }}>
+                  <SkeletonBlock width={`${62 - i * 9}%`} height={12} />
+                  <SkeletonBlock width={`${38 - i * 5}%`} height={10} />
+                </div>
+              </div>
+            ))}
           </div>
         ) : sessions.length === 0 ? (
           /* Empty State Before First Chat */
@@ -1544,7 +1547,7 @@ export default function DashboardPage() {
                                     fontSize: "0.85rem",
                                   }}
                                 >
-                                  Loading conversation transcript…
+                                  <Spinner size={24} stroke={2.6} label="Loading chat…" />
                                 </div>
                               ) : transcript &&
                                 transcript.messages &&
@@ -1574,7 +1577,7 @@ export default function DashboardPage() {
                                           justifyContent: "center",
                                           fontSize: "0.66rem",
                                           fontWeight: 700,
-                                          background: isVisitor ? "var(--bg-hover)" : "#0f172a",
+                                          background: isVisitor ? "var(--bg-hover)" : "var(--ink)",
                                           color: isVisitor ? "var(--text-secondary)" : "#fff",
                                         }}
                                       >

@@ -94,8 +94,8 @@ export default function ShopSuggestionBanner({ onAccepted }: { onAccepted: () =>
           disabled={busy}
           onClick={() => answer(true)}
           style={{
-            background: "var(--accent)",
-            border: "1px solid var(--accent)",
+            background: "var(--ink)",
+            border: "1px solid var(--ink)",
             color: "#FFFFFF",
             borderRadius: 8,
             padding: "0.55rem 1rem",

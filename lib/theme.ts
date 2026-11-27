@@ -1,66 +1,45 @@
-export const DARK_THEME_VARS: Record<string, string> = {
-  "--bg": "#0b0f19",
-  "--bg-surface": "#111827",
-  "--bg-card": "#151d30",
-  "--bg-sidebar": "#0f172a",
-  "--bg-hover": "#1e293b",
-  "--text-primary": "#f8fafc",
-  "--text-secondary": "#94a3b8",
-  "--text-muted": "#64748b",
-  "--accent": "#6366f1",
-  "--accent-light": "rgba(255, 255, 255, 0.08)",
-  "--accent-dim": "rgba(255, 255, 255, 0.06)",
-  "--accent-glow": "rgba(255, 255, 255, 0.10)",
-  "--border": "#1e293b",
-  "--error": "#f87171",
-  "--success": "#34d399",
-  "--warning": "#fbbf24",
-  "--shadow-sm": "0 1px 2px 0 rgba(0, 0, 0, 0.3)",
-  "--shadow-md": "0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3)",
-  "--shadow-lg": "0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.4)",
-};
+/**
+ * Theme switching.
+ *
+ * All colours live in app/globals.css (light tokens on :root, matte-black
+ * tokens under [data-theme="dark"]). This file only flips the attribute and
+ * class. It must not write colour values inline: inline values override the
+ * stylesheet and bring back old colours.
+ */
 
-export const LIGHT_THEME_VARS: Record<string, string> = {
-  "--bg": "#f8fafc",
-  "--bg-surface": "#ffffff",
-  "--bg-card": "#ffffff",
-  "--bg-sidebar": "#f1f5f9",
-  "--bg-hover": "#e2e8f0",
-  "--text-primary": "#0f172a",
-  "--text-secondary": "#475569",
-  "--text-muted": "#64748b",
-  "--accent": "#4f46e5",
-  "--accent-light": "rgba(15, 23, 42, 0.06)",
-  "--accent-dim": "rgba(15, 23, 42, 0.045)",
-  "--accent-glow": "rgba(15, 23, 42, 0.08)",
-  "--border": "#e2e8f0",
-  "--error": "#ef4444",
-  "--success": "#10b981",
-  "--warning": "#d97706",
-  "--shadow-sm": "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
-  "--shadow-md": "0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05)",
-  "--shadow-lg": "0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04)",
-};
+// Tokens that older versions of this file wrote inline; cleared on every switch
+// so a page that was open during an update doesn't keep stale colours.
+const LEGACY_INLINE_TOKENS = [
+  "--bg",
+  "--bg-surface",
+  "--bg-card",
+  "--bg-sidebar",
+  "--bg-hover",
+  "--text-primary",
+  "--text-secondary",
+  "--text-muted",
+  "--accent",
+  "--accent-light",
+  "--accent-dim",
+  "--accent-glow",
+  "--border",
+  "--error",
+  "--success",
+  "--warning",
+  "--shadow-sm",
+  "--shadow-md",
+  "--shadow-lg",
+];
 
 export function applyTheme(theme: "dark" | "light") {
   if (typeof window === "undefined") return;
   const root = document.documentElement;
-  root.setAttribute("data-theme", theme);
   const isDark = theme === "dark";
 
-  if (isDark) {
-    root.classList.add("dark");
-    root.style.colorScheme = "dark";
-    for (const [key, value] of Object.entries(DARK_THEME_VARS)) {
-      root.style.setProperty(key, value);
-    }
-  } else {
-    root.classList.remove("dark");
-    root.style.colorScheme = "light";
-    for (const [key, value] of Object.entries(LIGHT_THEME_VARS)) {
-      root.style.setProperty(key, value);
-    }
-  }
+  for (const key of LEGACY_INLINE_TOKENS) root.style.removeProperty(key);
+  root.setAttribute("data-theme", theme);
+  root.classList.toggle("dark", isDark);
+  root.style.colorScheme = isDark ? "dark" : "light";
 
   try {
     localStorage.setItem("theme", theme);

@@ -357,7 +357,7 @@ export default function TenantsAdminPage() {
       {/* Metrics Cards (click to filter) */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "0.9rem" }}>
         {[
-          { key: "all", label: "All tenants", value: stats.total, dot: "#0f172a", hint: "Total workspaces" },
+          { key: "all", label: "All tenants", value: stats.total, dot: "var(--ink)", hint: "Total workspaces" },
           { key: "active", label: "Paying", value: stats.active, dot: "#10b981", hint: "Active subscriptions" },
           { key: "trial", label: "In trial", value: stats.trial, dot: "#f59e0b", hint: "Free trial running" },
           { key: "expired", label: "Expired or suspended", value: stats.expired, dot: "#ef4444", hint: "Need attention" },

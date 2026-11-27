@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 import { ConfirmDialog } from "../_components/ConfirmDialog";
+import { SkeletonBlock } from "../_components/Loader";
 
 interface MappingEntry {
   path: string;
@@ -195,7 +196,7 @@ export default function VisualMappingPage() {
       <style>{`
         .vm-empty { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); background: var(--bg-card); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.04); }
         .vm-empty-preview { display: flex; align-items: center; justify-content: center; padding: 2.25rem; background: var(--bg-surface); border-left: 1px solid var(--border); }
-        .vm-btn-dark { display: inline-flex; align-items: center; gap: .5rem; padding: .65rem 1.2rem; border-radius: 10px; background: #0f172a; color: #fff; font-size: .88rem; font-weight: 600; text-decoration: none; box-shadow: 0 4px 12px rgba(15,23,42,.18); transition: transform .15s, box-shadow .15s; }
+        .vm-btn-dark { display: inline-flex; align-items: center; gap: .5rem; padding: .65rem 1.2rem; border-radius: 10px; background: var(--ink); color: #fff; font-size: .88rem; font-weight: 600; text-decoration: none; box-shadow: 0 4px 12px rgba(15,23,42,.18); transition: transform .15s, box-shadow .15s; }
         .vm-btn-dark:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(15,23,42,.22); }
         @media (max-width: 900px) {
           .vm-empty { grid-template-columns: minmax(0, 1fr); }
@@ -352,8 +353,14 @@ export default function VisualMappingPage() {
 
       {/* Content */}
       {loading ? (
-        <div style={{ padding: "5rem 2rem", textAlign: "center", color: "var(--text-secondary)" }}>
-          Loading pictures...
+        <div role="status" aria-label="Loading pictures" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "1rem", marginTop: "1.5rem" }}>
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <div key={i} style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+              <SkeletonBlock height={140} radius={10} />
+              <SkeletonBlock width="70%" height={12} />
+              <SkeletonBlock width="40%" height={10} />
+            </div>
+          ))}
         </div>
       ) : keys.length === 0 ? (
         /* Empty State */
@@ -368,7 +375,7 @@ export default function VisualMappingPage() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                background: "linear-gradient(145deg,#1e293b,#0f172a)",
+                background: "var(--ink-grad)",
                 color: "#fff",
                 boxShadow: "0 8px 20px rgba(15,23,42,.18)",
                 marginBottom: "1.25rem",
@@ -447,7 +454,7 @@ export default function VisualMappingPage() {
                   gap: 10,
                 }}
               >
-                <div style={{ justifySelf: "end", background: "#0f172a", color: "#fff", fontSize: "0.8rem", padding: "8px 12px", borderRadius: "14px 14px 4px 14px" }}>
+                <div style={{ justifySelf: "end", background: "var(--ink)", color: "#fff", fontSize: "0.8rem", padding: "8px 12px", borderRadius: "14px 14px 4px 14px" }}>
                   How does your pricing work?
                 </div>
                 <div style={{ justifySelf: "start", background: "var(--bg-surface)", color: "var(--text-primary)", fontSize: "0.8rem", padding: "8px 12px", borderRadius: "14px 14px 14px 4px", maxWidth: "85%" }}>
@@ -458,7 +465,7 @@ export default function VisualMappingPage() {
                     {[0.55, 0.8, 0.65].map((h, i) => (
                       <div key={i} style={{ background: "#fff", borderRadius: 8, padding: 8, boxShadow: "0 2px 6px rgba(15,23,42,.06)" }}>
                         <div style={{ height: 6, width: "60%", borderRadius: 4, background: "#cbd5e1" }} />
-                        <div style={{ height: 14, width: "45%", borderRadius: 4, background: "#0f172a", marginTop: 8, opacity: h }} />
+                        <div style={{ height: 14, width: "45%", borderRadius: 4, background: "var(--ink)", marginTop: 8, opacity: h }} />
                         <div style={{ height: 4, width: "80%", borderRadius: 4, background: "#e2e8f0", marginTop: 8 }} />
                         <div style={{ height: 4, width: "70%", borderRadius: 4, background: "#e2e8f0", marginTop: 4 }} />
                       </div>
@@ -690,7 +697,7 @@ export default function VisualMappingPage() {
                                       padding: "0.4rem 0.85rem",
                                       borderRadius: 6,
                                       border: "none",
-                                      background: "#0f172a",
+                                      background: "var(--ink)",
                                       color: "#ffffff",
                                       fontSize: "0.8rem",
                                       fontWeight: 600,

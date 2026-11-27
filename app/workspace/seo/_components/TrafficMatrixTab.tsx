@@ -44,8 +44,8 @@ function pct(count: number, total: number): number {
 }
 
 // Calm, consistent palette: colour only where it carries meaning.
-const ACCENT = "var(--accent, #8A64E9)";
-const ACCENT_SOFT = "color-mix(in srgb, var(--accent, #8A64E9) 45%, var(--bg-card))";
+const ACCENT = "var(--text-primary)";
+const ACCENT_SOFT = "color-mix(in srgb, var(--text-primary) 35%, var(--bg-card))";
 const NEUTRAL = "#cbd5e1";
 const GOOD = "#10b981";
 
@@ -367,7 +367,7 @@ export function TrafficMatrixTab({ traffic, retention, usage, loading = false }:
           </div>
         </div>
       </div>
-      <style>{`.ryx-see-convos:hover { color: var(--accent, #8A64E9) !important; } .ryx-see-convos svg { transition: transform 0.15s ease; } .ryx-see-convos:hover svg { transform: translateX(2px); }`}</style>
+      <style>{`.ryx-see-convos:hover { color: var(--text-primary) !important; } .ryx-see-convos svg { transition: transform 0.15s ease; } .ryx-see-convos:hover svg { transform: translateX(2px); }`}</style>
     </div>
   );
 }

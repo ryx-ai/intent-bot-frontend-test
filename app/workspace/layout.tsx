@@ -308,14 +308,14 @@ export default function WorkspaceLayout({
         .ws-nav:hover svg { color: var(--text-primary); }
         .ws-nav-on, .ws-nav-on:hover { background: #0f172a; color: #fff; font-weight: 600; box-shadow: 0 6px 16px rgba(15,23,42,.18); }
         .ws-nav-on svg, .ws-nav-on:hover svg { color: #fff; }
-        [data-theme="dark"] .ws-nav-on, [data-theme="dark"] .ws-nav-on:hover { background: #fff; color: #0f172a; }
-        [data-theme="dark"] .ws-nav-on svg { color: #0f172a; }
+        [data-theme="dark"] .ws-nav-on, [data-theme="dark"] .ws-nav-on:hover { background: #f2f2f2; color: #0a0a0a; box-shadow: none; }
+        [data-theme="dark"] .ws-nav-on svg { color: #0a0a0a; }
         .ws-me { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; margin-top: 8px; border-radius: 14px; border: 1px solid transparent; background: var(--bg-surface); cursor: pointer; font-family: inherit; transition: border-color .15s ease, background .15s ease; }
         .ws-me:hover, .ws-me[aria-expanded="true"] { border-color: var(--border); background: var(--bg-card); }
         .ws-menu-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: none; border-radius: 9px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 0.85rem; text-decoration: none; cursor: pointer; text-align: left; }
         .ws-menu-item:hover { background: var(--bg-surface); color: var(--text-primary); }
         .ws-menu-out { color: #dc2626; }
-        [data-theme="dark"] .ws-av { background: #fff !important; color: #0f172a !important; }
+        [data-theme="dark"] .ws-av { background: #f2f2f2 !important; color: #0a0a0a !important; }
         .ws-menu-out:hover { color: #dc2626; background: rgba(239,68,68,.06); }
         @media (max-width: 767px) {
           .workspace-sidebar {

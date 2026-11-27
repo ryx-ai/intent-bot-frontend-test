@@ -94,7 +94,7 @@ function Tile({
       style={{
         ...card,
         cursor: "pointer",
-        ...(dark ? { background: "#0f172a", borderColor: "#0f172a", color: "#fff" } : null),
+        ...(dark ? { background: "var(--ink)", borderColor: "var(--ink)", color: "#fff" } : null),
         ...style,
       }}
     >
@@ -219,7 +219,7 @@ export default function AssistantCollage({
       <Link
         href="/workspace/dashboard"
         className="ryx-tile ryx-span-week"
-        style={{ ...card, gridColumn: "span 2", gridRow: "span 2", background: "#0f172a", borderColor: "#0f172a", color: "#fff", textDecoration: "none" }}
+        style={{ ...card, gridColumn: "span 2", gridRow: "span 2", background: "var(--ink)", borderColor: "var(--ink)", color: "#fff", textDecoration: "none" }}
       >
         <div style={{ display: "flex", justifyContent: "space-between" }}>
           <span style={{ ...tag, color: "#94a3b8" }}>Results</span>

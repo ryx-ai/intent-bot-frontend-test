@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Script from "next/script";
 import { api, ApiError } from "@/lib/api";
+import { Spinner } from "../_components/Loader";
 
 interface Plan {
   id: number;
@@ -197,7 +198,7 @@ export default function BillingPage() {
         },
         prefill: {},
         theme: {
-          color: "#0f172a",
+          color: "var(--ink)",
         },
         modal: {
           ondismiss: function () {
@@ -220,8 +221,8 @@ export default function BillingPage() {
 
   if (loading && !subStatus) {
     return (
-      <div style={{ width: "100%", maxWidth: 1360, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
-        <p style={{ color: "var(--text-secondary)" }}>Loading billing & subscription details...</p>
+      <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Spinner size={32} stroke={3} label="Loading your plan…" />
       </div>
     );
   }
@@ -354,7 +355,7 @@ export default function BillingPage() {
                   display: "flex",
                   flexDirection: "column",
                   position: "relative",
-                  border: isCurrent ? `1.5px solid ${isCurrentExpired ? "rgba(239,68,68,.5)" : "#0f172a"}` : card.border,
+                  border: isCurrent ? `1.5px solid ${isCurrentExpired ? "rgba(239,68,68,.5)" : "var(--ink)"}` : card.border,
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
@@ -367,7 +368,7 @@ export default function BillingPage() {
                         letterSpacing: "0.04em",
                         padding: "3px 9px",
                         borderRadius: 999,
-                        background: isCurrentExpired ? "rgba(239,68,68,.08)" : "#0f172a",
+                        background: isCurrentExpired ? "rgba(239,68,68,.08)" : "var(--ink)",
                         color: isCurrentExpired ? "#dc2626" : "#fff",
                         border: isCurrentExpired ? "1px solid rgba(239,68,68,.3)" : "none",
                       }}
@@ -413,7 +414,7 @@ export default function BillingPage() {
                     padding: "0.75rem 1rem",
                     borderRadius: 11,
                     border: "none",
-                    background: disabled && !isProcessing ? "var(--bg-hover)" : "#0f172a",
+                    background: disabled && !isProcessing ? "var(--bg-hover)" : "var(--ink)",
                     color: disabled && !isProcessing ? "var(--text-muted)" : "#fff",
                     fontWeight: 600,
                     fontFamily: "inherit",

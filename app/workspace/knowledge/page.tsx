@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { ConfirmDialog } from "../_components/ConfirmDialog";
+import { Spinner } from "../_components/Loader";
 
 interface KBFile {
   filename: string;
@@ -404,7 +405,7 @@ export default function KnowledgeLakePage() {
     setReindexingWebsiteId(id);
     try {
       await api.post(`/api/knowledge/websites/${id}/reindex`);
-      showToast("Reading your website in background...", "info");
+      showToast("Reading your website in the background…", "info");
       await loadWebsites();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "Failed to read website";
@@ -1217,9 +1218,22 @@ export default function KnowledgeLakePage() {
               )}
 
               {primaryWebsite.indexing_status === "failed" && (
-                <div style={{ fontSize: "0.82rem", color: "var(--error)", marginTop: "0.75rem" }}>
-                  {"We couldn't open your website. Check that it's online, then try again."}
-                  {primaryWebsite.last_crawl_error ? ` (Reason: ${primaryWebsite.last_crawl_error})` : ""}
+                <div
+                  style={{
+                    marginTop: "0.85rem",
+                    padding: "0.7rem 0.85rem",
+                    borderRadius: 10,
+                    background: "rgba(239,68,68,0.06)",
+                    border: "1px solid rgba(239,68,68,0.18)",
+                    fontSize: "0.82rem",
+                    lineHeight: 1.55,
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  <strong style={{ color: "var(--text-primary)" }}>We couldn&apos;t read your website last time.</strong>{" "}
+                  {/javascript|meaningful content/i.test(primaryWebsite.last_crawl_error || "")
+                    ? "It loads its content slowly, and we stopped before it appeared. Press Try again."
+                    : "Make sure it's online and public, then press Try again."}
                 </div>
               )}
             </div>
@@ -1618,26 +1632,44 @@ export default function KnowledgeLakePage() {
             position: "fixed",
             bottom: 24,
             right: 24,
-            background:
-              toast.type === "error"
-                ? "linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)"
-                : toast.type === "success"
-                ? "linear-gradient(135deg, #10b981 0%, #047857 100%)"
-                : "#0f172a",
-            color: "#fff",
-            padding: "0.85rem 1.35rem",
-            borderRadius: 8,
-            fontWeight: 600,
-            fontSize: "0.88rem",
-            boxShadow: "0 8px 30px rgba(0, 0, 0, 0.3)",
+            background: "var(--bg-card)",
+            color: "var(--text-primary)",
+            border: "1px solid var(--border)",
+            padding: "0.75rem 1.1rem 0.75rem 0.8rem",
+            borderRadius: 12,
+            fontWeight: 500,
+            fontSize: "0.86rem",
+            boxShadow: "var(--shadow-lg)",
             display: "flex",
             alignItems: "center",
-            gap: "0.75rem",
+            gap: "0.7rem",
+            maxWidth: 380,
             zIndex: 9999,
           }}
         >
-          <span>{toast.type === "error" ? "⚠️" : toast.type === "success" ? "✓" : "ℹ️"}</span>
-          <span>{toast.message}</span>
+          <span
+            aria-hidden="true"
+            style={{
+              width: 28,
+              height: 28,
+              flexShrink: 0,
+              borderRadius: 8,
+              display: "grid",
+              placeItems: "center",
+              background:
+                toast.type === "error" ? "rgba(239,68,68,0.1)" : toast.type === "success" ? "rgba(16,185,129,0.1)" : "var(--bg-sidebar)",
+              color: toast.type === "error" ? "var(--error)" : toast.type === "success" ? "var(--success)" : "var(--text-primary)",
+            }}
+          >
+            {toast.type === "info" ? (
+              <Spinner size={15} stroke={2.2} />
+            ) : (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                {toast.type === "success" ? <path d="M20 6 9 17l-5-5" /> : <path d="M12 8v5M12 16.5v.01" />}
+              </svg>
+            )}
+          </span>
+          <span role="status">{toast.message}</span>
         </div>
       )}
     </div>

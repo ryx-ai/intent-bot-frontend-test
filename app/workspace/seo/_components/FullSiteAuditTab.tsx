@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { SkeletonBlock, Spinner } from "../../_components/Loader";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -578,20 +579,60 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
 
   if (loading) {
     return (
-      <div role="status" style={{ padding: "6rem 2rem", display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-        <style>{`@keyframes wh-spin { to { transform: rotate(360deg); } }`}</style>
+      <div role="status" aria-label="Loading" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        {/* status row */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <SkeletonBlock width={230} height={14} />
+          <div style={{ display: "flex", gap: 10 }}>
+            <SkeletonBlock width={84} height={36} radius={10} />
+            <SkeletonBlock width={130} height={36} radius={10} />
+          </div>
+        </div>
+        {/* results card */}
         <div
-          aria-hidden="true"
           style={{
-            width: 28,
-            height: 28,
-            borderRadius: "50%",
-            border: "2.5px solid var(--border)",
-            borderTopColor: "var(--text-primary)",
-            animation: "wh-spin 0.8s linear infinite",
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            borderRadius: 16,
+            padding: "1.75rem",
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+            gap: "2rem",
           }}
-        />
-        <div style={{ fontSize: "0.88rem", fontWeight: 500, color: "var(--text-muted)" }}>Loading…</div>
+        >
+          <div style={{ display: "flex", gap: "1.25rem", alignItems: "center" }}>
+            <SkeletonBlock width={84} height={84} radius={999} style={{ flexShrink: 0 }} />
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
+              <SkeletonBlock width="85%" height={16} />
+              <SkeletonBlock width="60%" height={16} />
+              <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                <SkeletonBlock width={76} height={24} radius={999} />
+                <SkeletonBlock width={86} height={24} radius={999} />
+                <SkeletonBlock width={108} height={24} radius={999} />
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                <SkeletonBlock width={`${45 - i * 5}%`} height={12} />
+                <SkeletonBlock height={5} radius={999} />
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* list card */}
+        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 16, padding: "1.5rem", display: "flex", flexDirection: "column", gap: 14 }}>
+          {[0, 1, 2].map((i) => (
+            <div key={i} style={{ display: "flex", gap: 14, alignItems: "center" }}>
+              <SkeletonBlock width={32} height={32} radius={999} style={{ flexShrink: 0 }} />
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7 }}>
+                <SkeletonBlock width={`${55 - i * 10}%`} height={13} />
+                <SkeletonBlock width={`${35 - i * 5}%`} height={11} />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -1042,12 +1083,10 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "1.75rem",
               marginBottom: "1.25rem",
-              animation: "spin 2s linear infinite",
             }}
           >
-            <span aria-hidden="true" style={{ display: "inline-block", width: 24, height: 24, borderRadius: "50%", border: "2.5px solid var(--border)", borderTopColor: "var(--text-primary)" }} />
+            <Spinner size={30} stroke={3} />
           </div>
           <h2 style={{ fontSize: "1.3rem", fontWeight: 800, color: "var(--text-primary)", margin: "0 0 0.5rem 0" }}>
             Checking {selectedWebsite?.domain}…
@@ -1094,6 +1133,76 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
     }
     return `Your website is in great shape! All ${currentAudit?.total_passed || 0} checks passed.`;
   })();
+
+  // ── Finished, but no page could be read: say so instead of "great shape" ──
+  if (currentAudit && (currentAudit.pages_crawled || 0) === 0) {
+    const reason = pages.find((p) => p.error)?.error || "";
+    const looksLikeJsSite = /javascript|meaningful content/i.test(reason);
+    return (
+      <div
+        style={{
+          background: "var(--bg-card)",
+          border: "1px solid var(--border)",
+          borderRadius: 16,
+          padding: "2.25rem 2rem",
+          display: "flex",
+          gap: "1.25rem",
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            flexShrink: 0,
+            display: "grid",
+            placeItems: "center",
+            background: "rgba(239,68,68,0.08)",
+            color: "var(--error)",
+          }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 7v6M12 16.5v.01" />
+          </svg>
+        </div>
+        <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+          <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+            We couldn&apos;t read any pages of {selectedWebsite?.domain || "your website"}
+          </h2>
+          <p style={{ fontSize: "0.88rem", color: "var(--text-secondary)", lineHeight: 1.6, margin: "0.4rem 0 0", maxWidth: 620 }}>
+            {looksLikeJsSite
+              ? "Your site loads its content slowly with JavaScript, and the check stopped before anything appeared. Please run the check again."
+              : "The website didn't answer the way we expected. Make sure it is online and public, then run the check again."}
+          </p>
+          {reason && (
+            <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", margin: "0.6rem 0 0" }}>Details: {reason}</p>
+          )}
+          <button
+            type="button"
+            onClick={handleStartAudit}
+            style={{
+              marginTop: "1.1rem",
+              background: "var(--text-primary)",
+              color: "var(--bg-card)",
+              border: "none",
+              borderRadius: 10,
+              padding: "0.7rem 1.2rem",
+              fontSize: "0.88rem",
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            Check again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ── Render Completed Audit Results ─────────────────────────────────────────
 

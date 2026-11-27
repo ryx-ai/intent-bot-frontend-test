@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { Spinner } from "../../../_components/Loader";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -489,13 +490,8 @@ export default function AuditDetailPage() {
 
   if (loading) {
     return (
-      <div style={{ padding: "6rem 2rem", textAlign: "center", color: "var(--text-muted)" }}>
-        <div style={{ marginBottom: "1rem", animation: "spin 0.8s linear infinite", display: "inline-flex" }}>
-          <span aria-hidden="true" style={{ display: "inline-block", width: 24, height: 24, borderRadius: "50%", border: "2.5px solid var(--border)", borderTopColor: "var(--text-primary)" }} />
-        </div>
-        <div style={{ fontSize: "1rem", fontWeight: 600, color: "var(--text-primary)" }}>
-          Loading report…
-        </div>
+      <div style={{ padding: "6rem 2rem", display: "flex", justifyContent: "center" }}>
+        <Spinner size={30} stroke={3} label="Loading report…" />
       </div>
     );
   }

@@ -128,28 +128,99 @@ async function request<T = unknown>(
   return {} as T;
 }
 
+// ── Faster page switches ─────────────────────────────────────
+// The backend is far away (each request ~0.5 s from India), and most pages
+// ask for the same few things (account, plan, settings). So:
+//   1. identical GETs that are already on their way share one request;
+//   2. a few slow-changing answers are remembered for a short time.
+// Any change (POST/PUT/PATCH/DELETE) forgets everything remembered, so a
+// save is always followed by fresh data. Endpoints that pages poll for live
+// progress (website reading, health checks, product imports) are never
+// remembered.
+const REMEMBERED: [RegExp, number][] = [
+  [/^\/api\/auth\/me$/, 30_000],
+  [/^\/api\/payments\/subscription-status$/, 30_000],
+  [/^\/api\/payments\/plans$/, 30_000],
+  [/^\/api\/config\/bot$/, 30_000],
+  [/^\/api\/config\/rules$/, 30_000],
+  [/^\/api\/config\/cal\/list$/, 30_000],
+  [/^\/api\/config\/widget-status$/, 30_000],
+  [/^\/api\/metrics\/config$/, 30_000],
+  [/^\/api\/analytics\/app-performance$/, 30_000],
+  [/^\/api\/knowledge\/website-suggestions$/, 30_000],
+  // Polled every 3 s during a product import: remember only briefly, so a
+  // page can start it early without hiding import progress.
+  [/^\/api\/shop\/store$/, 4_000],
+];
+const inFlight = new Map<string, Promise<unknown>>();
+const remembered = new Map<string, { at: number; data: unknown }>();
+
+function copy<T>(data: T): T {
+  // Callers may change what they get back; keep the remembered copy clean.
+  try {
+    return typeof structuredClone === "function" ? structuredClone(data) : JSON.parse(JSON.stringify(data));
+  } catch {
+    return data;
+  }
+}
+
+function forgetRemembered() {
+  remembered.clear();
+}
+
+async function cachedGet<T>(endpoint: string): Promise<T> {
+  const ttl = REMEMBERED.find(([re]) => re.test(endpoint))?.[1] ?? 0;
+  const canRemember = ttl > 0;
+  if (canRemember) {
+    const hit = remembered.get(endpoint);
+    if (hit && Date.now() - hit.at < ttl) return copy(hit.data as T);
+  }
+  const pending = inFlight.get(endpoint);
+  if (pending) return copy((await pending) as T);
+
+  const p = request<T>(endpoint);
+  inFlight.set(endpoint, p);
+  try {
+    const data = await p;
+    if (canRemember) remembered.set(endpoint, { at: Date.now(), data: copy(data) });
+    return copy(data);
+  } finally {
+    inFlight.delete(endpoint);
+  }
+}
+
+function changing<T>(run: () => Promise<T>): Promise<T> {
+  forgetRemembered();
+  return run().finally(forgetRemembered);
+}
+
 // ── Convenience methods ──────────────────────────────────────
 
 export const api = {
-  get: <T = unknown>(endpoint: string) => request<T>(endpoint),
+  get: <T = unknown>(endpoint: string) => cachedGet<T>(endpoint),
+
+  /** Start loading something a page will need soon (fire and forget). */
+  prefetch: (...endpoints: string[]) => {
+    for (const e of endpoints) void cachedGet(e).catch(() => {});
+  },
 
   post: <T = unknown>(endpoint: string, data?: unknown) =>
-    request<T>(endpoint, { method: "POST", json: data }),
+    changing(() => request<T>(endpoint, { method: "POST", json: data })),
 
   patch: <T = unknown>(endpoint: string, data?: unknown) =>
-    request<T>(endpoint, { method: "PATCH", json: data }),
+    changing(() => request<T>(endpoint, { method: "PATCH", json: data })),
 
   put: <T = unknown>(endpoint: string, data?: unknown) =>
-    request<T>(endpoint, { method: "PUT", json: data }),
+    changing(() => request<T>(endpoint, { method: "PUT", json: data })),
 
   delete: <T = unknown>(endpoint: string) =>
-    request<T>(endpoint, { method: "DELETE" }),
+    changing(() => request<T>(endpoint, { method: "DELETE" })),
 
   // Multipart upload — body is set directly so the browser writes the
   // correct boundary header. Routes through the same `request()` so it
   // inherits the global 401 redirect, ApiError, and credential handling.
   postFormData: <T = unknown>(endpoint: string, formData: FormData) =>
-    request<T>(endpoint, { method: "POST", body: formData }),
+    changing(() => request<T>(endpoint, { method: "POST", body: formData })),
 
   // Multipart upload that returns the raw Response. Use when the caller needs
   // the body as Blob/stream (e.g. file conversion endpoints) rather than JSON.

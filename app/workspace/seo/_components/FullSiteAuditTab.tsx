@@ -252,26 +252,34 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
 
   // ── Load websites + audit history ──────────────────────────────────────────
 
-  const loadWebsites = useCallback(async () => {
+  // Latest callback from the parent, kept in a ref so a new function on each
+  // parent render doesn't restart the first load.
+  const onWebsiteLoadedRef = useRef(onWebsiteLoaded);
+  useEffect(() => {
+    onWebsiteLoadedRef.current = onWebsiteLoaded;
+  }, [onWebsiteLoaded]);
+
+  const loadWebsites = useCallback(async (): Promise<number | null> => {
     try {
       const res = await api.get<{ websites: ConnectedWebsite[] }>("/api/knowledge/websites");
       const authorized = (res.websites || []).filter((w) => w.is_authorized);
       setWebsites(authorized);
       if (authorized.length > 0) {
         const primary = authorized.find((w) => w.is_primary) || authorized[0];
-        if (!selectedWebsiteId) {
-          setSelectedWebsiteId(primary.id);
-        }
-        if (onWebsiteLoaded) {
-          onWebsiteLoaded(primary);
-        }
-      } else if (onWebsiteLoaded) {
-        onWebsiteLoaded(null);
+        setSelectedWebsiteId((prev) => prev ?? primary.id);
+        onWebsiteLoadedRef.current?.(primary);
+        return primary.id;
+      } else {
+        onWebsiteLoadedRef.current?.(null);
       }
     } catch (err) {
       console.error("Failed to load websites", err);
     }
-  }, [selectedWebsiteId, onWebsiteLoaded]);
+    return null;
+  }, []);
+
+  // Website whose latest report was already loaded during the first load.
+  const latestLoadedForRef = useRef<number | null>(null);
 
   const loadAuditHistory = useCallback(async () => {
     try {
@@ -287,7 +295,18 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
     let cancelled = false;
     const init = async () => {
       try {
-        await Promise.all([loadWebsites(), loadAuditHistory()]);
+        const [primaryId] = await Promise.all([loadWebsites(), loadAuditHistory()]);
+        if (primaryId && !cancelled) {
+          try {
+            const res = await api.get<SiteAudit & { audit?: SiteAudit }>(`/api/site-audit/latest/${primaryId}`);
+            if (!cancelled) {
+              setCurrentAudit(res && res.id ? res : null);
+              latestLoadedForRef.current = primaryId;
+            }
+          } catch {
+            if (!cancelled) setCurrentAudit(null);
+          }
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -300,7 +319,9 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
 
   useEffect(() => {
     let cancelled = false;
-    if (selectedWebsiteId) {
+    if (selectedWebsiteId && latestLoadedForRef.current === selectedWebsiteId) {
+      latestLoadedForRef.current = null; // handled by the first load
+    } else if (selectedWebsiteId) {
       void (async () => {
         try {
           const res = await api.get<SiteAudit & { audit?: SiteAudit }>(

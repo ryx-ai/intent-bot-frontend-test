@@ -321,6 +321,9 @@ export default function TestingPage() {
 
   useEffect(() => {
     async function load() {
+      // The panels below the page load these once the page is ready; start
+      // them now so they arrive together instead of one round after another.
+      api.prefetch("/api/analytics/app-performance", "/api/knowledge/website-suggestions", "/api/shop/store");
       try {
         const [dataRes, meRes, credsRes, statusRes, rulesRes] = await Promise.allSettled([
           api.get<{

@@ -101,6 +101,9 @@ function StoreIcon({ host }: { host: string }) {
 export default function ShopProductsCard({ wide = false }: { wide?: boolean } = {}) {
   const [data, setData] = useState<StoreResponse | null>(null);
   const [url, setUrl] = useState("");
+  // The website the chat snippet runs on: the shop address, no typing needed.
+  const [siteOrigin, setSiteOrigin] = useState<string | null>(null);
+  const [editingAddress, setEditingAddress] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [password, setPassword] = useState("");
@@ -133,6 +136,19 @@ export default function ShopProductsCard({ wide = false }: { wide?: boolean } = 
     }
     await tick();
   }, [load]);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .get<{ origin?: string | null }>("/api/config/widget-status")
+      .then((r) => {
+        if (alive && r.origin) setSiteOrigin(r.origin);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     // Initial load (and resume polling if an import is already running).
@@ -168,6 +184,7 @@ export default function ShopProductsCard({ wide = false }: { wide?: boolean } = 
     return run(async () => {
       await api.post("/api/shop/store", body);
       setPassword("");
+      setEditingAddress(false);
     });
   }
 
@@ -273,7 +290,7 @@ export default function ShopProductsCard({ wide = false }: { wide?: boolean } = 
           <div>
             <div style={{ fontSize: "0.95rem", fontWeight: 600, color: C.textPrimary }}>Connect your store</div>
             <p style={{ color: C.textSecondary, fontSize: "0.8rem", margin: "4px 0 0", lineHeight: 1.5 }}>
-              We&apos;ll import your products (photo, price, stock and link) so the assistant can recommend them. Works with Shopify and WooCommerce. Refreshes daily.
+              We&apos;ll import your products (photo, price, stock and link) so the assistant can recommend them. Works with Shopify, WooCommerce and most other shops. Refreshes daily.
             </p>
           </div>
         )}
@@ -296,6 +313,54 @@ export default function ShopProductsCard({ wide = false }: { wide?: boolean } = 
         )}
 
         {/* Address + action */}
+        {!editingAddress && (store || siteOrigin) && !passwordTyped ? (
+          <div style={{ marginTop: 16 }}>
+            {store ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0, fontSize: "0.8rem", color: C.textSecondary }}>
+                  Reading products from <strong style={{ color: C.textPrimary }}>{host}</strong>
+                </div>
+                <button
+                  type="button"
+                  title={importing ? "Syncing…" : "Sync products now"}
+                  aria-label="Sync products now"
+                  className="ryx-sync"
+                  style={{
+                    flex: "none", width: 40, height: 38, borderRadius: 10, border: `1px solid ${C.border}`,
+                    background: C.bgCard, color: C.textPrimary, display: "inline-flex", alignItems: "center",
+                    justifyContent: "center", cursor: busy || importing ? "default" : "pointer",
+                  }}
+                  disabled={busy || importing}
+                  onClick={() => run(() => api.post("/api/shop/store/sync"))}
+                >
+                  <svg className={busy || importing ? "ryx-spin" : undefined} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M21 12a9 9 0 1 1-3-6.7L21 8" />
+                    <path d="M21 3v5h-5" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                style={{ ...button(true), width: "100%", borderRadius: 10, padding: "0.75rem 1.1rem" }}
+                disabled={busy}
+                onClick={() => connect({ url: siteOrigin! })}
+              >
+                Import products from {siteOrigin!.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setUrl(store?.store_url || siteOrigin || "");
+                setEditingAddress(true);
+              }}
+              style={{ ...linkBtn, marginTop: 8, fontSize: "0.76rem", color: C.textMuted }}
+            >
+              My shop is at a different address
+            </button>
+          </div>
+        ) : (
         <div style={{ marginTop: 16 }}>
           <div style={sectionLabel}>Store address</div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -347,6 +412,7 @@ export default function ShopProductsCard({ wide = false }: { wide?: boolean } = 
             )}
           </div>
         </div>
+        )}
 
         {/* Password-protected store */}
         <div

@@ -70,7 +70,7 @@ function ResetPasswordContent() {
             fontSize: 14,
             fontWeight: 600,
             color: "#FFFFFF",
-            background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)",
+            background: "#0f172a",
             textDecoration: "none",
             textAlign: "center",
           }}
@@ -326,7 +326,7 @@ function ResetPasswordContent() {
           fontSize: 14,
           fontWeight: 600,
           color: "#ffffff",
-          background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)",
+          background: "#0f172a",
           border: "none",
           cursor: loading ? "not-allowed" : "pointer",
           opacity: loading ? 0.7 : 1,

@@ -490,11 +490,11 @@ export default function AuditDetailPage() {
   if (loading) {
     return (
       <div style={{ padding: "6rem 2rem", textAlign: "center", color: "var(--text-muted)" }}>
-        <div style={{ fontSize: "2rem", marginBottom: "1rem", animation: "spin 1.5s linear infinite", display: "inline-block" }}>
-          🔄
+        <div style={{ marginBottom: "1rem", animation: "spin 0.8s linear infinite", display: "inline-flex" }}>
+          <span aria-hidden="true" style={{ display: "inline-block", width: 24, height: 24, borderRadius: "50%", border: "2.5px solid var(--border)", borderTopColor: "var(--text-primary)" }} />
         </div>
         <div style={{ fontSize: "1rem", fontWeight: 600, color: "var(--text-primary)" }}>
-          Loading Audit Report #{auditId}...
+          Loading report…
         </div>
       </div>
     );
@@ -518,7 +518,7 @@ export default function AuditDetailPage() {
             gap: 6,
             padding: "0.6rem 1.25rem",
             borderRadius: 8,
-            background: "linear-gradient(135deg, #6366F1, #8B5CF6)",
+            background: "#0f172a",
             color: "#fff",
             fontWeight: 600,
             fontSize: "0.88rem",
@@ -641,7 +641,7 @@ export default function AuditDetailPage() {
             style={{
               padding: "0.55rem 1.1rem",
               borderRadius: 8,
-              background: "linear-gradient(135deg, #6366F1, #8B5CF6)",
+              background: "#0f172a",
               color: "#fff",
               fontSize: "0.85rem",
               fontWeight: 700,
@@ -854,7 +854,7 @@ export default function AuditDetailPage() {
                       padding: "4px 12px",
                       borderRadius: 20,
                       border: "1px solid",
-                      borderColor: pageFilter === f ? "#6366F1" : "var(--border)",
+                      borderColor: pageFilter === f ? "#0f172a" : "var(--border)",
                       background: pageFilter === f ? "color-mix(in srgb, var(--text-primary) 8%, transparent)" : "transparent",
                       color: pageFilter === f ? "#818CF8" : "var(--text-muted)",
                       fontSize: "0.75rem",
@@ -890,7 +890,7 @@ export default function AuditDetailPage() {
                       borderBottom: "1px solid var(--border)",
                       background: selectedPage?.id === page.id ? "color-mix(in srgb, var(--text-primary) 4%, transparent)" : "transparent",
                       border: "none",
-                      borderLeft: selectedPage?.id === page.id ? "3px solid #6366F1" : "3px solid transparent",
+                      borderLeft: selectedPage?.id === page.id ? "3px solid #0f172a" : "3px solid transparent",
                       textAlign: "left",
                       cursor: "pointer",
                       transition: "background 0.15s",
@@ -1222,7 +1222,7 @@ export default function AuditDetailPage() {
                     padding: "4px 12px",
                     borderRadius: 20,
                     border: "1px solid",
-                    borderColor: issueFilter === f ? "#6366F1" : "var(--border)",
+                    borderColor: issueFilter === f ? "#0f172a" : "var(--border)",
                     background: issueFilter === f ? "color-mix(in srgb, var(--text-primary) 8%, transparent)" : "transparent",
                     color: issueFilter === f ? "#818CF8" : "var(--text-muted)",
                     fontSize: "0.75rem",

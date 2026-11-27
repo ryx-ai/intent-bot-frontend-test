@@ -578,20 +578,20 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
 
   if (loading) {
     return (
-      <div style={{ padding: "6rem 2rem", textAlign: "center", color: "var(--text-muted)" }}>
+      <div role="status" style={{ padding: "6rem 2rem", display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+        <style>{`@keyframes wh-spin { to { transform: rotate(360deg); } }`}</style>
         <div
+          aria-hidden="true"
           style={{
-            fontSize: "2rem",
-            marginBottom: "1rem",
-            animation: "spin 1.5s linear infinite",
-            display: "inline-block",
+            width: 28,
+            height: 28,
+            borderRadius: "50%",
+            border: "2.5px solid var(--border)",
+            borderTopColor: "var(--text-primary)",
+            animation: "wh-spin 0.8s linear infinite",
           }}
-        >
-          🔄
-        </div>
-        <div style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>
-          Checking website health…
-        </div>
+        />
+        <div style={{ fontSize: "0.88rem", fontWeight: 500, color: "var(--text-muted)" }}>Loading…</div>
       </div>
     );
   }
@@ -1047,7 +1047,7 @@ export function FullSiteAuditTab({ onWebsiteLoaded }: FullSiteAuditTabProps = {}
               animation: "spin 2s linear infinite",
             }}
           >
-            🔄
+            <span aria-hidden="true" style={{ display: "inline-block", width: 24, height: 24, borderRadius: "50%", border: "2.5px solid var(--border)", borderTopColor: "var(--text-primary)" }} />
           </div>
           <h2 style={{ fontSize: "1.3rem", fontWeight: 800, color: "var(--text-primary)", margin: "0 0 0.5rem 0" }}>
             Checking {selectedWebsite?.domain}…

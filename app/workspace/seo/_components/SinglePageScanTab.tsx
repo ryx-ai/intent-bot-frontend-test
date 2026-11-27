@@ -150,7 +150,7 @@ export function SinglePageScanTab({ initialSeo, defaultUrl, isConfigured }: Sing
           >
             {analyzing ? (
               <>
-                <span style={{ animation: "spin 1s linear infinite", display: "inline-block" }}>🔄</span>
+                <span style={{ animation: "spin 1s linear infinite", display: "inline-block" }}><span aria-hidden="true" style={{ display: "inline-block", width: 12, height: 12, borderRadius: "50%", border: "2px solid currentColor", borderTopColor: "transparent", verticalAlign: "-1px" }} /></span>
                 Analyzing Page...
               </>
             ) : (

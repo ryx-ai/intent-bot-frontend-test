@@ -1623,7 +1623,7 @@ export default function KnowledgeLakePage() {
                 ? "linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)"
                 : toast.type === "success"
                 ? "linear-gradient(135deg, #10b981 0%, #047857 100%)"
-                : "linear-gradient(135deg, #8A64E9 0%, #6366f1 100%)",
+                : "#0f172a",
             color: "#fff",
             padding: "0.85rem 1.35rem",
             borderRadius: 8,

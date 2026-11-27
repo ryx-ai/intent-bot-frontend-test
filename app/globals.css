@@ -10,7 +10,7 @@
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-muted: #64748b;
-  --accent: #4f46e5;
+  --accent: #0f172a;
   --accent-light: rgba(15, 23, 42, 0.06);
   --accent-dim: rgba(15, 23, 42, 0.045);
   --accent-glow: rgba(15, 23, 42, 0.08);
@@ -98,3 +98,5 @@ body {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+@keyframes spin { to { transform: rotate(360deg); } }

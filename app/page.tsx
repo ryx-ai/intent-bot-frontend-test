@@ -180,19 +180,32 @@ export default function AuthPage() {
       />
 
       <style>{`
-        .lg-wrap { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); background: #ffffff; }
-        .lg-brand { position: relative; overflow: hidden; background: #0f172a; color: #e2e8f0; padding: 44px 56px; display: flex; flex-direction: column; justify-content: space-between; }
+        .lg-wrap {
+          --lg-primary: #0f172a; --lg-on-primary: #ffffff; --lg-primary-hover: #1e293b;
+          --lg-text: #0f172a; --lg-muted: #64748b; --lg-faint: #94a3b8; --lg-label: #334155;
+          --lg-surface: #ffffff; --lg-side: #f8fafc; --lg-soft: #eef2f6; --lg-line: #e2e8f0;
+          --lg-input-bg: #ffffff; --lg-brand: #0f172a; --lg-ok-soft: #ecfdf5;
+          min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); background: var(--lg-surface);
+        }
+        [data-theme="dark"] .lg-wrap {
+          --lg-primary: #e7e5e1; --lg-on-primary: #121212; --lg-primary-hover: #ffffff;
+          --lg-text: #e7e5e1; --lg-muted: #a3a19c; --lg-faint: #77756f; --lg-label: #c9c6c0;
+          --lg-surface: #1a1a1a; --lg-side: #121212; --lg-soft: #1f1f1f; --lg-line: #2a2a2a;
+          --lg-input-bg: #171717; --lg-brand: #171717; --lg-ok-soft: rgba(16,185,129,.12);
+        }
+        [data-theme="dark"] .lg-mobile-logo img { filter: invert(1) brightness(1.6); }
+        .lg-brand { position: relative; overflow: hidden; background: var(--lg-brand); color: #e2e8f0; padding: 44px 56px; display: flex; flex-direction: column; justify-content: space-between; }
         .lg-brand::before { content: ""; position: absolute; inset: 0; background-image: radial-gradient(rgba(255,255,255,.06) 1px, transparent 1px); background-size: 22px 22px; pointer-events: none; }
-        .lg-side { display: flex; align-items: center; justify-content: center; padding: 40px 24px; background: #f8fafc; }
+        .lg-side { display: flex; align-items: center; justify-content: center; padding: 40px 24px; background: var(--lg-side); }
         .lg-card { width: 100%; max-width: 400px; }
-        .lg-input { width: 100%; box-sizing: border-box; border-radius: 12px; border: 1px solid #e2e8f0; padding: 12px 14px; font-size: 14px; color: #0f172a; background: #ffffff; outline: none; font-family: inherit; transition: border-color .15s, box-shadow .15s; }
-        .lg-input::placeholder { color: #94a3b8; }
-        .lg-input:focus { border-color: #0f172a; box-shadow: 0 0 0 3px rgba(15,23,42,.08); }
-        .lg-label { display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 7px; }
-        .lg-link { background: none; border: none; padding: 0; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600; color: #0f172a; }
+        .lg-input { width: 100%; box-sizing: border-box; border-radius: 12px; border: 1px solid var(--lg-line); padding: 12px 14px; font-size: 14px; color: var(--lg-text); background: var(--lg-input-bg); outline: none; font-family: inherit; transition: border-color .15s, box-shadow .15s; }
+        .lg-input::placeholder { color: var(--lg-faint); }
+        .lg-input:focus { border-color: var(--lg-text); box-shadow: 0 0 0 3px color-mix(in srgb, var(--lg-text) 10%, transparent); }
+        .lg-label { display: block; font-size: 13px; font-weight: 600; color: var(--lg-label); margin-bottom: 7px; }
+        .lg-link { background: none; border: none; padding: 0; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--lg-text); }
         .lg-link:hover { text-decoration: underline; }
-        .lg-primary { width: 100%; border-radius: 12px; padding: 13px 0; font-size: 14px; font-weight: 600; color: #ffffff; border: none; font-family: inherit; transition: background .15s, transform .1s; }
-        .lg-primary:hover:not(:disabled) { background: #1e293b !important; }
+        .lg-primary { width: 100%; border-radius: 12px; padding: 13px 0; font-size: 14px; font-weight: 600; color: var(--lg-on-primary); border: none; font-family: inherit; transition: background .15s, transform .1s; }
+        .lg-primary:hover:not(:disabled) { background: var(--lg-primary-hover) !important; }
         .lg-primary:active:not(:disabled) { transform: scale(.99); }
         .lg-tab { flex: 1; padding: 9px 0; font-size: 13px; font-weight: 600; border-radius: 9px; border: none; cursor: pointer; font-family: inherit; transition: all .15s; }
         .lg-bubble { max-width: 85%; padding: 10px 14px; border-radius: 16px; font-size: 13px; line-height: 1.5; }
@@ -270,10 +283,10 @@ export default function AuthPage() {
             </div>
 
             <div style={{ marginBottom: 26 }}>
-              <h1 style={{ fontSize: 28, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.03em", margin: 0 }}>
+              <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--lg-text)", letterSpacing: "-0.03em", margin: 0 }}>
                 {mode === "signin" ? "Welcome back" : mode === "signup" ? "Create your account" : "Reset your password"}
               </h1>
-              <p style={{ fontSize: 14, color: "#64748b", margin: "8px 0 0" }}>
+              <p style={{ fontSize: 14, color: "var(--lg-muted)", margin: "8px 0 0" }}>
                 {mode === "signin"
                   ? "Sign in to manage your assistant."
                   : mode === "signup"
@@ -285,7 +298,7 @@ export default function AuthPage() {
             {mode !== "forgot" && (
               <>
                 {/* Tab Switcher */}
-                <div style={{ display: "flex", borderRadius: 12, background: "#eef2f6", padding: 4, marginBottom: 22 }}>
+                <div style={{ display: "flex", borderRadius: 12, background: "var(--lg-soft)", padding: 4, marginBottom: 22 }}>
                   {(["signin", "signup"] as const).map((m) => (
                     <button
                       key={m}
@@ -293,9 +306,9 @@ export default function AuthPage() {
                       className="lg-tab"
                       onClick={() => setMode(m)}
                       style={{
-                        background: mode === m ? "#ffffff" : "transparent",
-                        color: mode === m ? "#0f172a" : "#64748b",
-                        boxShadow: mode === m ? "0 1px 2px rgba(15,23,42,.08), 0 0 0 1px #e2e8f0" : "none",
+                        background: mode === m ? "var(--lg-surface)" : "transparent",
+                        color: mode === m ? "var(--lg-text)" : "var(--lg-muted)",
+                        boxShadow: mode === m ? "0 1px 2px rgba(15,23,42,.08), 0 0 0 1px var(--lg-line)" : "none",
                       }}
                     >
                       {m === "signin" ? "Sign in" : "Sign up"}
@@ -308,10 +321,10 @@ export default function AuthPage() {
                   <div id="googleBtnContainer" style={{ width: "100%", maxWidth: 320, display: "flex", justifyContent: "center" }} />
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", margin: "20px 0", color: "#94a3b8", fontSize: 12 }}>
-                  <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
+                <div style={{ display: "flex", alignItems: "center", margin: "20px 0", color: "var(--lg-faint)", fontSize: 12 }}>
+                  <div style={{ flex: 1, height: 1, background: "var(--lg-line)" }} />
                   <span style={{ padding: "0 12px" }}>or with email</span>
-                  <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
+                  <div style={{ flex: 1, height: 1, background: "var(--lg-line)" }} />
                 </div>
               </>
             )}
@@ -323,7 +336,7 @@ export default function AuthPage() {
                     width: 52,
                     height: 52,
                     borderRadius: 16,
-                    background: "#ecfdf5",
+                    background: "var(--lg-ok-soft)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -335,9 +348,9 @@ export default function AuthPage() {
                     <path d="m4 7 8 6 8-6" />
                   </svg>
                 </div>
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: "#0f172a", margin: "0 0 8px" }}>Check your email</h3>
-                <p style={{ fontSize: 13, color: "#64748b", lineHeight: 1.6, margin: "0 0 22px" }}>
-                  If an account exists for <strong style={{ color: "#0f172a" }}>{email}</strong>, we&apos;ve sent a link to
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--lg-text)", margin: "0 0 8px" }}>Check your email</h3>
+                <p style={{ fontSize: 13, color: "var(--lg-muted)", lineHeight: 1.6, margin: "0 0 22px" }}>
+                  If an account exists for <strong style={{ color: "var(--lg-text)" }}>{email}</strong>, we&apos;ve sent a link to
                   reset your password. Check your inbox and spam folder.
                 </p>
                 <button
@@ -348,7 +361,7 @@ export default function AuthPage() {
                     setForgotSent(false);
                     setError("");
                   }}
-                  style={{ background: "#0f172a", cursor: "pointer" }}
+                  style={{ background: "var(--lg-primary)", cursor: "pointer" }}
                 >
                   Back to sign in
                 </button>
@@ -407,7 +420,7 @@ export default function AuthPage() {
                             setError("");
                             setForgotSent(false);
                           }}
-                          style={{ fontWeight: 500, color: "#64748b" }}
+                          style={{ fontWeight: 500, color: "var(--lg-muted)" }}
                         >
                           Forgot password?
                         </button>
@@ -437,7 +450,7 @@ export default function AuthPage() {
                           transform: "translateY(-50%)",
                           background: "none",
                           border: "none",
-                          color: "#64748b",
+                          color: "var(--lg-muted)",
                           cursor: "pointer",
                           padding: 6,
                           display: "flex",
@@ -465,11 +478,11 @@ export default function AuthPage() {
                     style={{
                       margin: "0 0 16px",
                       fontSize: 13,
-                      color: "#b91c1c",
-                      background: "#fef2f2",
+                      color: "#ef4444",
+                      background: "rgba(239, 68, 68, 0.08)",
                       padding: "10px 12px",
                       borderRadius: 10,
-                      border: "1px solid #fecaca",
+                      border: "1px solid rgba(239, 68, 68, 0.3)",
                     }}
                   >
                     {error}
@@ -482,7 +495,7 @@ export default function AuthPage() {
                   className="lg-primary"
                   disabled={loading}
                   style={{
-                    background: success ? "#10b981" : "#0f172a",
+                    background: success ? "#10b981" : "var(--lg-primary)",
                     cursor: loading ? "not-allowed" : "pointer",
                     opacity: loading ? 0.7 : 1,
                     boxShadow: "0 1px 2px rgba(15,23,42,.1), 0 8px 20px rgba(15,23,42,.12)",
@@ -513,7 +526,7 @@ export default function AuthPage() {
                         setMode("signin");
                         setError("");
                       }}
-                      style={{ fontWeight: 500, color: "#64748b" }}
+                      style={{ fontWeight: 500, color: "var(--lg-muted)" }}
                     >
                       ← Back to sign in
                     </button>

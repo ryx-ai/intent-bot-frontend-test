@@ -170,7 +170,7 @@ const overlayStyle: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   padding: "1rem",
-  background: "rgba(15, 23, 42, 0.4)",
+  background: "var(--scrim)",
   backdropFilter: "blur(8px)",
 };
 

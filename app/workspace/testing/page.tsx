@@ -259,6 +259,7 @@ export default function TestingPage() {
   // found on the owner's website (reported by the live widget); plans without
   // own branding, or sites not seen yet, use the standard navy.
   const [siteColor, setSiteColor] = useState<string | null>(null);
+  const [hideBranding, setHideBranding] = useState(false);
   const [siteOrigin, setSiteOrigin] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
@@ -328,6 +329,7 @@ export default function TestingPage() {
             theme_color: string;
             system_prompt_text: string;
             support_contact?: string;
+            hide_branding?: boolean;
             is_customized_by_admin?: boolean;
           }>("/api/config/bot"),
           api.get<{ role?: string; tenant?: { slug: string; name?: string } }>("/api/auth/me"),
@@ -361,6 +363,7 @@ export default function TestingPage() {
           setRole(data.bot_role || "hybrid");
           setSavedRole(data.bot_role || "hybrid");
           setSupportContact(data.support_contact || "");
+          setHideBranding(!!data.hide_branding);
           if (data.theme_color) {
             setThemeColor(data.theme_color);
           }
@@ -438,6 +441,7 @@ export default function TestingPage() {
         calendar_link: finalLink,
         theme_color: themeColor,
         support_contact: supportContact.trim(),
+        hide_branding: planHas("custom_branding") ? hideBranding : false,
       });
       setSavedRole(role);
       setToast("Configuration saved!");
@@ -1044,6 +1048,76 @@ export default function TestingPage() {
             setDirty(true);
           }}
         />
+        )}
+
+        {/* Paid plans: hide "Powered by RYX AI" */}
+        {show("colour") && (
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 16,
+              padding: "14px 16px",
+              borderRadius: 14,
+              border: `1px solid ${C.border}`,
+              background: "var(--bg-card)",
+              cursor: planHas("custom_branding") ? "pointer" : "default",
+            }}
+          >
+            <span>
+              <span style={{ display: "block", fontWeight: 700, fontSize: "0.86rem", color: "var(--text-primary)" }}>
+                Hide &ldquo;Powered by RYX AI&rdquo;
+              </span>
+              <span style={{ display: "block", marginTop: 3, fontSize: "0.75rem", color: "var(--text-secondary)", lineHeight: 1.45 }}>
+                {planHas("custom_branding")
+                  ? "Your chat shows only your brand, with no RYX AI line at the bottom."
+                  : "Available on the Basic and Advanced plans."}
+              </span>
+            </span>
+            <span
+              role="switch"
+              aria-checked={planHas("custom_branding") && hideBranding}
+              aria-disabled={!planHas("custom_branding")}
+              tabIndex={planHas("custom_branding") ? 0 : -1}
+              onClick={(e) => {
+                e.preventDefault();
+                if (!planHas("custom_branding")) return;
+                setHideBranding((v) => !v);
+                setDirty(true);
+              }}
+              onKeyDown={(e) => {
+                if ((e.key === " " || e.key === "Enter") && planHas("custom_branding")) {
+                  e.preventDefault();
+                  setHideBranding((v) => !v);
+                  setDirty(true);
+                }
+              }}
+              style={{
+                flex: "none",
+                width: 40,
+                height: 23,
+                borderRadius: 999,
+                position: "relative",
+                background: planHas("custom_branding") && hideBranding ? "var(--text-primary)" : "var(--bg-hover)",
+                opacity: planHas("custom_branding") ? 1 : 0.5,
+                transition: "background .2s ease",
+              }}
+            >
+              <span
+                style={{
+                  position: "absolute",
+                  top: 3,
+                  left: planHas("custom_branding") && hideBranding ? 20 : 3,
+                  width: 17,
+                  height: 17,
+                  borderRadius: "50%",
+                  background: planHas("custom_branding") && hideBranding ? "var(--bg-card)" : "var(--text-muted)",
+                  transition: "left .2s ease, background .2s ease",
+                }}
+              />
+            </span>
+          </label>
         )}
       </section>
       )}
@@ -2346,7 +2420,7 @@ export default function TestingPage() {
       >
         <div
           onClick={() => setOpenSetting(null)}
-          style={{ position: "absolute", inset: 0, background: "rgba(15, 23, 42, 0.32)", backdropFilter: "blur(2px)" }}
+          style={{ position: "absolute", inset: 0, background: "var(--scrim)", backdropFilter: "blur(2px)" }}
         />
         <div
           className="ryx-setting-panel"
@@ -2786,6 +2860,7 @@ export default function TestingPage() {
             key={`preview_${widgetKey}_${chatResetKey}`}
             isShop={savedRole === "shop" || savedRole === "all"}
             themeColor={previewColor}
+            hideBranding={planHas("custom_branding") && hideBranding}
             tenantName={tenantName}
             tenantSlug={tenantSlug}
             isExpanded={isChatExpanded}
@@ -2931,6 +3006,7 @@ export default function TestingPage() {
             <ChatbotPreview
               isShop={savedRole === "shop" || savedRole === "all"}
               themeColor={previewColor}
+              hideBranding={planHas("custom_branding") && hideBranding}
               tenantName={tenantName}
               tenantSlug={tenantSlug}
               isExpanded={isChatExpanded}

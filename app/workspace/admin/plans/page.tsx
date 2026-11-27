@@ -248,9 +248,9 @@ export default function PlansAdminPage() {
           style={{
             padding: "0.85rem 1rem",
             borderRadius: 8,
-            backgroundColor: "#ecfdf5",
-            border: "1px solid #a7f3d0",
-            color: "#065f46",
+            backgroundColor: "rgba(16, 185, 129, 0.1)",
+            border: "1px solid rgba(16, 185, 129, 0.3)",
+            color: "var(--success)",
             fontSize: "0.875rem",
             display: "flex",
             justifyContent: "space-between",
@@ -260,7 +260,7 @@ export default function PlansAdminPage() {
           <span>{actionSuccess}</span>
           <button
             onClick={() => setActionSuccess("")}
-            style={{ background: "none", border: "none", color: "#065f46", fontWeight: 700, cursor: "pointer" }}
+            style={{ background: "none", border: "none", color: "var(--success)", fontWeight: 700, cursor: "pointer" }}
           >
             ✕
           </button>
@@ -271,9 +271,9 @@ export default function PlansAdminPage() {
           style={{
             padding: "0.85rem 1rem",
             borderRadius: 8,
-            backgroundColor: "#fef2f2",
-            border: "1px solid #fecaca",
-            color: "#991b1b",
+            backgroundColor: "rgba(239, 68, 68, 0.08)",
+            border: "1px solid rgba(239, 68, 68, 0.3)",
+            color: "var(--error)",
             fontSize: "0.875rem",
             display: "flex",
             justifyContent: "space-between",
@@ -283,7 +283,7 @@ export default function PlansAdminPage() {
           <span>{error}</span>
           <button
             onClick={() => setError("")}
-            style={{ background: "none", border: "none", color: "#991b1b", fontWeight: 700, cursor: "pointer" }}
+            style={{ background: "none", border: "none", color: "var(--error)", fontWeight: 700, cursor: "pointer" }}
           >
             ✕
           </button>
@@ -329,8 +329,8 @@ export default function PlansAdminPage() {
                       borderRadius: 20,
                       fontSize: "0.75rem",
                       fontWeight: 700,
-                      backgroundColor: p.is_active ? "#ecfdf5" : "var(--border)",
-                      color: p.is_active ? "#047857" : "var(--text-muted)",
+                      backgroundColor: p.is_active ? "rgba(16, 185, 129, 0.12)" : "var(--border)",
+                      color: p.is_active ? "var(--success)" : "var(--text-muted)",
                     }}
                   >
                     {p.is_active ? "Active" : "Disabled"}
@@ -435,7 +435,7 @@ export default function PlansAdminPage() {
             position: "fixed",
             inset: 0,
             zIndex: 1000,
-            backgroundColor: "rgba(15, 23, 42, 0.4)",
+            backgroundColor: "var(--scrim)",
             backdropFilter: "blur(2px)",
             display: "flex",
             alignItems: "center",

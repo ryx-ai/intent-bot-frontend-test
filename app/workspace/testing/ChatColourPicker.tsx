@@ -216,7 +216,7 @@ export default function ChatColourPicker({
             flex: auto ? "1 1 100%" : "0 0 230px",
             borderRadius: 14,
             border: `1px solid ${C.border}`,
-            background: "linear-gradient(160deg, #f6f7fb, #eef0f6)",
+            background: "linear-gradient(160deg, var(--bg-surface), var(--bg-sidebar))",
             padding: "14px 14px 12px",
             display: "flex",
             flexDirection: "column",
@@ -225,7 +225,7 @@ export default function ChatColourPicker({
             position: "relative",
           }}
         >
-          <span style={{ position: "absolute", left: 12, top: 10, fontSize: "0.65rem", fontWeight: 700, letterSpacing: ".1em", color: "#6b7280" }}>
+          <span style={{ position: "absolute", left: 12, top: 10, fontSize: "0.65rem", fontWeight: 700, letterSpacing: ".1em", color: "var(--text-muted)" }}>
             PREVIEW
           </span>
           <div
@@ -259,7 +259,7 @@ export default function ChatColourPicker({
             <ChatIcon color="#ffffff" />
           </div>
           {auto && (
-            <span style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 7, fontSize: "0.72rem", color: "#4b5563" }}>
+            <span style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 7, fontSize: "0.72rem", color: "var(--text-secondary)" }}>
               {siteColor ? (
                 <>
                   <span aria-hidden style={{ width: 10, height: 10, borderRadius: 3, background: siteColor }} />

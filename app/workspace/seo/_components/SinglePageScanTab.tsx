@@ -306,7 +306,7 @@ export function SinglePageScanTab({ initialSeo, defaultUrl, isConfigured }: Sing
                       </div>
                     </div>
 
-                    <span style={{ fontSize: "0.8rem", fontWeight: 700, padding: "0.25rem 0.5rem", borderRadius: 4, backgroundColor: item.status === "passed" ? "#ECFDF5" : item.status === "warning" ? "#FFFBEE" : "#FEF2F2", color: item.status === "passed" ? "#059669" : item.status === "warning" ? "#D97706" : "#DC2626", whiteSpace: "nowrap" }}>
+                    <span style={{ fontSize: "0.8rem", fontWeight: 700, padding: "0.25rem 0.5rem", borderRadius: 4, backgroundColor: item.status === "passed" ? "rgba(16, 185, 129, 0.12)" : item.status === "warning" ? "rgba(245, 158, 11, 0.12)" : "rgba(239, 68, 68, 0.1)", color: item.status === "passed" ? "#059669" : item.status === "warning" ? "#D97706" : "#DC2626", whiteSpace: "nowrap" }}>
                       {item.score_text}
                     </span>
                   </div>

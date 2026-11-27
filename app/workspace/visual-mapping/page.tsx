@@ -220,7 +220,7 @@ export default function VisualMappingPage() {
         .vm-thumb { cursor: zoom-in; }
         .vm-thumb img { transition: transform .3s ease; }
         .vm-thumb:hover img { transform: scale(1.03); }
-        .vm-thumb-view { position: absolute; right: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; background: rgba(15,23,42,.82); color: #fff; font-size: .72rem; font-weight: 600; opacity: 0; transform: translateY(3px); transition: opacity .18s, transform .18s; }
+        .vm-thumb-view { position: absolute; right: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; background: rgba(0,0,0,.72); color: #fff; font-size: .72rem; font-weight: 600; opacity: 0; transform: translateY(3px); transition: opacity .18s, transform .18s; }
         .vm-thumb:hover .vm-thumb-view { opacity: 1; transform: none; }
         .vm-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all .15s; flex-shrink: 0; }
         .vm-icon-btn:hover:not(:disabled) { border-color: #cbd5e1; color: var(--text-primary); }
@@ -463,11 +463,11 @@ export default function VisualMappingPage() {
                 <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid var(--border)" }}>
                   <div style={{ aspectRatio: "16 / 9", background: "linear-gradient(135deg,#e2e8f0,#f8fafc)", padding: 14, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, alignContent: "center" }}>
                     {[0.55, 0.8, 0.65].map((h, i) => (
-                      <div key={i} style={{ background: "#fff", borderRadius: 8, padding: 8, boxShadow: "0 2px 6px rgba(15,23,42,.06)" }}>
-                        <div style={{ height: 6, width: "60%", borderRadius: 4, background: "#cbd5e1" }} />
+                      <div key={i} style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8, padding: 8 }}>
+                        <div style={{ height: 6, width: "60%", borderRadius: 4, background: "var(--bg-hover)" }} />
                         <div style={{ height: 14, width: "45%", borderRadius: 4, background: "var(--ink)", marginTop: 8, opacity: h }} />
-                        <div style={{ height: 4, width: "80%", borderRadius: 4, background: "#e2e8f0", marginTop: 8 }} />
-                        <div style={{ height: 4, width: "70%", borderRadius: 4, background: "#e2e8f0", marginTop: 4 }} />
+                        <div style={{ height: 4, width: "80%", borderRadius: 4, background: "var(--bg-hover)", marginTop: 8 }} />
+                        <div style={{ height: 4, width: "70%", borderRadius: 4, background: "var(--bg-hover)", marginTop: 4 }} />
                       </div>
                     ))}
                   </div>
@@ -572,7 +572,7 @@ export default function VisualMappingPage() {
                             width: "100%",
                             aspectRatio: "4/3",
                             borderRadius: 12,
-                            background: "linear-gradient(180deg,#f8fafc,#eef2f6)",
+                            background: "linear-gradient(180deg, var(--bg-surface), var(--bg-sidebar))",
                             overflow: "hidden",
                             padding: 12,
                             boxSizing: "border-box",
@@ -895,7 +895,7 @@ export default function VisualMappingPage() {
             position: "fixed",
             inset: 0,
             zIndex: 1300,
-            background: "rgba(15,23,42,.72)",
+            background: "var(--scrim-strong)",
             backdropFilter: "blur(4px)",
             display: "flex",
             alignItems: "center",
@@ -925,7 +925,7 @@ export default function VisualMappingPage() {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
               </button>
             </div>
-            <div style={{ background: "#f1f5f9", padding: 16, overflow: "auto", display: "flex", justifyContent: "center" }}>
+            <div style={{ background: "var(--bg-sidebar)", padding: 16, overflow: "auto", display: "flex", justifyContent: "center" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={resolveImageUrl(mappings[viewKey].path)}

@@ -32,6 +32,8 @@ export interface ChatbotPreviewProps {
   /** Shop mode: shopper starter questions instead of demo booking. */
   isShop?: boolean;
   useDraft?: boolean;
+  /** Paid plans: hide "Powered by RYX AI". */
+  hideBranding?: boolean;
 }
 
 // Pure ID and timestamp generators to satisfy React compiler purity rules
@@ -324,6 +326,7 @@ export function ChatbotPreview({
   isSubscriptionActive = true,
   isShop = false,
   useDraft = false,
+  hideBranding = false,
 }: ChatbotPreviewProps) {
   // Business name as visitors should read it: workspaces are created as
   // "<Name>'s Workspace", so that suffix is dropped.
@@ -377,9 +380,9 @@ export function ChatbotPreview({
   // Preset suggested prompts matching Reference Screenshot 1
   const presetQuestions = isShop
     ? [
-        "What are your bestsellers?",
-        "How long does delivery take?",
-        "What is your return policy?",
+        "What do you sell?",
+        "Show me your products",
+        "How can I contact you?",
       ]
     : [
         `What does ${effectiveTenantName} do?`,
@@ -1359,6 +1362,7 @@ export function ChatbotPreview({
           </form>
 
           {/* Footer Branding */}
+          {!hideBranding && (
           <div
             style={{
               textAlign: "center",
@@ -1371,6 +1375,7 @@ export function ChatbotPreview({
           >
             Powered by <strong style={{ color: "#6B7280" }}>RYX AI</strong> · ©2026
           </div>
+          )}
         </div>
       </div>
     );
@@ -1969,6 +1974,7 @@ export function ChatbotPreview({
         </form>
 
         {/* Branding Footer */}
+        {!hideBranding && (
         <div
           style={{
             fontSize: "0.72rem",
@@ -1978,6 +1984,7 @@ export function ChatbotPreview({
         >
           Powered by <strong style={{ color: "#E5E7EB" }}>RYX AI</strong> · ©2026
         </div>
+        )}
       </div>
 
       {/* Lightbox Zoom Modal for Document Slide */}

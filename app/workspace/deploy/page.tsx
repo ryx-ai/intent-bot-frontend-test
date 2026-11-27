@@ -260,10 +260,10 @@ export default function DeployPage() {
         .dp-preview { position: sticky; top: 24px; display: flex; flex-direction: column; }
         .dp-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 1rem; }
         .dp-tab { padding: .42rem .85rem; border-radius: 999px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary); font: inherit; font-size: .82rem; font-weight: 500; cursor: pointer; transition: all .15s; }
-        .dp-tab:hover { border-color: #cbd5e1; color: var(--text-primary); }
+        .dp-tab:hover { border-color: var(--text-muted); color: var(--text-primary); }
         .dp-tab[aria-selected="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
-        .dp-copy { display: inline-flex; align-items: center; gap: 6px; padding: .45rem .85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,.18); background: #fff; color: #0f172a; font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; transition: transform .15s; }
-        .dp-copy:hover { transform: translateY(-1px); }
+        .dp-copy { display: inline-flex; align-items: center; gap: 6px; padding: .45rem .85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.08); color: #f2f2f2; font: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; transition: transform .15s; }
+        .dp-copy:hover { transform: translateY(-1px); background: rgba(255,255,255,.14); }
         .dp-info { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
         @media (max-width: 1100px) { .dp-grid { grid-template-columns: minmax(0, 1fr); } .dp-preview { position: static; } }
         @media (max-width: 560px) { .dp-info { grid-template-columns: 1fr; } }
@@ -353,7 +353,7 @@ export default function DeployPage() {
           {/* Step 1 */}
           <div style={card}>
             <StepHead n={1} title="Copy your code" sub="This one line adds the chat button to your website." />
-            <div style={{ borderRadius: 14, overflow: "hidden", background: "#0b1220", border: "1px solid #0b1220" }}>
+            <div style={{ borderRadius: 14, overflow: "hidden", background: "var(--code-bg)", border: "1px solid var(--code-border)" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.45rem 0.6rem 0.45rem 1rem", borderBottom: "1px solid rgba(255,255,255,.08)" }}>
                 <span style={{ display: "inline-flex", gap: 6 }} aria-hidden>
                   {["#ef4444", "#f59e0b", "#10b981"].map((c) => (
@@ -381,19 +381,19 @@ export default function DeployPage() {
                   fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
                   fontSize: "0.78rem",
                   lineHeight: 1.65,
-                  color: "#e2e8f0",
+                  color: "#d4d4d4",
                   whiteSpace: "pre-wrap",
                   wordBreak: "break-all",
                 }}
               >
-                <span style={{ color: "#f472b6" }}>&lt;script</span> <span style={{ color: "#93c5fd" }}>src</span>=<span style={{ color: "#86efac" }}>&quot;{backendOrigin}/static/embed.js&quot;</span>
-                {"\n        "}<span style={{ color: "#93c5fd" }}>data-api</span>=<span style={{ color: "#86efac" }}>&quot;{backendOrigin}&quot;</span>
+                <span style={{ color: "#8f8f8f" }}>&lt;script</span> <span style={{ color: "#e7e5e1" }}>src</span>=<span style={{ color: "#a7d7b8" }}>&quot;{backendOrigin}/static/embed.js&quot;</span>
+                {"\n        "}<span style={{ color: "#e7e5e1" }}>data-api</span>=<span style={{ color: "#a7d7b8" }}>&quot;{backendOrigin}&quot;</span>
                 {tenantSlug && (
                   <>
-                    {"\n        "}<span style={{ color: "#93c5fd" }}>data-tenant</span>=<span style={{ color: "#86efac" }}>&quot;{tenantSlug}&quot;</span>
+                    {"\n        "}<span style={{ color: "#e7e5e1" }}>data-tenant</span>=<span style={{ color: "#a7d7b8" }}>&quot;{tenantSlug}&quot;</span>
                   </>
                 )}
-                <span style={{ color: "#f472b6" }}>&gt;&lt;/script&gt;</span>
+                <span style={{ color: "#8f8f8f" }}>&gt;&lt;/script&gt;</span>
               </pre>
             </div>
             {copyError && <div style={{ marginTop: 8, fontSize: "0.8rem", color: "var(--error)" }}>{copyError}</div>}
@@ -451,7 +451,7 @@ export default function DeployPage() {
           <div style={{ ...card, padding: 0, overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0.7rem 1rem", borderBottom: "1px solid var(--border)", background: "var(--bg-surface)" }}>
               <span style={{ display: "inline-flex", gap: 6 }} aria-hidden>
-                {["#cbd5e1", "#cbd5e1", "#cbd5e1"].map((c, i) => (
+                {["var(--border)", "var(--border)", "var(--border)"].map((c, i) => (
                   <span key={i} style={{ width: 9, height: 9, borderRadius: "50%", background: c }} />
                 ))}
               </span>
@@ -460,29 +460,29 @@ export default function DeployPage() {
               </span>
             </div>
             <div style={{ position: "relative", height: 300, background: "linear-gradient(180deg, var(--bg-card), var(--bg-surface))", padding: "1.6rem 1.5rem" }} aria-hidden>
-              <div style={{ height: 12, width: "45%", borderRadius: 6, background: "#e2e8f0" }} />
-              <div style={{ height: 26, width: "75%", borderRadius: 8, background: "#cbd5e1", marginTop: 16 }} />
-              <div style={{ height: 10, width: "85%", borderRadius: 5, background: "#e2e8f0", marginTop: 14 }} />
-              <div style={{ height: 10, width: "65%", borderRadius: 5, background: "#e2e8f0", marginTop: 8 }} />
+              <div style={{ height: 12, width: "45%", borderRadius: 6, background: "var(--bg-hover)" }} />
+              <div style={{ height: 26, width: "75%", borderRadius: 8, background: "var(--bg-hover)", opacity: 0.9, marginTop: 16 }} />
+              <div style={{ height: 10, width: "85%", borderRadius: 5, background: "var(--bg-hover)", opacity: 0.7, marginTop: 14 }} />
+              <div style={{ height: 10, width: "65%", borderRadius: 5, background: "var(--bg-hover)", opacity: 0.7, marginTop: 8 }} />
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginTop: 24 }}>
                 {[0, 1, 2].map((i) => (
-                  <div key={i} style={{ height: 64, borderRadius: 12, background: "#eef2f6" }} />
+                  <div key={i} style={{ height: 64, borderRadius: 12, background: "var(--bg-sidebar)", border: "1px solid var(--border)" }} />
                 ))}
               </div>
 
-              {/* The real chat button design: greeting bubble + white circle */}
+              {/* The chat button: greeting bubble + round button */}
               <div style={{ position: "absolute", right: 22, bottom: 22, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12 }}>
                 <div
                   style={{
                     maxWidth: 230,
-                    background: "#fff",
-                    color: "var(--ink)",
+                    background: "var(--bg-card)",
+                    color: "var(--text-primary)",
                     fontSize: "0.8rem",
                     lineHeight: 1.45,
                     padding: "10px 14px",
                     borderRadius: "16px 16px 4px 16px",
-                    boxShadow: "0 10px 30px rgba(15,23,42,.14)",
-                    border: "1px solid #eef2f6",
+                    boxShadow: "var(--shadow-lg)",
+                    border: "1px solid var(--border)",
                   }}
                 >
                   👋 Hi! Have a question? I&apos;m here to help.
@@ -492,12 +492,12 @@ export default function DeployPage() {
                     width: 56,
                     height: 56,
                     borderRadius: "50%",
-                    background: "#fff",
+                    background: "var(--text-primary)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    color: "var(--ink)",
-                    boxShadow: "0 0 0 2px var(--ink), 0 10px 26px rgba(15,23,42,.22)",
+                    color: "var(--bg-card)",
+                    boxShadow: "0 0 0 5px color-mix(in srgb, var(--text-primary) 14%, transparent), var(--shadow-lg)",
                   }}
                 >
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

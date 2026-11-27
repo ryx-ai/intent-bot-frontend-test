@@ -11,6 +11,7 @@ import ChatColourPicker, { MATCH_WEBSITE_COLOR } from "./ChatColourPicker";
 import ShopSuggestionBanner from "./ShopSuggestionBanner";
 import WebsiteConfirmBanner from "../_components/WebsiteConfirmBanner";
 import AssistantCollage, { type SettingKey } from "./AssistantCollage";
+import StarterQuestionsEditor from "./StarterQuestionsEditor";
 import LiveSiteStatus from "../_components/SiteStatusChip";
 import { Spinner } from "../_components/Loader";
 
@@ -260,6 +261,7 @@ export default function TestingPage() {
   // own branding, or sites not seen yet, use the standard navy.
   const [siteColor, setSiteColor] = useState<string | null>(null);
   const [hideBranding, setHideBranding] = useState(false);
+  const [starterQuestions, setStarterQuestions] = useState<string[]>([]);
   const [siteOrigin, setSiteOrigin] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
@@ -333,6 +335,7 @@ export default function TestingPage() {
             system_prompt_text: string;
             support_contact?: string;
             hide_branding?: boolean;
+            starter_questions?: string[];
             is_customized_by_admin?: boolean;
           }>("/api/config/bot"),
           api.get<{ role?: string; tenant?: { slug: string; name?: string } }>("/api/auth/me"),
@@ -367,6 +370,7 @@ export default function TestingPage() {
           setSavedRole(data.bot_role || "hybrid");
           setSupportContact(data.support_contact || "");
           setHideBranding(!!data.hide_branding);
+          setStarterQuestions(Array.isArray(data.starter_questions) ? data.starter_questions : []);
           if (data.theme_color) {
             setThemeColor(data.theme_color);
           }
@@ -445,6 +449,7 @@ export default function TestingPage() {
         theme_color: themeColor,
         support_contact: supportContact.trim(),
         hide_branding: planHas("custom_branding") ? hideBranding : false,
+        starter_questions: starterQuestions.map((q) => q.trim()).filter(Boolean),
       });
       setSavedRole(role);
       setToast("Configuration saved!");
@@ -936,6 +941,7 @@ export default function TestingPage() {
           }}
           themeColor={themeColor}
           siteColor={siteColor}
+          starterQuestions={starterQuestions.map((q) => q.trim()).filter(Boolean)}
           supportContact={supportContact}
           calendarLink={calendarLink}
           rules={rules}
@@ -1126,6 +1132,25 @@ export default function TestingPage() {
       )}
 
       {/* Shop mode: how visitors reach a person */}
+      {show("starters") && (
+        <section
+          style={{
+            backgroundColor: C.bgCard,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            padding: "1.25rem",
+          }}
+        >
+          <StarterQuestionsEditor
+            value={starterQuestions}
+            onChange={(next) => {
+              setStarterQuestions(next);
+              setDirty(true);
+            }}
+          />
+        </section>
+      )}
+
       {show("support") && (role === "shop" || role === "all") && (
         <section
           style={{
@@ -2401,6 +2426,7 @@ export default function TestingPage() {
     products: "Products",
     rules: "Rules",
     booking: role === "shop" ? "Advanced" : "Booking link",
+    starters: "First questions",
   };
 
   const SETTING_HINTS: Record<SettingKey, string> = {
@@ -2410,6 +2436,7 @@ export default function TestingPage() {
     products: "What your assistant can recommend to shoppers",
     rules: "Plain-word rules for how your assistant replies",
     booking: role === "shop" ? "Platform and prompt options" : "Where visitors book a call with you",
+    starters: "What visitors can tap when the chat opens",
   };
 
   // One setting, opened from a collage tile, in a pop-up in the centre
@@ -2864,6 +2891,7 @@ export default function TestingPage() {
             isShop={savedRole === "shop" || savedRole === "all"}
             themeColor={previewColor}
             hideBranding={planHas("custom_branding") && hideBranding}
+            starterQuestions={starterQuestions.map((q) => q.trim()).filter(Boolean)}
             tenantName={tenantName}
             tenantSlug={tenantSlug}
             isExpanded={isChatExpanded}
@@ -3010,6 +3038,7 @@ export default function TestingPage() {
               isShop={savedRole === "shop" || savedRole === "all"}
               themeColor={previewColor}
               hideBranding={planHas("custom_branding") && hideBranding}
+              starterQuestions={starterQuestions.map((q) => q.trim()).filter(Boolean)}
               tenantName={tenantName}
               tenantSlug={tenantSlug}
               isExpanded={isChatExpanded}

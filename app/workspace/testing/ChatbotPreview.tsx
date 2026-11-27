@@ -34,6 +34,8 @@ export interface ChatbotPreviewProps {
   useDraft?: boolean;
   /** Paid plans: hide "Powered by RYX AI". */
   hideBranding?: boolean;
+  /** Owner-approved first questions (empty = defaults). */
+  starterQuestions?: string[];
 }
 
 // Pure ID and timestamp generators to satisfy React compiler purity rules
@@ -327,6 +329,7 @@ export function ChatbotPreview({
   isShop = false,
   useDraft = false,
   hideBranding = false,
+  starterQuestions,
 }: ChatbotPreviewProps) {
   // Business name as visitors should read it: workspaces are created as
   // "<Name>'s Workspace", so that suffix is dropped.
@@ -377,8 +380,10 @@ export function ChatbotPreview({
   const abortControllerRef = useRef<AbortController | null>(null);
   const initPromiseRef = useRef<Promise<void> | null>(null);
 
-  // Preset suggested prompts matching Reference Screenshot 1
-  const presetQuestions = isShop
+  // First questions: the owner's approved ones, otherwise general defaults.
+  const presetQuestions = starterQuestions && starterQuestions.length
+    ? starterQuestions.slice(0, 4)
+    : isShop
     ? [
         "What do you sell?",
         "Show me your products",

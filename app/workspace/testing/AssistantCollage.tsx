@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { MATCH_WEBSITE_COLOR } from "./ChatColourPicker";
 
 /** Which setting a tile opens in the side panel. */
-export type SettingKey = "role" | "colour" | "support" | "products" | "rules" | "booking";
+export type SettingKey = "role" | "colour" | "support" | "products" | "rules" | "booking" | "starters";
 
 type Role = { key: string; label: string; desc: string };
 type Rule = { id: number; instruction_text: string; is_active: boolean };
@@ -122,6 +122,7 @@ export default function AssistantCollage({
   onOpen,
   locked,
   siteColor,
+  starterQuestions = [],
 }: {
   roles: Role[];
   role: string;
@@ -137,6 +138,8 @@ export default function AssistantCollage({
   locked?: { colour?: boolean; booking?: boolean };
   /** Colour the chat found on the owner's website ("Match my website"). */
   siteColor?: string | null;
+  /** First questions the owner approved (empty = general defaults). */
+  starterQuestions?: string[];
 }) {
   const isShop = role === "shop" || role === "all";
   const router = useRouter();
@@ -440,6 +443,42 @@ export default function AssistantCollage({
           </span>
         </Tile>
       )}
+
+      {/* First questions shown when the chat opens */}
+      <Tile
+        label="First questions"
+        action={starterQuestions.length ? "Edit" : "Set up"}
+        onOpen={() => onOpen("starters")}
+        style={{ gridColumn: "span 6", gridRow: "auto" }}
+      >
+        {starterQuestions.length ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+            {starterQuestions.map((q) => (
+              <span
+                key={q}
+                style={{
+                  fontSize: "0.8rem",
+                  fontWeight: 600,
+                  padding: "0.4rem 0.8rem",
+                  borderRadius: 999,
+                  border: "1px solid var(--border)",
+                  background: "var(--bg-surface)",
+                  color: "var(--text-primary)",
+                }}
+              >
+                {q}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize: "0.95rem", fontWeight: 600, marginTop: "auto" }}>Not set up yet</div>
+            <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 4 }}>
+              Pick the questions visitors can tap when the chat opens. We&apos;ll suggest some from your website.
+            </span>
+          </>
+        )}
+      </Tile>
 
       <style>{`
         .ryx-collage { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); grid-auto-rows: minmax(112px, auto); gap: 14px; }

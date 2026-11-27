@@ -262,6 +262,13 @@ export default function TestingPage() {
   const [siteColor, setSiteColor] = useState<string | null>(null);
   const [hideBranding, setHideBranding] = useState(false);
   const [starterQuestions, setStarterQuestions] = useState<string[]>([]);
+  // What the chat shows when no first questions are approved (same as the
+  // website widget and the test chat).
+  const starterBusinessName = (tenantName || "").trim().replace(/['’]s workspace$/i, "").trim() || "RYX AI";
+  const defaultStarterQuestions =
+    savedRole === "shop" || savedRole === "all"
+      ? ["What do you sell?", "Show me your products", "How can I contact you?"]
+      : [`What does ${starterBusinessName} do?`, `What are the services provided by ${starterBusinessName}?`, "Book a Demo/Call"];
   const [siteOrigin, setSiteOrigin] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
@@ -1143,6 +1150,7 @@ export default function TestingPage() {
         >
           <StarterQuestionsEditor
             value={starterQuestions}
+            defaults={defaultStarterQuestions}
             onChange={(next) => {
               setStarterQuestions(next);
               setDirty(true);
@@ -1585,7 +1593,7 @@ export default function TestingPage() {
                             onClick={() => handleSaveEdit(r.id)}
                             disabled={savingEditRule || !editingRuleText.trim()}
                             style={{
-                              backgroundColor: C.accent,
+                              backgroundColor: "var(--ink)",
                               border: "none",
                               borderRadius: 6,
                               padding: "0.3rem 0.85rem",
@@ -2120,7 +2128,7 @@ export default function TestingPage() {
                       onClick={addCalCredential}
                       disabled={calCredSubmitting}
                       style={{
-                        backgroundColor: C.accent,
+                        backgroundColor: "var(--ink)",
                         color: "#ffffff",
                         border: "none",
                         borderRadius: 6,
@@ -2557,7 +2565,7 @@ export default function TestingPage() {
                   padding: "0.6rem 1.15rem",
                   borderRadius: 9,
                   border: "none",
-                  background: C.accent,
+                  background: "var(--ink)",
                   color: "#fff",
                   fontSize: "0.85rem",
                   fontWeight: 600,

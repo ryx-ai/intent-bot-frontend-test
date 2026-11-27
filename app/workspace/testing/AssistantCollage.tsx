@@ -472,9 +472,9 @@ export default function AssistantCollage({
           </div>
         ) : (
           <>
-            <div style={{ fontSize: "0.95rem", fontWeight: 600, marginTop: "auto" }}>Not set up yet</div>
+            <div style={{ fontSize: "0.95rem", fontWeight: 600, marginTop: "auto" }}>Using the default questions</div>
             <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 4 }}>
-              Pick the questions visitors can tap when the chat opens. We&apos;ll suggest some from your website.
+              Choose your own: we&apos;ll suggest some from your website.
             </span>
           </>
         )}

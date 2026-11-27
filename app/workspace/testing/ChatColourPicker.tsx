@@ -47,15 +47,21 @@ function ChatIcon({ color }: { color: string }) {
 export default function ChatColourPicker({
   value,
   onChange,
+  siteColor,
+  siteOrigin,
 }: {
   value: string;
   onChange: (hex: string) => void;
+  /** Colour the live chat found on the owner's website, if seen yet. */
+  siteColor?: string | null;
+  siteOrigin?: string | null;
 }) {
   const auto = value.toLowerCase() === MATCH_WEBSITE_COLOR.toLowerCase();
   const [draft, setDraft] = useState(auto ? "" : value.toUpperCase());
   const [lastCustom, setLastCustom] = useState(auto ? PRESETS[1].hex : value);
   const [openCustom, setOpenCustom] = useState(false);
-  const previewColor = auto ? "#6B7280" : value;
+  const previewColor = auto ? siteColor || "#6B7280" : value;
+  const siteName = (siteOrigin || "").replace(/^https?:\/\//, "").replace(/^www\./, "");
 
   function pick(hex: string) {
     setLastCustom(hex);
@@ -99,7 +105,12 @@ export default function ChatColourPicker({
         <button type="button" style={optionCard(auto)} onClick={() => onChange(MATCH_WEBSITE_COLOR)} aria-pressed={auto}>
           <span style={radio(auto)} />
           <span>
-            <span style={{ display: "block", fontWeight: 700, fontSize: "0.86rem" }}>✨ Match my website</span>
+            <span style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: "0.86rem" }}>
+              Match my website
+              {siteColor && (
+                <span aria-hidden style={{ width: 12, height: 12, borderRadius: "50%", background: siteColor, boxShadow: "0 0 0 2px var(--bg-card), 0 0 0 3px var(--border)" }} />
+              )}
+            </span>
             <span style={{ display: "block", marginTop: 3, fontSize: "0.75rem", color: C.textSecondary, lineHeight: 1.45 }}>
               Uses your website&apos;s own colour and fonts automatically. Recommended.
             </span>
@@ -108,7 +119,7 @@ export default function ChatColourPicker({
         <button type="button" style={optionCard(!auto)} onClick={() => auto && pick(lastCustom)} aria-pressed={!auto}>
           <span style={radio(!auto)} />
           <span>
-            <span style={{ display: "block", fontWeight: 700, fontSize: "0.86rem" }}>🎨 Choose a colour</span>
+            <span style={{ display: "block", fontWeight: 700, fontSize: "0.86rem" }}>Choose a colour</span>
             <span style={{ display: "block", marginTop: 3, fontSize: "0.75rem", color: C.textSecondary, lineHeight: 1.45 }}>
               Use your exact brand colour everywhere.
             </span>
@@ -234,21 +245,29 @@ export default function ChatColourPicker({
           </div>
           <div
             style={{
-              width: 46,
-              height: 46,
+              width: 50,
+              height: 50,
               borderRadius: "50%",
-              background: "#fff",
+              background: previewColor,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              boxShadow: `0 0 0 5px ${previewColor}22, 0 8px 18px rgba(17,24,39,.16)`,
+              boxShadow: `0 0 0 5px ${previewColor}26, 0 10px 24px ${previewColor}55`,
+              transition: "background .25s ease, box-shadow .25s ease",
             }}
           >
-            <ChatIcon color={previewColor} />
+            <ChatIcon color="#ffffff" />
           </div>
           {auto && (
-            <span style={{ alignSelf: "flex-start", fontSize: "0.72rem", color: "#6b7280" }}>
-              On your website, grey becomes your website&apos;s colour.
+            <span style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 7, fontSize: "0.72rem", color: "#4b5563" }}>
+              {siteColor ? (
+                <>
+                  <span aria-hidden style={{ width: 10, height: 10, borderRadius: 3, background: siteColor }} />
+                  Your website&apos;s colour{siteName ? ` on ${siteName}` : ""} · {siteColor.toUpperCase()}
+                </>
+              ) : (
+                "We'll pick up your website's colour the next time the chat loads there."
+              )}
             </span>
           )}
         </div>

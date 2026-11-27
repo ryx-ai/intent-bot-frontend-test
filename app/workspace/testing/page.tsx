@@ -255,11 +255,30 @@ export default function TestingPage() {
 
   const isSuperAdmin = userRole === "super_admin";
 
-  // Colour shown in the test chat. "Match your website" can't be shown here (we
-  // can't see their site), and plans without own branding use the standard navy.
-  const previewColor =
-    !planHas("custom_branding") || themeColor.toLowerCase() === MATCH_WEBSITE_COLOR.toLowerCase()
-      ? "var(--ink)"
+  // Colour shown in the test chat. "Match my website" uses the colour the chat
+  // found on the owner's website (reported by the live widget); plans without
+  // own branding, or sites not seen yet, use the standard navy.
+  const [siteColor, setSiteColor] = useState<string | null>(null);
+  const [siteOrigin, setSiteOrigin] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api
+      .get<{ site_color?: string | null; origin?: string | null }>("/api/config/widget-status")
+      .then((r) => {
+        if (!alive) return;
+        if (r.site_color && /^#[0-9a-f]{6}$/i.test(r.site_color)) setSiteColor(r.site_color);
+        if (r.origin) setSiteOrigin(r.origin);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const matchingSite = themeColor.toLowerCase() === MATCH_WEBSITE_COLOR.toLowerCase();
+  const previewColor = !planHas("custom_branding")
+    ? "#0f172a"
+    : matchingSite
+      ? siteColor || "#0f172a"
       : themeColor;
 
   function showCalCredentialMessage(message: string, isError = false) {
@@ -909,6 +928,7 @@ export default function TestingPage() {
             setDirty(true);
           }}
           themeColor={themeColor}
+          siteColor={siteColor}
           supportContact={supportContact}
           calendarLink={calendarLink}
           rules={rules}
@@ -1017,6 +1037,8 @@ export default function TestingPage() {
         {show("colour") && (
         <ChatColourPicker
           value={themeColor}
+          siteColor={siteColor}
+          siteOrigin={siteOrigin}
           onChange={(hex) => {
             setThemeColor(hex);
             setDirty(true);

@@ -121,6 +121,7 @@ export default function AssistantCollage({
   isSuperAdmin,
   onOpen,
   locked,
+  siteColor,
 }: {
   roles: Role[];
   role: string;
@@ -134,6 +135,8 @@ export default function AssistantCollage({
   onOpen: (key: SettingKey) => void;
   /** Settings the customer's plan does not include. */
   locked?: { colour?: boolean; booking?: boolean };
+  /** Colour the chat found on the owner's website ("Match my website"). */
+  siteColor?: string | null;
 }) {
   const isShop = role === "shop" || role === "all";
   const router = useRouter();
@@ -317,12 +320,16 @@ export default function AssistantCollage({
               width: 28,
               height: 28,
               borderRadius: "50%",
-              background: matchSite ? "conic-gradient(#0f172a 0 25%,#2563eb 0 50%,#059669 0 75%,#e11d48 0)" : themeColor,
+              background: matchSite ? siteColor || "conic-gradient(#0f172a 0 25%,#2563eb 0 50%,#059669 0 75%,#e11d48 0)" : themeColor,
               boxShadow: "0 0 0 2px var(--bg-card), 0 0 0 3.5px var(--text-primary)",
             }}
           />
           <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-            {matchSite ? "Uses your website's colour and fonts" : themeColor.toUpperCase()}
+            {matchSite
+              ? siteColor
+                ? `Your website's colour · ${siteColor.toUpperCase()}`
+                : "Uses your website's colour and fonts"
+              : themeColor.toUpperCase()}
           </span>
         </div>
       </Tile>

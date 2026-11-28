@@ -81,10 +81,9 @@ export default function ColourPopover({
     onChange(h);
   }
 
-  function drag(ref: React.RefObject<HTMLDivElement | null>, move: (x: number, y: number) => void) {
-    return (e: React.PointerEvent) => {
-      const el = ref.current;
-      if (!el) return;
+  function drag(move: (x: number, y: number) => void) {
+    return (e: React.PointerEvent<HTMLDivElement>) => {
+      const el = e.currentTarget;
       e.preventDefault();
       const at = (ev: { clientX: number; clientY: number }) => {
         const r = el.getBoundingClientRect();
@@ -137,7 +136,7 @@ export default function ColourPopover({
       {/* Colour area */}
       <div
         ref={areaRef}
-        onPointerDown={drag(areaRef, (x, y) => apply({ ...hsv, s: x, v: 1 - y }))}
+        onPointerDown={drag((x, y) => apply({ ...hsv, s: x, v: 1 - y }))}
         style={{
           position: "relative",
           height: 150,
@@ -167,7 +166,7 @@ export default function ColourPopover({
       {/* Hue */}
       <div
         ref={hueRef}
-        onPointerDown={drag(hueRef, (x) => apply({ ...hsv, h: Math.min(359.9, x * 360) }))}
+        onPointerDown={drag((x) => apply({ ...hsv, h: Math.min(359.9, x * 360) }))}
         style={{
           position: "relative",
           height: 14,

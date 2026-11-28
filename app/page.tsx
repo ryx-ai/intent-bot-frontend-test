@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, FormEvent } from "react";
+import { Suspense, useState, useEffect, useCallback, FormEvent } from "react";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import Script from "next/script";
 import { useAuth } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
@@ -36,20 +37,26 @@ interface GoogleWindow extends Window {
 }
 
 export default function AuthPage() {
+  return (
+    <Suspense fallback={null}>
+      <AuthPageInner />
+    </Suspense>
+  );
+}
+
+function AuthPageInner() {
   const { login, signup, googleAuth } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // ?error=suspended / deleted, read the same way on the server and in the
+  // browser (reading window here made the two disagree).
+  const searchParams = useSearchParams();
   const [error, setError] = useState(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("error") === "suspended") {
-        return "This account has been suspended.\nPlease contact support.";
-      } else if (params.get("error") === "deleted") {
-        return "This account is no longer active.";
-      }
-    }
+    const reason = searchParams.get("error");
+    if (reason === "suspended") return "This account has been suspended.\nPlease contact support.";
+    if (reason === "deleted") return "This account is no longer active.";
     return "";
   });
   const [loading, setLoading] = useState(false);
@@ -437,9 +444,9 @@ export default function AuthPage() {
                         className="lg-input"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        placeholder={mode === "signup" ? "At least 6 characters" : "Your password"}
+                        placeholder={mode === "signup" ? "8+ characters, letters and numbers" : "Your password"}
                         required
-                        minLength={6}
+                        minLength={mode === "signup" ? 8 : undefined}
                         autoComplete={mode === "signin" ? "current-password" : "new-password"}
                         style={{ paddingRight: 44 }}
                       />

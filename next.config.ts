@@ -11,6 +11,19 @@ const BACKEND_URL =
 // Set STATIC_BACKEND_URL on Vercel if your static files are served from a different origin
 const STATIC_BACKEND_URL = process.env.STATIC_BACKEND_URL || BACKEND_URL;
 
+const IS_DEV = process.env.NODE_ENV !== "production";
+// The backend's own address (the dashboard calls it for health checks).
+const BACKEND_ORIGIN = [BACKEND_URL, process.env.NEXT_PUBLIC_API_URL || ""]
+  .map((u) => {
+    try {
+      return new URL(u).origin;
+    } catch {
+      return "";
+    }
+  })
+  .filter((o, i, all) => o && all.indexOf(o) === i)
+  .join(" ");
+
 const securityHeaders = [
   {
     key: "X-Content-Type-Options",
@@ -29,15 +42,18 @@ const securityHeaders = [
     value: "on",
   },
   {
-    key: "Content-Security-Policy-Report-Only",
+    // Enforced: only these sources may run scripts, load frames or be called.
+    key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com/gsi/client https://checkout.razorpay.com",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://checkout.razorpay.com https://*.razorpay.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com",
       "font-src 'self' https://fonts.gstatic.com data:",
       "img-src 'self' data: blob: https:",
-      "connect-src 'self' https://accounts.google.com https://api.razorpay.com https://checkout.razorpay.com https://api-test.ryxai.in https://ryxai.in http://127.0.0.1:8000 http://localhost:8000 https://api.cal.com",
-      "frame-src https://accounts.google.com https://api.razorpay.com https://checkout.razorpay.com https://app.cal.com https://cal.com",
+      `connect-src 'self' ${BACKEND_ORIGIN} https://accounts.google.com https://*.razorpay.com https://api.cal.com${IS_DEV ? " ws: http://127.0.0.1:8000 http://localhost:8000 http://127.0.0.1:8010" : ""}`,
+      "frame-src https://accounts.google.com https://*.razorpay.com https://app.cal.com https://cal.com",
+      "worker-src 'self' blob:",
+      "form-action 'self' https://*.razorpay.com",
       "frame-ancestors 'none'",
       "object-src 'none'",
       "base-uri 'self'",

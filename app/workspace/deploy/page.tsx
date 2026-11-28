@@ -130,6 +130,33 @@ function isDevOrigin(origin: string): boolean {
 
 type HealthState = "checking" | "ok" | "down";
 
+// Numbered step title (outside the page so React keeps it stable).
+const StepHead = ({ n, title, sub }: { n: number; title: string; sub: string }) => (
+  <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: "0.85rem" }}>
+    <span
+      style={{
+        width: 28,
+        height: 28,
+        borderRadius: "50%",
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "var(--ink)",
+        color: "#fff",
+        fontSize: "0.8rem",
+        fontWeight: 700,
+      }}
+    >
+      {n}
+    </span>
+    <div>
+      <div style={{ fontSize: "1rem", fontWeight: 650, color: "var(--text-primary)" }}>{title}</div>
+      <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", marginTop: 2 }}>{sub}</div>
+    </div>
+  </div>
+);
+
 export default function DeployPage() {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState("");
@@ -227,31 +254,6 @@ export default function DeployPage() {
     boxShadow: "0 1px 2px rgba(15,23,42,.04), 0 6px 20px rgba(15,23,42,.035)",
   };
 
-  const StepHead = ({ n, title, sub }: { n: number; title: string; sub: string }) => (
-    <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: "0.85rem" }}>
-      <span
-        style={{
-          width: 28,
-          height: 28,
-          borderRadius: "50%",
-          flexShrink: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "var(--ink)",
-          color: "#fff",
-          fontSize: "0.8rem",
-          fontWeight: 700,
-        }}
-      >
-        {n}
-      </span>
-      <div>
-        <div style={{ fontSize: "1rem", fontWeight: 650, color: "var(--text-primary)" }}>{title}</div>
-        <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", marginTop: 2 }}>{sub}</div>
-      </div>
-    </div>
-  );
 
   return (
     <div style={{ width: "100%", maxWidth: 1360, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>

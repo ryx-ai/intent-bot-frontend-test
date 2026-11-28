@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { FullSiteAuditTab, type ConnectedWebsite } from "./_components/FullSiteAuditTab";
 import { TrafficMatrixTab } from "./_components/TrafficMatrixTab";
@@ -37,16 +38,22 @@ interface AppPerformanceData {
 
 type TabKey = "site-audit" | "traffic";
 
+// The tab comes from the address (?tab=chat-activity). useSearchParams gives
+// the server and the browser the same answer, so the first paint matches and
+// React doesn't have to throw the page away and redraw it.
 export default function SeoHubPage() {
+  return (
+    <Suspense fallback={null}>
+      <SeoHub />
+    </Suspense>
+  );
+}
+
+function SeoHub() {
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const tab = params.get("tab");
-      if (tab === "traffic" || tab === "chat-activity") {
-        return "traffic";
-      }
-    }
-    return "site-audit";
+    const tab = searchParams.get("tab");
+    return tab === "traffic" || tab === "chat-activity" ? "traffic" : "site-audit";
   });
   const [primaryWebsite, setPrimaryWebsite] = useState<ConnectedWebsite | null>(null);
 

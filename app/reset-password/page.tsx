@@ -85,8 +85,8 @@ function ResetPasswordContent() {
     e.preventDefault();
     setError("");
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters long.");
+    if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+      setError("Use at least 8 characters, with both letters and numbers.");
       return;
     }
 
@@ -209,7 +209,7 @@ function ResetPasswordContent() {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
             required
-            minLength={6}
+            minLength={8}
             autoComplete="new-password"
             style={{
               width: "100%",
@@ -265,7 +265,7 @@ function ResetPasswordContent() {
             onChange={(e) => setConfirmPassword(e.target.value)}
             placeholder="••••••••"
             required
-            minLength={6}
+            minLength={8}
             autoComplete="new-password"
             style={{
               width: "100%",
